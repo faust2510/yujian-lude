@@ -1,0 +1,18 @@
+- generic [ref=e19]:
+  - heading "加入遇见路得" [level=1] [ref=e20]
+  - paragraph [ref=e21]: 用邮箱创建账号，开始你的婚姻装备之旅
+  - generic [ref=e22]:
+    - generic [ref=e23]:
+      - generic [ref=e24]: 昵称（选填）
+      - textbox "你希望别人怎么称呼你" [ref=e25]
+    - generic [ref=e26]:
+      - generic [ref=e27]: 邮箱
+      - textbox [ref=e28]
+    - generic [ref=e29]:
+      - generic [ref=e30]: 密码（至少 8 位）
+      - textbox [ref=e31]
+    - button "创建账号" [ref=e32] [cursor=pointer]
+  - paragraph [ref=e33]:
+    - text: 已有账号？
+    - link "返回登录" [ref=e34] [cursor=pointer]:
+      - /url: /yujian/login

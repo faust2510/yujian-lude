@@ -1,0 +1,5 @@
+[    2126ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ https://edu.strcs.org/yujian/api/community/groups:0
+[    2360ms] [ERROR] Failed to load resource: the server responded with a status of 502 (Bad Gateway) @ https://edu.strcs.org/yujian/api/community/posts?page=1:0
+[    2369ms] AxiosError: Request failed with status code 502
+    at fa (https://edu.strcs.org/yujian/assets/index-D-MHQaMW.js:13:10311)
+    at XMLHttpRequest.g (https://edu.strcs.org/yujian/assets/index-D-MHQaMW.js:13:16431)

@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>遇见路得 | 严肃婚恋服务</title>
+  <meta name="description" content="遇见路得 — 实名保护、顾问复核、安全沟通的严肃婚恋服务平台。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#home">跳到主要内容</a>
+
+  <header class="site-header">
+    <a class="brand" href="#home" aria-label="遇见路得首页">
+      <span class="brand-mark">路</span>
+      <span>
+        <strong>遇见路得</strong>
+        <small>严肃婚恋服务</small>
+      </span>
+    </a>
+    <nav class="top-nav" id="topNav" aria-label="主导航">
+      <a href="#home">首页</a>
+      <a href="#profile">资料</a>
+      <a href="#match">匹配</a>
+      <a href="#course">课程</a>
+      <a href="#faithTest">测试</a>
+      <a href="#ai">咨询</a>
+      <a href="#chat">沟通</a>
+      <a href="#pricing">套餐</a>
+    </nav>
+    <div class="header-cta">
+      <a class="primary-button" href="/app">登录 / 注册</a>
+      <button class="ghost-button" id="openSupport" type="button">联系顾问</button>
+    </div>
+    <button class="nav-toggle" id="navToggle" type="button" aria-label="打开导航菜单" aria-expanded="false" aria-controls="topNav">
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+      <span class="nav-toggle-bar"></span>
+    </button>
+  </header>
+
+  <main>
+    <!-- ─── Hero ─── -->
+    <section class="hero parallax-wrap" id="home" data-od-id="hero">
+      <div class="parallax-bg" role="img" aria-label="黄昏原野"></div>
+      <div class="hero-copy hero-stagger">
+        <span class="hero-eyebrow">实名保护 · 顾问复核 · 安全沟通</span>
+        <h1>为认真走入婚姻的人，建立一条更稳妥的相识路</h1>
+        <p class="hero-text">先完善资料生成画像，再筛选匿名候选人，由顾问协助确认意向与边界。减少无效沟通，保护个人隐私。</p>
+        <div class="hero-actions">
+          <a class="primary-button" href="/app">完善资料并生成画像</a>
+          <a class="secondary-button" href="/app">查看匿名匹配</a>
+        </div>
+      </div>
+      <form class="search-panel animate-load" id="quickSearch">
+        <h2>开始智能匹配</h2>
+        <label>
+          所在城市
+          <select name="city">
+            <option>杭州</option>
+            <option>上海</option>
+            <option>南京</option>
+            <option>苏州</option>
+            <option>宁波</option>
+          </select>
+        </label>
+        <label>
+          期望年龄
+          <select name="age">
+            <option>25-32 岁</option>
+            <option>28-36 岁</option>
+            <option>32-42 岁</option>
+            <option>40-50 岁</option>
+          </select>
+        </label>
+        <label>
+          婚恋目标
+          <select name="goal">
+            <option>一年内稳定关系</option>
+            <option>以结婚为目标相处</option>
+            <option>先深入了解再决定</option>
+          </select>
+        </label>
+        <button class="primary-button full" type="submit">查看匹配对象</button>
+        <p class="form-note">不会公开手机号、证件、真实姓名等敏感信息。</p>
+      </form>
+    </section>
+
+    <!-- ─── Trust Strip ─── -->
+    <section class="trust-strip" aria-label="服务承诺" data-od-id="trust">
+      <div class="trust-card">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v6c0 5.25 3.83 10.15 9 11 5.17-.85 9-5.75 9-11V7l-9-5z"/><path d="M9 12l2 2 4-4"/></svg></span>
+        <strong>实名材料保护</strong><span>敏感信息仅用于顾问审核</span>
+      </div>
+      <div class="trust-card">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></span>
+        <strong>匿名预览机制</strong><span>互相确认前不展示真实身份</span>
+      </div>
+      <div class="trust-card">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+        <strong>顾问全程复核</strong><span>重要节点由人工确认把关</span>
+      </div>
+      <div class="trust-card">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <strong>沟通记录留痕</strong><span>咨询、付款、沟通全程可追溯</span>
+      </div>
+    </section>
+
+    <!-- ─── Stats Band ─── -->
+    <section class="stats-band" aria-label="平台数据" data-od-id="stats">
+      <div class="stats-inner">
+        <div class="stat-item">
+          <span class="stat-num">3,200<small>+</small></span>
+          <span class="stat-label">在册用户</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">487<small>对</small></span>
+          <span class="stat-label">已促成见面</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">28<small>位</small></span>
+          <span class="stat-label">专业顾问</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">96<small>%</small></span>
+          <span class="stat-label">用户好评率</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Service Flow ─── -->
+    <section class="band service-flow animate-in" data-od-id="service-flow">
+      <div class="section-heading">
+        <span class="section-eyebrow">服务流程</span>
+        <div class="section-divider"></div>
+        <h2>从资料到沟通，每一步都保留你的选择权</h2>
+        <p>不催促、不暴露、不越界——用稳妥的节奏，走好通向婚姻的每一步</p>
+      </div>
+      <div class="flow-grid flow-line">
+        <div class="flow-card">
+          <span class="flow-step">01</span>
+          <span class="icon-wrap"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></span></span>
+          <h3>完善资料</h3>
+          <p>补全基础情况、婚恋目标、择偶偏好和隐私授权，顾问据此建立档案。</p>
+        </div>
+        <div class="flow-card">
+          <span class="flow-step">02</span>
+          <span class="icon-wrap"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></span>
+          <h3>生成画像</h3>
+          <p>系统根据资料提炼匹配重点，顾问复核修正，确保画像真实准确。</p>
+        </div>
+        <div class="flow-card">
+          <span class="flow-step">03</span>
+          <span class="icon-wrap"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span></span>
+          <h3>匿名筛选</h3>
+          <p>先看核心条件和匹配理由，双方都有意向了再展示可识别信息。</p>
+        </div>
+        <div class="flow-card">
+          <span class="flow-step">04</span>
+          <span class="icon-wrap"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span></span>
+          <h3>安全沟通</h3>
+          <p>进入站内沟通后关键请求保留记录，顾问持续跟进撮合进度。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Editorial Feature ─── -->
+    <section class="band band-alt feature-split animate-in" data-od-id="feature">
+      <div class="feature-media">
+        <img src="./yujian-lude-login.png" alt="遇见路得登录界面" loading="lazy" />
+        <span class="feature-badge">以真实与尊重为根基</span>
+      </div>
+      <div class="feature-copy">
+        <span class="section-eyebrow">我们的信念</span>
+        <h2>婚姻是值得郑重以待的约定</h2>
+        <p class="feature-lead">遇见路得不追求速配，而是让认真的人在被保护的前提下慢慢靠近。每一步的节奏，都由你自己掌握。</p>
+        <ul class="feature-points">
+          <li><strong>真实先行</strong><span>实名材料经顾问审核，减少虚假与伪装。</span></li>
+          <li><strong>边界清晰</strong><span>确认意向前不暴露身份，沟通全程留痕。</span></li>
+          <li><strong>有人陪伴</strong><span>专业顾问在关键节点协助你判断与推进。</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ─── Profile ─── -->
+    <section class="band profile-section animate-in" id="profile" data-od-id="profile">
+      <div class="section-heading">
+        <span class="section-eyebrow">个人资料</span>
+        <h2>完善你的个人资料</h2>
+        <p>资料越完整，匹配越准。涉及隐私的材料只给顾问审核，不会公开。</p>
+      </div>
+      <div class="profile-layout">
+        <aside class="progress-panel">
+          <div class="progress-ring" aria-label="资料完成度">
+            <span id="profilePercent">0%</span>
+          </div>
+          <div>
+            <p>完成基础资料后，系统会自动更新匹配建议。</p>
+            <ul id="profileTips"></ul>
+          </div>
+          <div class="marriage-badge" id="marriageBadge" hidden>
+            <svg class="marriage-badge-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 21s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 3.4C19.5 16.4 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="m8.6 12.2 2.2 2.2 4-4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div>
+              <strong>已完成婚姻装备</strong>
+              <span>完整学完《婚姻的意义》并通过牧者确认</span>
+            </div>
+          </div>
+        </aside>
+        <form class="profile-form" id="profileForm">
+          <div class="form-grid">
+            <label>
+              昵称
+              <input name="nickname" placeholder="例如：林女士" autocomplete="name" />
+            </label>
+            <label data-field="city">
+              所在城市
+              <input name="city" placeholder="例如：杭州" />
+              <small class="field-error" aria-live="polite"></small>
+            </label>
+            <label data-field="birthYear">
+              出生年份
+              <input name="birthYear" inputmode="numeric" placeholder="例如：1992" />
+              <small class="field-error" aria-live="polite"></small>
+            </label>
+            <label>
+              所在区会
+              <input name="presbytery_profile" placeholder="例如：北美华人长老会、台湾基督长老教会" />
+            </label>
+            <label>
+              学历
+              <select name="education">
+                <option value="">请选择</option>
+                <option>本科</option>
+                <option>硕士</option>
+                <option>博士</option>
+                <option>大专</option>
+              </select>
+            </label>
+            <label data-field="goal">
+              婚恋目标
+              <select name="goal">
+                <option value="">请选择</option>
+                <option>以结婚为目标相处</option>
+                <option>一年内稳定关系</option>
+                <option>先深入了解再决定</option>
+              </select>
+              <small class="field-error" aria-live="polite"></small>
+            </label>
+            <label>
+              期望对象
+              <input name="preference" placeholder="例如：同城、稳定工作、重视家庭" />
+            </label>
+          </div>
+          <label>
+            自我介绍
+            <textarea name="intro" rows="4" placeholder="写几句真实、克制的信息，顾问会据此优化匹配建议。"></textarea>
+          </label>
+          <div class="consent-row" data-field="privacy">
+            <label class="check-line">
+              <input type="checkbox" name="privacy" />
+              <span>我同意仅将敏感材料用于顾问审核，不在公开页面展示。</span>
+            </label>
+            <button class="primary-button" type="submit">保存资料</button>
+          </div>
+          <small class="field-error consent-error" aria-live="polite"></small>
+        </form>
+
+        <!-- 牧者介绍信 -->
+        <div class="pastor-letter-panel" id="pastorLetterPanel">
+          <div class="pastor-letter-header">
+            <div>
+              <strong>牧者介绍信</strong>
+              <span class="pastor-letter-badge" id="pastorLetterBadge">未填写</span>
+            </div>
+            <button class="ghost-button small" id="pastorLetterToggle" type="button">填写介绍信</button>
+          </div>
+          <form class="pastor-letter-form" id="pastorLetterForm" hidden>
+            <p class="faith-test-hint">介绍信由牧者填写或协助完成，仅与你互有意向的匹配对象可见。有介绍信的用户匹配权重更高。</p>
+            <label>牧者姓名<input name="pastor_name" placeholder="牧者姓名" /></label>
+            <label>牧者联系方式<input name="pastor_contact" placeholder="邮箱或电话" /></label>
+            <label>所在区会<input name="presbytery" placeholder="例：台湾基督长老教会中会、北美华人长老会" /></label>
+            <label>家庭情况<textarea name="family_note" rows="3" placeholder="简述申请人的家庭背景与成长环境"></textarea></label>
+            <label>信仰情况<textarea name="faith_note" rows="3" placeholder="信主年数、受洗见证、信仰成长经历"></textarea></label>
+            <label>属灵生命<textarea name="spiritual_note" rows="3" placeholder="对申请人属灵成熟度、祷告生活的观察"></textarea></label>
+            <label>教会生活<textarea name="church_life_note" rows="3" placeholder="在本教会的参与、服事与关系情况"></textarea></label>
+            <div class="pastor-letter-actions">
+              <button class="primary-button" id="pastorLetterSave" type="submit">保存介绍信</button>
+              <button class="ghost-button" id="pastorLetterCancel" type="button">取消</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Matching ─── -->
+    <section class="band match-section animate-in" id="match" data-od-id="match">
+      <div class="section-heading">
+        <span class="section-eyebrow">匿名匹配</span>
+        <div class="section-divider"></div>
+        <h2>匿名了解，合适再深入</h2>
+        <p>候选人都是匿名显示，双方有意向后再由顾问安排沟通。</p>
+      </div>
+      <div class="match-toolbar">
+        <label>
+          城市筛选
+          <select id="filterCity">
+            <option value="all">全部城市</option>
+            <option>杭州</option>
+            <option>上海</option>
+            <option>南京</option>
+          </select>
+        </label>
+        <label>
+          学历筛选
+          <select id="filterEducation">
+            <option value="all">全部学历</option>
+            <option>本科</option>
+            <option>硕士</option>
+            <option>博士</option>
+          </select>
+        </label>
+        <button class="secondary-button" id="resetFilters" type="button">重置筛选</button>
+      </div>
+      <div class="match-grid" id="matchGrid" aria-live="polite" aria-label="匹配候选人列表"></div>
+    </section>
+
+    <!-- ─── Course ─── -->
+    <section class="band band-alt course-section animate-in" id="course" data-od-id="course">
+      <div class="section-heading">
+        <span class="section-eyebrow">婚姻装备</span>
+        <div class="section-divider"></div>
+        <h2>认真预备的人，值得被更多人看见</h2>
+        <p>完整学完精品课程并通过确认，你的资料会获得更高曝光与优先推荐。这不是花钱买来的位置，是认真预备换来的。</p>
+      </div>
+      <div class="course-layout">
+        <article class="course-card">
+          <div class="course-card-media" role="img" aria-label="婚姻课程封面"></div>
+          <div class="course-card-body">
+            <span class="course-tag">精品课 · 共 10 单元</span>
+            <h3>《婚姻的意义》研习</h3>
+            <p>以经典婚姻著作为底本，分十个单元由浅入深：从婚姻的本质、相处的艺术，到承诺与饶恕。配 AI 伴读答疑，关键节点由牧者确认。</p>
+            <ul class="course-meta">
+              <li><span>学习方式</span>读材料 + AI 问答闯关</li>
+              <li><span>确认节点</span>第 5 单元（期中）· 第 10 单元（结业）</li>
+              <li><span>完成奖励</span>资料徽章 · 曝光翻倍 · 14 天 VIP 体验</li>
+            </ul>
+            <div class="course-progress" id="courseProgress" hidden>
+              <div class="course-progress-bar"><span id="courseProgressFill"></span></div>
+              <small id="courseProgressText">已完成 0 / 10 单元</small>
+            </div>
+            <div class="course-actions">
+              <button class="primary-button" id="courseEnroll" type="button">开始学习</button>
+              <a class="ghost-button" href="#ai">先问问 AI</a>
+            </div>
+          </div>
+        </article>
+        <aside class="course-aside">
+          <h4>为什么把课程放在婚恋平台里</h4>
+          <p>好的婚姻不只靠遇见对的人，更靠两个人都预备好自己。我们相信，愿意为婚姻受装备的人，本身就是更值得托付的人。</p>
+          <div class="course-reward">
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22"><path d="M12 21s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 3.4C19.5 16.4 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            <span>完课后，资料页将显示「已完成婚姻装备」徽章</span>
+          </div>
+        </aside>
+      </div>
+
+      <!-- 第二门课：恋爱必修课 -->
+      <div class="course-secondary">
+        <div class="secondary-head">
+          <span class="course-tag soft">必修课 · 轻量打卡</span>
+          <h3>基督徒恋爱必修课</h3>
+          <p>面向未婚预备阶段：如何面对冲突、如何离开父母建立边界、圣经中的婚姻观。看完每个单元，写下你的感受打卡即可，无需牧者确认。完课同样提升曝光，是凯勒课之外的加分项。</p>
+        </div>
+        <div class="lesson-list" id="lessonList">
+          <article class="lesson-card" data-lesson="1">
+            <div class="lesson-num">01</div>
+            <div class="lesson-body">
+              <h4>如何面对冲突</h4>
+              <p>分歧不是关系的敌人，逃避才是。学习用真诚与饶恕面对差异。</p>
+            </div>
+            <button class="lesson-checkin" type="button" data-lesson="1">打卡</button>
+          </article>
+          <article class="lesson-card" data-lesson="2">
+            <div class="lesson-num">02</div>
+            <div class="lesson-body">
+              <h4>离开父母，建立边界</h4>
+              <p>圣经说「人要离开父母，与妻子连合」。健康的边界是新家庭的根基。</p>
+            </div>
+            <button class="lesson-checkin" type="button" data-lesson="2">打卡</button>
+          </article>
+          <article class="lesson-card" data-lesson="3">
+            <div class="lesson-num">03</div>
+            <div class="lesson-body">
+              <h4>圣经中的婚姻观</h4>
+              <p>婚姻是盟约而非合同。理解婚姻的属灵意义，预备一生的委身。</p>
+            </div>
+            <button class="lesson-checkin" type="button" data-lesson="3">打卡</button>
+          </article>
+        </div>
+        <div class="lesson-progress" id="lessonProgress">已打卡 0 / 3 单元</div>
+      </div>
+    </section>
+
+    <!-- ─── Faith Test ─── -->
+    <section class="band faith-test-section animate-in" id="faithTest" data-od-id="faith-test">
+      <div class="section-heading">
+        <span class="section-eyebrow">信仰基础</span>
+        <div class="section-divider"></div>
+        <h2>进入匹配前，先确认彼此同信一位主</h2>
+        <p>20 道基要真理题，覆盖使徒信经与尼西亚信经的基本范围。答对 15 题及以上即通过，通过后才进入匹配池。这不是神学院考试，是为了确认大家在同一个信仰根基上彼此寻见。</p>
+      </div>
+
+      <div class="faith-test-shell">
+        <!-- 初始状态/状态卡 -->
+        <div class="faith-test-intro" id="faithTestIntro">
+          <div class="faith-status" id="faithStatus" data-state="unknown">
+            <div class="faith-status-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 3l7 3v5c0 4.4-3 8.3-7 10-4-1.7-7-5.6-7-10V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="faith-status-text">
+              <strong id="faithStatusTitle">尚未参加测试</strong>
+              <span id="faithStatusDesc">完成测试是进入匹配池的前提之一。</span>
+            </div>
+          </div>
+          <button class="primary-button" id="faithTestStart" type="button">开始测试</button>
+        </div>
+
+        <!-- 答题区 -->
+        <form class="faith-test-form" id="faithTestForm" hidden>
+          <div class="faith-test-progress">
+            <div class="faith-test-progress-bar"><span id="faithProgressFill"></span></div>
+            <small id="faithProgressText">已作答 0 / 20</small>
+          </div>
+          <div id="faithQuestions" class="faith-questions"></div>
+          <div class="faith-test-actions">
+            <button class="primary-button full" id="faithSubmit" type="submit" disabled>提交评分</button>
+            <p class="faith-test-hint">答案仅在提交时由服务器评分，无法在前端查看正确选项。</p>
+          </div>
+        </form>
+
+        <!-- 结果区 -->
+        <div class="faith-test-result" id="faithTestResult" hidden>
+          <div class="faith-result-score" id="faithResultScore"></div>
+          <p class="faith-result-message" id="faithResultMessage"></p>
+          <div class="faith-result-actions">
+            <button class="ghost-button" id="faithRetake" type="button">重新测试</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── AI Consult ─── -->
+    <section class="band ai-section animate-in" id="ai" data-od-id="ai-consult">
+      <div class="section-heading">
+        <span class="section-eyebrow">AI 咨询</span>
+        <div class="section-divider"></div>
+        <h2>随时提问，获得结构化的婚恋建议</h2>
+        <p>基于你的资料和匹配情况，给出资料判断、匹配建议和风险提醒。完全免费，不限次数。</p>
+      </div>
+      <div class="ai-layout">
+        <div class="ai-panel">
+          <div class="credit-line">
+            <strong>AI 咨询</strong>
+            <span id="creditCount" aria-live="polite">免费不限量</span>
+          </div>
+          <div class="question-chips" id="questionChips">
+            <button type="button">我的资料还缺什么？</button>
+            <button type="button">这位候选人是否值得顾问跟进？</button>
+            <button type="button">第一次沟通怎么开场更稳妥？</button>
+          </div>
+          <textarea id="aiQuestion" rows="5" placeholder="输入你想咨询的问题。建议描述自己的城市、年龄段、婚恋目标和具体困惑。"></textarea>
+          <button class="primary-button full" id="askAi" type="button">免费咨询</button>
+        </div>
+        <div class="answer-panel" id="aiAnswer" aria-live="polite" role="region" aria-label="AI 咨询结果">
+          <h3>咨询结果</h3>
+          <p>提交问题后，这里会给出资料判断、匹配建议、风险提醒和下一步动作。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Chat ─── -->
+    <section class="band band-alt chat-section animate-in" id="chat" data-od-id="chat">
+      <div class="section-heading">
+        <span class="section-eyebrow">安全沟通</span>
+        <h2>先和顾问确认，再推进候选人沟通</h2>
+        <p>站内沟通会保留必要记录。不要在未确认前交换手机号、住址、证件或转账信息。</p>
+      </div>
+      <div class="chat-shell">
+        <aside class="conversation-list">
+          <button class="conversation active" type="button">
+            <strong>顾问服务台</strong>
+            <span>资料审核与沟通建议</span>
+          </button>
+          <button class="conversation" type="button">
+            <strong>候选 A-1027</strong>
+            <span>等待双方确认</span>
+          </button>
+          <button class="conversation" type="button">
+            <strong>候选 A-1183</strong>
+            <span>顾问复核中</span>
+          </button>
+        </aside>
+        <div class="chat-main">
+          <div class="safety-note">安全提醒：确认双方意向前，请勿交换手机号、住址或转账信息。</div>
+          <div class="message-list" id="messageList" aria-live="polite" aria-label="沟通记录">
+            <div class="message adviser">您好，我会先看您的资料完整度，再建议适合提交审核的候选人。</div>
+            <div class="message self">我想先找同城、以结婚为目标的人。</div>
+          </div>
+          <form class="compose" id="chatForm">
+            <input id="chatInput" placeholder="输入给顾问的消息" />
+            <button class="primary-button" type="submit">发送</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Testimonials ─── -->
+    <section class="band testimonials-section animate-in" data-od-id="testimonials">
+      <div class="section-heading">
+        <span class="section-eyebrow">他们的故事</span>
+        <div class="section-divider"></div>
+        <h2>真实相遇，始于一次稳妥的相识</h2>
+        <p>以下为已促成关系的用户反馈，应本人要求隐去可识别信息。</p>
+      </div>
+      <div class="testimonial-grid">
+        <figure class="testimonial-card">
+          <span class="quote-mark" aria-hidden="true">”</span>
+          <blockquote>顾问没有催我，而是先帮我把资料和心态理顺。第三次推荐的人，现在已经在见双方父母了。</blockquote>
+          <figcaption>
+            <span class="avatar" aria-hidden="true">林</span>
+            <span class="meta"><strong>林女士</strong><small>杭州 · 32 岁 · 注册半年</small></span>
+          </figcaption>
+        </figure>
+        <figure class="testimonial-card">
+          <span class="quote-mark" aria-hidden="true">”</span>
+          <blockquote>匿名机制让我放下了戒备，确认意向前不暴露身份，沟通也全程留痕，对女生来说很安心。</blockquote>
+          <figcaption>
+            <span class="avatar" aria-hidden="true">陈</span>
+            <span class="meta"><strong>陈先生</strong><small>上海 · 35 岁 · 注册四个月</small></span>
+          </figcaption>
+        </figure>
+        <figure class="testimonial-card">
+          <span class="quote-mark" aria-hidden="true">”</span>
+          <blockquote>之前在别的平台被无效信息淹没。这里顾问先做复核，推荐的人目标都很一致，少走了很多弯路。</blockquote>
+          <figcaption>
+            <span class="avatar" aria-hidden="true">王</span>
+            <span class="meta"><strong>王女士</strong><small>南京 · 29 岁 · 注册三个月</small></span>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- ─── Pricing ─── -->
+    <section class="band band-alt pricing-section animate-in" id="pricing" data-od-id="pricing">
+      <div class="section-heading">
+        <span class="section-eyebrow">服务套餐</span>
+        <div class="section-divider"></div>
+        <h2>价格透明，权益清晰</h2>
+        <p>以下为预设方案，正式上线后由后台动态配置。</p>
+      </div>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <h3>AI 画像包</h3>
+          <p class="price">¥ 299</p>
+          <span class="price-sub">一次购买 · 长期有效</span>
+          <ul>
+            <li>资料画像建议</li>
+            <li>匹配理由解释</li>
+            <li>沟通风险提醒</li>
+          </ul>
+          <button class="secondary-button" type="button">查看说明</button>
+        </div>
+        <div class="pricing-card featured">
+          <h3>顾问审核包</h3>
+          <p class="price">¥ 999</p>
+          <span class="price-sub">含 3 次顾问服务</span>
+          <ul>
+            <li>资料人工复核</li>
+            <li>匿名候选提交</li>
+            <li>沟通边界建议</li>
+          </ul>
+          <button class="primary-button" type="button">预约顾问</button>
+        </div>
+        <div class="pricing-card">
+          <h3>城市服务包</h3>
+          <p class="price">¥ 1,999</p>
+          <span class="price-sub">一年内有效</span>
+          <ul>
+            <li>同城筛选</li>
+            <li>线下服务说明</li>
+            <li>退款边界记录</li>
+          </ul>
+          <button class="secondary-button" type="button">了解范围</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Closing CTA ─── -->
+    <section class="closing-cta closing-surround animate-in" data-od-id="closing">
+      <div class="closing-overlay"></div>
+      <div class="closing-photos" aria-hidden="true">
+        <span class="cphoto cphoto-1" data-label="资料"></span>
+        <span class="cphoto cphoto-2" data-label="课程"></span>
+        <span class="cphoto cphoto-3" data-label="测试"></span>
+        <span class="cphoto cphoto-4" data-label="沟通"></span>
+      </div>
+      <div class="closing-inner">
+        <span class="section-eyebrow light">遇见路得</span>
+        <h2>愿你遇见的，是一个愿意一起走远路的人</h2>
+        <p>从一份认真的资料开始，把相识交给稳妥的节奏。</p>
+        <div class="closing-signals" aria-label="核心承诺">
+          <span>匿名预览</span>
+          <span>顾问复核</span>
+          <span>沟通留痕</span>
+        </div>
+        <a class="primary-button large" href="/app">完善资料并生成画像</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div>
+        <span class="footer-brand">遇见路得</span>
+        <p style="margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.45);">严肃婚恋服务 · 以真实与尊重为根基</p>
+      </div>
+      <div class="footer-links">
+        <a href="#">隐私保护</a>
+        <a href="#">服务协议</a>
+        <a href="#">退款说明</a>
+        <a href="#">投诉与支持</a>
+        <a href="#">关于我们</a>
+      </div>
+    </div>
+    <div class="footer-copy">
+      &copy; 2026 遇见路得 · 用心守护每一次真诚的相遇
+    </div>
+  </footer>
+
+  <dialog class="support-dialog" id="supportDialog" aria-labelledby="support-title" role="dialog">
+    <form method="dialog">
+      <h2 id="support-title">联系顾问</h2>
+      <p>当前是本地预览版。正式接入后，这里会连接顾问排班、服务记录和站内消息。</p>
+      <button class="primary-button full" value="close">知道了</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

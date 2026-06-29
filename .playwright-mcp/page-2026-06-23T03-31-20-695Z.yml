@@ -1,0 +1,32 @@
+- generic [ref=e35]:
+  - navigation [ref=e36]:
+    - generic [ref=e37]: 遇见路得
+    - link "个人中心" [ref=e38] [cursor=pointer]:
+      - /url: /yujian
+    - link "完善资料" [ref=e39] [cursor=pointer]:
+      - /url: /yujian/profile
+    - link "信仰测试" [active] [ref=e40] [cursor=pointer]:
+      - /url: /yujian/faith-test
+    - link "课程" [ref=e41] [cursor=pointer]:
+      - /url: /yujian/courses
+    - link "匹配" [ref=e42] [cursor=pointer]:
+      - /url: /yujian/match
+    - link "我的关系" [ref=e43] [cursor=pointer]:
+      - /url: /yujian/relationships
+    - link "私信" [ref=e44] [cursor=pointer]:
+      - /url: /yujian/chat
+    - link "社群" [ref=e45] [cursor=pointer]:
+      - /url: /yujian/community
+    - link "套餐" [ref=e46] [cursor=pointer]:
+      - /url: /yujian/vip
+    - link "牧者台" [ref=e47] [cursor=pointer]:
+      - /url: /yujian/pastor
+    - generic [ref=e48]:
+      - generic [ref=e49]: test@test.com
+      - button "退出登录" [ref=e50] [cursor=pointer]
+  - main [ref=e51]:
+    - heading "信仰基础测试" [level=1] [ref=e80]
+    - paragraph [ref=e81]: 使徒信经 + 尼西亚信经基本范围，答对 15 题及以上通过
+    - generic [ref=e82]:
+      - paragraph [ref=e83]: 完成 20 道基要真理单选题，通过后才能进入匹配池。
+      - button "开始测试" [ref=e84] [cursor=pointer]

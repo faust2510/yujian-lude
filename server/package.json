@@ -1,0 +1,20 @@
+{
+  "name": "yujian-lude-server",
+  "version": "0.1.0",
+  "description": "遇见路得 — 盟约婚配平台后端（Node + Express + PostgreSQL）",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "migrate": "node src/scripts/migrate.js",
+    "seed": "node src/scripts/migrate.js --seed"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "pg": "^8.12.0"
+  }
+}

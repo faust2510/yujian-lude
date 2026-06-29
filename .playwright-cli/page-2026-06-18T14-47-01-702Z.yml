@@ -1,0 +1,278 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - link "迦南之约首页" [ref=e3] [cursor=pointer]:
+      - /url: "#home"
+      - generic [ref=e4]: J
+      - generic [ref=e5]:
+        - strong [ref=e6]: 迦南之约
+        - generic [ref=e7]: 严肃婚恋服务
+    - navigation "主导航" [ref=e8]:
+      - link "首页" [ref=e9] [cursor=pointer]:
+        - /url: "#home"
+      - link "资料" [ref=e10] [cursor=pointer]:
+        - /url: "#profile"
+      - link "匹配" [ref=e11] [cursor=pointer]:
+        - /url: "#match"
+      - link "咨询" [ref=e12] [cursor=pointer]:
+        - /url: "#ai"
+      - link "沟通" [ref=e13] [cursor=pointer]:
+        - /url: "#chat"
+      - link "套餐" [ref=e14] [cursor=pointer]:
+        - /url: "#pricing"
+    - button "联系顾问" [ref=e15] [cursor=pointer]
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - paragraph [ref=e19]: 资料先行 · 顾问复核 · 安全沟通
+        - heading "为认真结婚的人，建立一条更稳妥的相识路径" [level=1] [ref=e20]
+        - paragraph [ref=e21]: 先完善资料生成画像，再筛选匿名候选人，由顾问协助确认意向和边界，减少无效沟通和隐私暴露。
+        - generic [ref=e22]:
+          - link "完善资料并生成画像" [ref=e23] [cursor=pointer]:
+            - /url: "#profile"
+          - link "查看匿名匹配" [ref=e24] [cursor=pointer]:
+            - /url: "#match"
+      - generic [ref=e25]:
+        - heading "开始智能匹配" [level=2] [ref=e26]
+        - generic [ref=e27]:
+          - text: 所在城市
+          - combobox "所在城市" [ref=e28]:
+            - option "杭州" [selected]
+            - option "上海"
+            - option "南京"
+            - option "苏州"
+            - option "宁波"
+        - generic [ref=e29]:
+          - text: 期望年龄
+          - combobox "期望年龄" [ref=e30]:
+            - option "25-32 岁" [selected]
+            - option "28-36 岁"
+            - option "32-42 岁"
+            - option "40-50 岁"
+        - generic [ref=e31]:
+          - text: 婚恋目标
+          - combobox "婚恋目标" [ref=e32]:
+            - option "一年内稳定关系" [selected]
+            - option "以结婚为目标相处"
+            - option "先深入了解再决定"
+        - button "保存筛选条件" [ref=e33] [cursor=pointer]
+        - paragraph [ref=e34]: 不会公开手机号、证件、真实姓名等敏感信息。
+    - region "服务承诺" [ref=e35]:
+      - generic [ref=e36]:
+        - strong [ref=e37]: 实名材料保护
+        - generic [ref=e38]: 敏感信息仅用于审核
+      - generic [ref=e39]:
+        - strong [ref=e40]: 匿名预览
+        - generic [ref=e41]: 互相确认前不展示身份
+      - generic [ref=e42]:
+        - strong [ref=e43]: 顾问复核
+        - generic [ref=e44]: 重要节点由人工确认
+      - generic [ref=e45]:
+        - strong [ref=e46]: 记录留痕
+        - generic [ref=e47]: 咨询、付款、沟通可追溯
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - paragraph [ref=e50]: 服务流程
+        - heading "从资料到沟通，每一步都保留选择权" [level=2] [ref=e51]
+      - generic [ref=e52]:
+        - article [ref=e53]:
+          - text: "01"
+          - heading "完善资料" [level=3] [ref=e54]
+          - paragraph [ref=e55]: 补全基础情况、婚恋目标、择偶偏好和隐私授权。
+        - article [ref=e56]:
+          - text: "02"
+          - heading "生成画像" [level=3] [ref=e57]
+          - paragraph [ref=e58]: 系统根据资料生成匹配重点，顾问可继续修正。
+        - article [ref=e59]:
+          - text: "03"
+          - heading "匿名筛选" [level=3] [ref=e60]
+          - paragraph [ref=e61]: 先看核心条件和匹配理由，不展示可识别材料。
+        - article [ref=e62]:
+          - text: "04"
+          - heading "安全沟通" [level=3] [ref=e63]
+          - paragraph [ref=e64]: 双方确认后再进入站内沟通，关键请求保留记录。
+    - generic [ref=e65]:
+      - generic [ref=e66]:
+        - paragraph [ref=e67]: 个人资料
+        - heading "先把最重要的信息补齐" [level=2] [ref=e68]
+      - generic [ref=e69]:
+        - complementary [ref=e70]:
+          - generic "资料完成度" [ref=e71]:
+            - generic [ref=e72]: 0%
+          - paragraph [ref=e73]: 完成基础资料后，系统会更新匹配建议。
+          - list [ref=e74]:
+            - listitem [ref=e75]: 补充城市，匹配会优先同城。
+            - listitem [ref=e76]: 选择婚恋目标，顾问才能判断节奏。
+            - listitem [ref=e77]: 写清期望对象，减少无效推荐。
+            - listitem [ref=e78]: 确认隐私授权，敏感信息不会公开展示。
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - text: 昵称
+              - textbox "昵称" [ref=e82]:
+                - /placeholder: 例如：林女士
+            - generic [ref=e83]:
+              - text: 城市
+              - textbox "城市" [ref=e84]:
+                - /placeholder: 例如：杭州
+            - generic [ref=e85]:
+              - text: 出生年份
+              - textbox "出生年份" [ref=e86]:
+                - /placeholder: 例如：1992
+            - generic [ref=e87]:
+              - text: 学历
+              - combobox "学历" [ref=e88]:
+                - option "请选择" [selected]
+                - option "本科"
+                - option "硕士"
+                - option "博士"
+                - option "大专"
+            - generic [ref=e89]:
+              - text: 婚恋目标
+              - combobox "婚恋目标" [ref=e90]:
+                - option "请选择" [selected]
+                - option "以结婚为目标相处"
+                - option "一年内稳定关系"
+                - option "先深入了解再决定"
+            - generic [ref=e91]:
+              - text: 期望对象
+              - textbox "期望对象" [ref=e92]:
+                - /placeholder: 例如：同城、稳定工作、重视家庭
+          - generic [ref=e93]:
+            - text: 自我介绍
+            - textbox "自我介绍" [ref=e94]:
+              - /placeholder: 写几句真实、克制的信息，顾问会据此优化匹配建议。
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - checkbox "我同意仅将敏感材料用于顾问审核，不在公开页面展示。" [ref=e97]
+              - generic [ref=e98]: 我同意仅将敏感材料用于顾问审核，不在公开页面展示。
+            - button "保存资料" [ref=e99] [cursor=pointer]
+    - generic [ref=e100]:
+      - generic [ref=e101]:
+        - paragraph [ref=e102]: 匿名匹配
+        - heading "先看条件和理由，再提交顾问审核" [level=2] [ref=e103]
+      - generic [ref=e104]:
+        - generic [ref=e105]:
+          - text: 城市
+          - combobox "城市" [ref=e106]:
+            - option "全部" [selected]
+            - option "杭州"
+            - option "上海"
+            - option "南京"
+        - generic [ref=e107]:
+          - text: 学历
+          - combobox "学历" [ref=e108]:
+            - option "全部" [selected]
+            - option "本科"
+            - option "硕士"
+            - option "博士"
+        - button "重置筛选" [ref=e109] [cursor=pointer]
+      - generic [ref=e110]:
+        - article [ref=e111]:
+          - generic [ref=e112]:
+            - generic [ref=e113]: A-1027
+            - generic [ref=e114]: 可提交审核
+          - list [ref=e115]:
+            - listitem [ref=e116]: 杭州
+            - listitem [ref=e117]: 29-32
+            - listitem [ref=e118]: 硕士
+            - listitem [ref=e119]: 以结婚为目标相处
+          - heading "匹配理由" [level=3] [ref=e120]
+          - paragraph [ref=e121]: 同城、教育背景接近，均重视稳定关系和家庭沟通。
+          - button "提交顾问审核" [ref=e122] [cursor=pointer]
+        - article [ref=e123]:
+          - generic [ref=e124]:
+            - generic [ref=e125]: A-1183
+            - generic [ref=e126]: 顾问复核中
+          - list [ref=e127]:
+            - listitem [ref=e128]: 上海
+            - listitem [ref=e129]: 31-35
+            - listitem [ref=e130]: 本科
+            - listitem [ref=e131]: 一年内稳定关系
+          - heading "匹配理由" [level=3] [ref=e132]
+          - paragraph [ref=e133]: 生活节奏和关系目标接近，需要顾问确认异地接受度。
+          - button "提交顾问审核" [ref=e134] [cursor=pointer]
+        - article [ref=e135]:
+          - generic [ref=e136]:
+            - generic [ref=e137]: A-1305
+            - generic [ref=e138]: 可提交审核
+          - list [ref=e139]:
+            - listitem [ref=e140]: 南京
+            - listitem [ref=e141]: 28-33
+            - listitem [ref=e142]: 博士
+            - listitem [ref=e143]: 以结婚为目标相处
+          - heading "匹配理由" [level=3] [ref=e144]
+          - paragraph [ref=e145]: 价值观描述匹配，但职业节奏较忙，建议先做边界沟通。
+          - button "提交顾问审核" [ref=e146] [cursor=pointer]
+    - generic [ref=e147]:
+      - generic [ref=e148]:
+        - paragraph [ref=e149]: AI 咨询
+        - heading "消耗 1 次咨询，获得结构化建议" [level=2] [ref=e150]
+      - generic [ref=e151]:
+        - generic [ref=e152]:
+          - generic [ref=e153]:
+            - strong [ref=e154]: 剩余咨询次数
+            - generic [ref=e155]: "3"
+          - generic [ref=e156]:
+            - button "我的资料还缺什么？" [ref=e157] [cursor=pointer]
+            - button "这位候选人是否值得顾问跟进？" [ref=e158] [cursor=pointer]
+            - button "第一次沟通怎么开场更稳妥？" [ref=e159] [cursor=pointer]
+          - textbox "输入你想咨询的问题。建议描述自己的城市、年龄段、婚恋目标和具体困惑。" [ref=e160]
+          - button "消耗 1 次并咨询" [ref=e161] [cursor=pointer]
+        - generic [ref=e162]:
+          - heading "咨询结果" [level=3] [ref=e163]
+          - paragraph [ref=e164]: 提交问题后，这里会给出资料判断、匹配建议、风险提醒和下一步动作。
+    - generic [ref=e165]:
+      - generic [ref=e166]:
+        - paragraph [ref=e167]: 安全沟通
+        - heading "先和顾问确认，再推进候选人沟通" [level=2] [ref=e168]
+      - generic [ref=e169]:
+        - complementary [ref=e170]:
+          - button "顾问服务台 资料审核与沟通建议" [ref=e171] [cursor=pointer]:
+            - strong [ref=e172]: 顾问服务台
+            - generic [ref=e173]: 资料审核与沟通建议
+          - button "候选 A-1027 等待双方确认" [ref=e174] [cursor=pointer]:
+            - strong [ref=e175]: 候选 A-1027
+            - generic [ref=e176]: 等待双方确认
+          - button "候选 A-1183 顾问复核中" [ref=e177] [cursor=pointer]:
+            - strong [ref=e178]: 候选 A-1183
+            - generic [ref=e179]: 顾问复核中
+        - generic [ref=e180]:
+          - generic [ref=e181]: 站内沟通会保留必要记录。不要在未确认前交换手机号、住址、证件或转账信息。
+          - generic [ref=e182]:
+            - generic [ref=e183]: 您好，我会先看您的资料完整度，再建议适合提交审核的候选人。
+            - generic [ref=e184]: 我想先找同城、以结婚为目标的人。
+          - generic [ref=e185]:
+            - textbox "输入给顾问的消息" [ref=e186]
+            - button "发送" [ref=e187] [cursor=pointer]
+    - generic [ref=e188]:
+      - generic [ref=e189]:
+        - paragraph [ref=e190]: 服务套餐
+        - heading "价格和权益要清楚，后续由后台配置" [level=2] [ref=e191]
+      - generic [ref=e192]:
+        - article [ref=e193]:
+          - heading "AI 画像包" [level=3] [ref=e194]
+          - paragraph [ref=e195]: 待配置
+          - list [ref=e196]:
+            - listitem [ref=e197]: 资料画像建议
+            - listitem [ref=e198]: 匹配理由解释
+            - listitem [ref=e199]: 沟通风险提醒
+          - button "查看说明" [ref=e200] [cursor=pointer]
+        - article [ref=e201]:
+          - heading "顾问审核包" [level=3] [ref=e202]
+          - paragraph [ref=e203]: 待配置
+          - list [ref=e204]:
+            - listitem [ref=e205]: 资料人工复核
+            - listitem [ref=e206]: 匿名候选提交
+            - listitem [ref=e207]: 沟通边界建议
+          - button "预约顾问" [ref=e208] [cursor=pointer]
+        - article [ref=e209]:
+          - heading "城市服务包" [level=3] [ref=e210]
+          - paragraph [ref=e211]: 待配置
+          - list [ref=e212]:
+            - listitem [ref=e213]: 同城筛选
+            - listitem [ref=e214]: 线下服务说明
+            - listitem [ref=e215]: 退款边界记录
+          - button "了解范围" [ref=e216] [cursor=pointer]
+  - contentinfo [ref=e217]:
+    - strong [ref=e218]: 迦南之约
+    - generic [ref=e219]: 隐私保护 · 服务协议 · 退款说明 · 投诉与支持

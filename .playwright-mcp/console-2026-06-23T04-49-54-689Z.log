@@ -1,0 +1,5 @@
+[    1071ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://100.81.0.118/yujian/login:0
+[   16291ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://100.81.0.118/yujian/api/auth/login:0
+[   18129ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://100.81.0.118/yujian/api/auth/login:0
+[   37428ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://100.81.0.118/yujian/api/auth/login:0
+[   38817ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://100.81.0.118/yujian/register:0

@@ -1,0 +1,58 @@
+- generic [ref=e35]:
+  - navigation [ref=e36]:
+    - generic [ref=e37]: 遇见路得
+    - link "个人中心" [ref=e38] [cursor=pointer]:
+      - /url: /yujian
+    - link "完善资料" [ref=e39] [cursor=pointer]:
+      - /url: /yujian/profile
+    - link "信仰测试" [ref=e40] [cursor=pointer]:
+      - /url: /yujian/faith-test
+    - link "课程" [ref=e41] [cursor=pointer]:
+      - /url: /yujian/courses
+    - link "匹配" [ref=e42] [cursor=pointer]:
+      - /url: /yujian/match
+    - link "我的关系" [ref=e43] [cursor=pointer]:
+      - /url: /yujian/relationships
+    - link "私信" [ref=e44] [cursor=pointer]:
+      - /url: /yujian/chat
+    - link "社群" [ref=e45] [cursor=pointer]:
+      - /url: /yujian/community
+    - link "套餐" [ref=e46] [cursor=pointer]:
+      - /url: /yujian/vip
+    - link "牧者台" [ref=e47] [cursor=pointer]:
+      - /url: /yujian/pastor
+    - generic [ref=e48]:
+      - generic [ref=e49]: test@test.com
+      - button "退出登录" [ref=e50] [cursor=pointer]
+  - main [ref=e51]:
+    - heading "你好，test" [level=1] [ref=e52]
+    - paragraph [ref=e53]: 欢迎回到遇见路得
+    - generic [ref=e54]:
+      - generic [ref=e55]:
+        - generic [ref=e56]: 累积积分
+        - generic [ref=e57]: —
+        - generic [ref=e58]: 100 分 = 1 天 VIP 体验
+      - generic [ref=e59]:
+        - generic [ref=e60]: 每日签到
+        - paragraph [ref=e61]: 每天签到 +10 分，坚持打卡！
+        - button "签到 +10" [ref=e62] [cursor=pointer]
+    - heading "下一步做什么" [level=2] [ref=e63]
+    - generic [ref=e64]:
+      - link "完善资料 资料越完整，曝光越高 +50 分" [ref=e65] [cursor=pointer]:
+        - /url: /yujian/profile
+        - generic [ref=e66]:
+          - generic [ref=e67]: 完善资料
+          - generic [ref=e68]: 资料越完整，曝光越高
+          - generic [ref=e69]: +50 分
+      - link "信仰基础测试 通过测试才能进入匹配池 必须" [ref=e70] [cursor=pointer]:
+        - /url: /yujian/faith-test
+        - generic [ref=e71]:
+          - generic [ref=e72]: 信仰基础测试
+          - generic [ref=e73]: 通过测试才能进入匹配池
+          - generic [ref=e74]: 必须
+      - link "婚恋必修课 完课大幅提升曝光排名 +300 分" [ref=e75] [cursor=pointer]:
+        - /url: /yujian/courses
+        - generic [ref=e76]:
+          - generic [ref=e77]: 婚恋必修课
+          - generic [ref=e78]: 完课大幅提升曝光排名
+          - generic [ref=e79]: +300 分

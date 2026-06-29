@@ -1,46 +1,43 @@
-# 红娘相亲交友软件
-婚恋、婚恋交友、婚恋小程序、婚恋系统、婚恋交友系统、婚恋网站、婚恋网、红娘、红娘小程序、红娘平台、红娘系统、红娘CRM、红娘相亲、相亲、相亲小程序、相亲交友、相亲软件
+# 迦南之约
 
+本项目现在改为自研的严肃婚恋服务原型，不再沿用外部相亲源码。
 
-# 技术栈 
+## 当前版本
 
-后台服务 springboot+mybatisplus+mysql
-用户端 uniapp（vue语法）
-管理后台 vue+elementUi
+- 首页：智能匹配入口、隐私说明、服务流程。
+- 资料：基础资料填写、资料完成度、本地保存。
+- 匹配：匿名候选人卡片、城市/学历筛选、提交顾问审核。
+- AI 咨询：消耗次数、问题模板、结构化建议。
+- 沟通：顾问消息、候选审核状态、安全提醒。
+- 套餐：保留后台可配置的服务包结构。
 
-# 用户端
-![01](https://github.com/user-attachments/assets/b49db239-186e-48dc-a6be-8ec3ce1b0ac2)
-![02](https://github.com/user-attachments/assets/0d282cd7-3e29-4090-87e9-e3b625dce5c2)
-![03](https://github.com/user-attachments/assets/dc566e43-2be9-4e9e-9a92-d33465cd7227)
+## 运行方式
 
+直接用浏览器打开 `index.html` 即可预览。
 
+如果需要本地 HTTP 服务，也可以在项目根目录执行：
 
+```bash
+python3 -m http.server 3000
+```
 
+然后访问：
 
+```text
+http://localhost:3000
+```
 
+如果 3000 端口已经被占用，可以换成其他端口，例如：
 
+```bash
+python3 -m http.server 3001
+```
 
+## 下一步
 
+建议按这个顺序继续做：
 
-# 管理后台
-![15](https://github.com/user-attachments/assets/ee933ef1-3441-40b6-98e5-35baacf129ff)
-![16](https://github.com/user-attachments/assets/c2e55fbb-8a47-4e51-864e-9b95eb11d814)
-![17](https://github.com/user-attachments/assets/bb01f8e8-e92b-4b44-aa56-1b13d4d84fb0)
-![18](https://github.com/user-attachments/assets/36ff8e90-eade-4ee8-b1c7-28773bfcc7b1)
-![19](https://github.com/user-attachments/assets/13c964f0-ca17-4a41-a4fb-58abdaa2c443)
-
-
-# 产品体验
-
-如果你对本项目感兴趣，项目合作、体验请联系微信
-
-![wx](https://github.com/user-attachments/assets/21ec3028-bce8-4d2e-a037-a6603561a60f)
-
-
-
-
-
-
-
-
-
+1. 接入真实后端和用户登录。
+2. 增加资料审核、顾问后台、订单和支付记录。
+3. 把 AI 咨询接入真实模型服务，并做用量扣减。
+4. 增加城市服务、退款说明、投诉与风控记录。

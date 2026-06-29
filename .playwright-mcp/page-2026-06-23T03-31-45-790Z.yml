@@ -1,0 +1,102 @@
+- generic [ref=e35]:
+  - navigation [ref=e36]:
+    - generic [ref=e37]: 遇见路得
+    - link "个人中心" [ref=e38] [cursor=pointer]:
+      - /url: /yujian
+    - link "完善资料" [active] [ref=e39] [cursor=pointer]:
+      - /url: /yujian/profile
+    - link "信仰测试" [ref=e40] [cursor=pointer]:
+      - /url: /yujian/faith-test
+    - link "课程" [ref=e41] [cursor=pointer]:
+      - /url: /yujian/courses
+    - link "匹配" [ref=e42] [cursor=pointer]:
+      - /url: /yujian/match
+    - link "我的关系" [ref=e43] [cursor=pointer]:
+      - /url: /yujian/relationships
+    - link "私信" [ref=e44] [cursor=pointer]:
+      - /url: /yujian/chat
+    - link "社群" [ref=e45] [cursor=pointer]:
+      - /url: /yujian/community
+    - link "套餐" [ref=e46] [cursor=pointer]:
+      - /url: /yujian/vip
+    - link "牧者台" [ref=e47] [cursor=pointer]:
+      - /url: /yujian/pastor
+    - generic [ref=e48]:
+      - generic [ref=e49]: test@test.com
+      - button "退出登录" [ref=e50] [cursor=pointer]
+  - main [ref=e51]:
+    - heading "完善资料" [level=1] [ref=e287]
+    - paragraph [ref=e288]: 资料越完整，曝光分越高，越容易被匹配到
+    - generic [ref=e289]:
+      - heading "个人资料" [level=3] [ref=e290]
+      - generic [ref=e291]:
+        - generic [ref=e292]:
+          - generic [ref=e293]: 昵称
+          - textbox [ref=e294]: 测试用户
+        - generic [ref=e295]:
+          - generic [ref=e296]: 所在城市
+          - textbox [ref=e297]
+        - generic [ref=e298]:
+          - generic [ref=e299]: 出生年份
+          - textbox "例如 1995" [ref=e300]
+        - generic [ref=e301]:
+          - generic [ref=e302]: 学历
+          - textbox [ref=e303]
+        - generic [ref=e304]:
+          - generic [ref=e305]: 婚恋目标
+          - combobox [ref=e306]:
+            - option "请选择" [selected]
+            - option "认真寻找婚姻对象"
+            - option "先了解，慢慢来"
+      - generic [ref=e307]:
+        - generic [ref=e308]: 择偶期待
+        - textbox "你希望遇见怎样的另一半" [ref=e309]
+      - generic [ref=e310]:
+        - generic [ref=e311]: 自我介绍
+        - textbox "介绍一下你自己" [ref=e312]
+      - generic [ref=e313]:
+        - checkbox "我同意将资料用于平台内的匿名匹配，敏感信息仅顾问与匹配对象可见" [ref=e314]
+        - text: 我同意将资料用于平台内的匿名匹配，敏感信息仅顾问与匹配对象可见
+      - button "保存资料" [ref=e315] [cursor=pointer]
+    - generic [ref=e316]:
+      - heading "信仰档案" [level=3] [ref=e317]
+      - paragraph [ref=e318]: 这是信任网络的根基，牧者背书会基于此。
+      - generic [ref=e319]:
+        - generic [ref=e320]:
+          - generic [ref=e321]: 所属教会 / 堂会
+          - textbox [ref=e322]
+        - generic [ref=e323]:
+          - generic [ref=e324]: 所在区会
+          - textbox "例如 北美中华联合区会" [ref=e325]
+        - generic [ref=e326]:
+          - generic [ref=e327]: 所在地区
+          - textbox "例如 加州湾区" [ref=e328]
+        - generic [ref=e329]:
+          - generic [ref=e330]: 宗派
+          - textbox "例如 长老会" [ref=e331]
+        - generic [ref=e332]:
+          - generic [ref=e333]: 牧者 / 同工姓名
+          - textbox [ref=e334]
+        - generic [ref=e335]:
+          - generic [ref=e336]: 受洗时间
+          - textbox "例如 2018-05" [ref=e337]
+        - generic [ref=e338]:
+          - generic [ref=e339]: 信主年数
+          - textbox [ref=e340]
+      - generic [ref=e341]:
+        - generic [ref=e342]: 简短见证
+        - textbox [ref=e343]
+      - button "保存信仰档案" [ref=e344] [cursor=pointer]
+    - generic [ref=e345]:
+      - heading "修改密码" [level=3] [ref=e346]
+      - generic [ref=e347]:
+        - generic [ref=e348]: 当前密码
+        - textbox [ref=e349]
+      - generic [ref=e350]:
+        - generic [ref=e351]:
+          - generic [ref=e352]: 新密码
+          - textbox "至少 6 位" [ref=e353]
+        - generic [ref=e354]:
+          - generic [ref=e355]: 确认新密码
+          - textbox [ref=e356]
+      - button "修改密码" [ref=e357] [cursor=pointer]
