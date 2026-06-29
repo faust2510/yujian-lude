@@ -19,11 +19,9 @@ export default function AppLayout() {
         <NavLink to="/faith-test">信仰测试</NavLink>
         <NavLink to="/courses">课程</NavLink>
         <NavLink to="/match">匹配</NavLink>
-        <NavLink to="/relationships">我的关系</NavLink>
         <NavLink to="/chat">私信</NavLink>
         <NavLink to="/community">社群</NavLink>
         <NavLink to="/vip">套餐</NavLink>
-        <NavLink to="/pastor">牧者台</NavLink>
         {user?.role === 'admin' && <NavLink to="/admin">管理台</NavLink>}
         <div style={{ marginTop: 'auto', padding: '16px 20px' }}>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>

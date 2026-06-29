@@ -1,4 +1,4 @@
-# 迦南之约 — Brand Spec
+# 遇见路得 — Brand Spec
 
 ## Reference
 - **Source:** zhenai.com — leading Chinese dating platform

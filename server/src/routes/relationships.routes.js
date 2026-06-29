@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, one, tx } from '../db.js';
+import { query, one } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 
 const router = Router();
@@ -52,41 +52,7 @@ router.post('/relationships/:id/exam-confirm', requireAuth, async (req, res) => 
 });
 
 router.post('/relationships/:id/pastor-approve', requireAuth, requireRole('pastor'), async (req, res) => {
-  const rel = await one(
-    `SELECT * FROM relationships WHERE id = $1 AND state = 'pastoral_review'`,
-    [req.params.id]
-  );
-  if (!rel) return res.status(404).json({ error: '关系不存在或状态不符' });
-
-  const endorsed = await one(
-    `SELECT user_id FROM endorsements
-      WHERE endorser_id = $1 AND user_id IN ($2, $3) AND kind = 'pastor' AND state = 'verified'
-      LIMIT 1`,
-    [req.user.id, rel.user_a, rel.user_b]
-  );
-  if (!endorsed) return res.status(403).json({ error: '非关系当事人的牧者' });
-
-  const col = endorsed.user_id === rel.user_a ? 'pastor_a_approved' : 'pastor_b_approved';
-
-  await tx(async (db) => {
-    await db.query(`UPDATE relationships SET ${col} = TRUE WHERE id = $1`, [rel.id]);
-    const { rows } = await db.query(
-      `SELECT pastor_a_approved, pastor_b_approved FROM relationships WHERE id = $1`,
-      [rel.id]
-    );
-    if (rows[0].pastor_a_approved && rows[0].pastor_b_approved) {
-      await db.query(
-        `UPDATE relationships SET state = 'confirmed', confirmed_at = now() WHERE id = $1`,
-        [rel.id]
-      );
-      await db.query(
-        `UPDATE matches SET status = 'in_relationship'
-          WHERE user_id IN ($1,$2) OR target_id IN ($1,$2)`,
-        [rel.user_a, rel.user_b]
-      );
-    }
-  });
-  res.json({ ok: true });
+  res.status(501).json({ error: '关系确立牧者审核暂未开放' });
 });
 
 router.get('/relationships/mine', requireAuth, async (req, res) => {
@@ -113,18 +79,10 @@ router.delete('/relationships/:id', requireAuth, async (req, res) => {
     return res.status(403).json({ error: '无权操作' });
   }
 
-  await tx(async (db) => {
-    await db.query(
-      `UPDATE relationships SET state = 'ended', ended_at = now() WHERE id = $1`,
-      [rel.id]
-    );
-    await db.query(
-      `DELETE FROM matches
-        WHERE status = 'in_relationship'
-          AND (user_id IN ($1,$2) OR target_id IN ($1,$2))`,
-      [rel.user_a, rel.user_b]
-    );
-  });
+  await query(
+    `UPDATE relationships SET state = 'ended', ended_at = now() WHERE id = $1`,
+    [rel.id]
+  );
   res.json({ ok: true });
 });
 

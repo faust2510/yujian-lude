@@ -22,7 +22,7 @@ import './index.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter basename="/yujian">
+    <BrowserRouter basename="/app">
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />

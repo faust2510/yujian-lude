@@ -6,10 +6,10 @@ export default function Admin() {
   return (
     <>
       <h1 className="page-title">管理台</h1>
-      <p className="page-sub">改价格 · 改积分配置 · 审核牧者认证与背书 · 用户管理</p>
+      <p className="page-sub">改价格 · 改积分配置 · 审核背书 · 用户管理</p>
 
       <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
-        {[['settings','配置'],['endorsements','背书审核'],['pastors','牧者审核'],['users','用户'],['posts','社群管理']].map(([k,l]) => (
+        {[['settings','配置'],['endorsements','背书审核'],['users','用户']].map(([k,l]) => (
           <button key={k} className={`btn ${tab===k?'btn-primary':'btn-outline'}`} style={{fontSize:13}}
             onClick={()=>setTab(k)}>{l}</button>
         ))}
@@ -17,9 +17,7 @@ export default function Admin() {
 
       {tab === 'settings' && <SettingsTab />}
       {tab === 'endorsements' && <EndorsementsTab />}
-      {tab === 'pastors' && <PastorsTab />}
       {tab === 'users' && <UsersTab />}
-      {tab === 'posts' && <div className="card" style={{color:'var(--muted)',fontSize:14}}>社群帖子管理：在社群页可直接精选/删帖（牧者及社区管理员权限）。</div>}
     </>
   )
 }
@@ -112,34 +110,6 @@ function EndorsementsTab() {
           <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
             <button className="btn btn-primary" style={{fontSize:12,padding:'4px 14px'}} onClick={()=>review(e.id,'verified')}>通过</button>
             <button className="btn btn-outline" style={{fontSize:12,padding:'4px 14px'}} onClick={()=>review(e.id,'rejected')}>驳回</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function PastorsTab() {
-  const [apps, setApps] = useState([])
-  const load = () => admin.pastorApplications().then(r => setApps(r.data.applications || [])).catch(()=>setApps([]))
-  useEffect(() => { load() }, [])
-
-  const review = async (id, decision) => {
-    try { await admin.reviewPastorApplication(id, decision); load() } catch {}
-  }
-
-  return (
-    <div className="card">
-      <h3 style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:12}}>牧者认证申请</h3>
-      {apps.length === 0 && <div style={{color:'var(--muted)',fontSize:14}}>暂无待审申请</div>}
-      {apps.map(a => (
-        <div key={a.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
-          <div style={{fontSize:14,fontFamily:'var(--font-serif)'}}>{a.church_name} · {a.presbytery}</div>
-          <div style={{fontSize:13,color:'var(--muted)',margin:'4px 0'}}>{a.statement}</div>
-          <div style={{fontSize:12,color:'var(--muted)'}}>联系：{a.contact}</div>
-          <div style={{display:'flex',gap:8,marginTop:8}}>
-            <button className="btn btn-primary" style={{fontSize:12,padding:'4px 14px'}} onClick={()=>review(a.id,'approve')}>通过</button>
-            <button className="btn btn-outline" style={{fontSize:12,padding:'4px 14px'}} onClick={()=>review(a.id,'reject')}>驳回</button>
           </div>
         </div>
       ))}

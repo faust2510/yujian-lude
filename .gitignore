@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+*/node_modules/
+.env
+*.log
+logs/
+dist/
+dist-ssr/
+coverage/
+.playwright-cli/
+.playwright-mcp/
+.od-skills/

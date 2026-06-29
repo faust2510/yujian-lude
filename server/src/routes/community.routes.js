@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
+import { isInMatchPool } from '../lib/match-gate.js';
 
 const router = Router();
 
@@ -40,16 +41,7 @@ async function getMembership(userId, groupId) {
 }
 
 async function canPost(userId) {
-  const test = await one(
-    `SELECT 1 FROM faith_tests WHERE user_id = $1 AND passed = TRUE LIMIT 1`,
-    [userId]
-  );
-  if (!test) return false;
-  const endorsed = await one(
-    `SELECT 1 FROM endorsements WHERE user_id = $1 AND kind = 'pastor' AND state = 'verified' LIMIT 1`,
-    [userId]
-  );
-  return !!endorsed;
+  return isInMatchPool(userId);
 }
 
 function extractHashtags(body) {
@@ -409,7 +401,7 @@ router.post('/community/posts', requireAuth, async (req, res) => {
   const { group_id, content, title, image_url, post_type = 'post' } = req.body;
   if (!content) return res.status(400).json({ error: '缺少 content' });
   if (!(await canPost(req.user.id))) {
-    return res.status(403).json({ error: '需通过信仰测试并完成牧者背书后方可发帖' });
+    return res.status(403).json({ error: '需完成资料、信仰测试、背书审核与恋爱必修课后方可发帖' });
   }
   // 小组内发帖需检查成员身份
   if (group_id) {

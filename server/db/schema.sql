@@ -21,7 +21,7 @@ CREATE EXTENSION IF NOT EXISTS "citext";
 CREATE TYPE user_role        AS ENUM ('free', 'vip', 'pastor', 'admin');  -- v3: 新增 pastor 角色
 CREATE TYPE endorsement_kind AS ENUM ('pastor', 'referrer');          -- 牧者 / 引荐人
 CREATE TYPE endorsement_state AS ENUM ('pending', 'verified', 'rejected'); -- 待背书/已背书/驳回
-CREATE TYPE match_status     AS ENUM ('suggested', 'intent_sent', 'under_review', 'approved', 'declined');
+CREATE TYPE match_status     AS ENUM ('suggested', 'intent_sent', 'matched', 'under_review', 'approved', 'declined');
 CREATE TYPE course_state     AS ENUM ('not_started', 'in_progress', 'pastor_review', 'completed');
 CREATE TYPE points_pool      AS ENUM ('daily', 'earned');             -- 每日池(清零) / 赚取池(累积)
 CREATE TYPE ledger_direction AS ENUM ('credit', 'debit');            -- 进账 / 出账
@@ -194,6 +194,7 @@ CREATE TABLE matches (
     target_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,  -- 候选方
     reason       TEXT,                                   -- 匹配理由
     status       match_status NOT NULL DEFAULT 'suggested',
+    intent_sent_at TIMESTAMPTZ,                          -- 最近一次真实表达心动的时间；跳过不刷新
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (user_id, target_id)
@@ -312,7 +313,8 @@ CREATE TABLE chat_channels (
     user_a      UUID NOT NULL REFERENCES users(id),
     user_b      UUID NOT NULL REFERENCES users(id),
     opened_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    closed_at   TIMESTAMPTZ                              -- 进入确认期后关闭匹配，但聊天保留
+    closed_at   TIMESTAMPTZ,                             -- 进入确认期后关闭匹配，但聊天保留
+    UNIQUE (user_a, user_b)
 );
 CREATE TABLE chat_messages (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

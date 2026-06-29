@@ -1,6 +1,6 @@
 import { api, backendOnline } from "./api.js";
 
-const STORAGE_KEY = "canaan_profile";
+const STORAGE_KEY = "yujian_lude_profile";
 
 const candidates = [
   {
@@ -915,4 +915,3 @@ async function initCourse() {
     }
   });
 }
-

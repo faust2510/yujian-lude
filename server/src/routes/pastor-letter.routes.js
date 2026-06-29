@@ -4,6 +4,7 @@ import { query, one, tx } from '../db.js';
 import { requireAuth } from '../auth.js';
 
 const router = Router();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // 提交 / 更新我的牧者介绍信
 router.put('/me/pastor-letter', requireAuth, async (req, res) => {
@@ -36,13 +37,14 @@ router.get('/me/pastor-letter', requireAuth, async (req, res) => {
 // 读取匹配对象的介绍信（仅双方互有意向后可见）
 router.get('/match/:targetId/pastor-letter', requireAuth, async (req, res) => {
   const { targetId } = req.params;
+  if (!UUID_RE.test(targetId)) return res.status(400).json({ error: '匹配对象不存在' });
   // 检查双方是否互有意向（mutual intent）
   const mutual = await one(
     `SELECT 1 FROM matches a JOIN matches b
         ON a.user_id = b.target_id AND a.target_id = b.user_id
       WHERE a.user_id = $1 AND a.target_id = $2
-        AND a.status IN ('intent_sent','under_review','approved')
-        AND b.status IN ('intent_sent','under_review','approved')
+        AND a.status IN ('intent_sent','matched','under_review','approved')
+        AND b.status IN ('intent_sent','matched','under_review','approved')
       LIMIT 1`,
     [req.user.id, targetId]
   );

@@ -25,7 +25,7 @@ export default function Courses() {
   return (
     <>
       <h1 className="page-title">婚恋课程</h1>
-      <p className="page-sub">完成课程提升曝光分，轻量课程通过后方可发起关系确认</p>
+      <p className="page-sub">完成恋爱必修课后可进入匹配池；凯勒课程作为进阶装备提升曝光</p>
 
       {list.length === 0 && (
         <div className="card" style={{color:'var(--muted)',fontSize:14}}>课程加载中…</div>

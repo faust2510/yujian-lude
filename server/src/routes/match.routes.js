@@ -4,72 +4,22 @@ import { query, one, tx } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { awardPoints } from '../lib/rewards.js';
 import { getSetting } from '../settings.js';
-import { buildMatchQualification } from '../lib/match-qualification.js';
+import { getMatchGateSettings, getMatchQualification, isInMatchPool } from '../lib/match-gate.js';
+import { normalizeMatchIntent, statusForIntent } from '../lib/match-intent.js';
 
 const router = Router();
-
-function settingValue(setting) {
-  return setting && typeof setting === 'object' && 'value' in setting ? setting.value : setting;
-}
-
-async function getMatchGateSettings() {
-  return {
-    requireTest: settingValue(await getSetting('match.require_faith_test')) !== false,
-    requireEndorsement: settingValue(await getSetting('match.require_verified_pastor')) !== false,
-    requireCourse: settingValue(await getSetting('match.require_light_course')) !== false,
-    lightCourseId: settingValue(await getSetting('match.light_course_id')),
-  };
-}
-
-async function getQualification(userId) {
-  const gate = await getMatchGateSettings();
-  const profile = await one('SELECT completion, privacy_ok FROM profiles WHERE user_id=$1', [userId]);
-  const faith = await one('SELECT church_name, testimony FROM faith_profiles WHERE user_id=$1', [userId]);
-  const testRow = await one(
-    `SELECT passed FROM faith_tests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
-    [userId]
-  );
-  const { rows: endorsements } = await query(
-    `SELECT kind, state FROM endorsements WHERE user_id = $1`,
-    [userId]
-  );
-
-  let lightCourseCompleted = true;
-  if (gate.requireCourse) {
-    lightCourseCompleted = false;
-    if (gate.lightCourseId) {
-      const done = await one(
-        `SELECT 1 FROM course_progress WHERE user_id = $1 AND course_id = $2 AND state = 'completed' LIMIT 1`,
-        [userId, gate.lightCourseId]
-      );
-      lightCourseCompleted = !!done;
-    }
-  }
-
-  const status = buildMatchQualification({
-    profile,
-    faith,
-    faithTestPassed: gate.requireTest ? !!testRow?.passed : true,
-    endorsements: gate.requireEndorsement ? endorsements : [{ kind: 'pastor', state: 'verified' }],
-    lightCourseCompleted,
-  });
-
-  return status;
-}
-
-async function inMatchPool(userId) {
-  return (await getQualification(userId)).inPool;
-}
+const ACTIVE_MATCH_STATUSES = ['intent_sent', 'matched', 'under_review', 'approved'];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // 我的进池状态（统一返回所有资格门槛，前端据此展示下一步）
 router.get('/match/status', requireAuth, async (req, res) => {
-  res.json(await getQualification(req.user.id));
+  res.json(await getMatchQualification(req.user.id));
 });
 
 // 匿名候选列表（按曝光分降序；曝光分 = 课程+背书算出，钱买不到）
 router.get('/match/candidates', requireAuth, async (req, res) => {
-  if (!(await inMatchPool(req.user.id))) {
-    const status = await getQualification(req.user.id);
+  if (!(await isInMatchPool(req.user.id))) {
+    const status = await getMatchQualification(req.user.id);
     return res.json({ candidates: [], locked: true, reason: status.gate, status });
   }
   const { min_age, max_age, city } = req.query;
@@ -89,7 +39,7 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
     eligibilityFilters.push(`EXISTS(SELECT 1 FROM endorsements en WHERE en.user_id = u.id AND en.kind IN ('pastor','referrer') AND en.state='verified')`);
   }
   if (gate.requireTest) {
-    eligibilityFilters.push(`EXISTS(SELECT 1 FROM faith_tests ft WHERE ft.user_id = u.id AND ft.passed = TRUE)`);
+    eligibilityFilters.push(`COALESCE((SELECT ft.passed FROM faith_tests ft WHERE ft.user_id = u.id ORDER BY ft.created_at DESC LIMIT 1), FALSE) = TRUE`);
   }
   if (gate.requireCourse) {
     if (!gate.lightCourseId) {
@@ -123,54 +73,99 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
 // 表达意向（质量动作，每日 1 次积分，受日上限约束）
 router.post('/match/:targetId/intent', requireAuth, async (req, res) => {
   const targetId = req.params.targetId;
+  if (!UUID_RE.test(targetId)) return res.status(400).json({ error: '候选人不存在' });
   if (targetId === req.user.id) return res.status(400).json({ error: '不能对自己表达意向' });
-  if (!(await inMatchPool(req.user.id))) return res.status(403).json({ error: '尚未进入匹配池' });
+  const intent = normalizeMatchIntent(req.body?.intent);
+  if (!intent) return res.status(400).json({ error: '非法意向操作' });
+  const nextStatus = statusForIntent(intent);
+  if (!(await isInMatchPool(req.user.id))) return res.status(403).json({ error: '尚未进入匹配池' });
+
+  const target = await one(
+    `SELECT id FROM users WHERE id = $1 AND is_banned = FALSE`,
+    [targetId]
+  );
+  if (!target) return res.status(404).json({ error: '候选人不存在' });
+  if (!(await isInMatchPool(targetId))) return res.status(403).json({ error: '对方尚未进入匹配池' });
+
+  const existing = await one(
+    `SELECT status FROM matches WHERE user_id = $1 AND target_id = $2`,
+    [req.user.id, targetId]
+  );
+  if (intent === 'like' && existing?.status === 'matched') {
+    return res.json({ ok: true, mutual: true });
+  }
+  const alreadyExpressed = intent === 'like' && ACTIVE_MATCH_STATUSES.includes(existing?.status);
 
   // 每日主动次数上限（VIP 更多）
-  const limKey = req.user.is_vip ? 'limits.daily_intents_vip' : 'limits.daily_intents_free';
-  const lim = (await getSetting(limKey))?.value ?? (req.user.is_vip ? 15 : 3);
-  const used = await one(
-    `SELECT count(*)::int AS n FROM matches
-      WHERE user_id = $1 AND status <> 'suggested' AND created_at::date = CURRENT_DATE`,
-    [req.user.id]
-  );
-  if ((used?.n ?? 0) >= lim) {
-    return res.status(429).json({ error: `今日主动次数已用完（${lim} 次）`, isVip: req.user.is_vip });
+  if (intent === 'like' && !alreadyExpressed) {
+    const limKey = req.user.is_vip ? 'limits.daily_intents_vip' : 'limits.daily_intents_free';
+    const lim = (await getSetting(limKey))?.value ?? (req.user.is_vip ? 15 : 3);
+    const used = await one(
+      `SELECT count(*)::int AS n FROM matches
+        WHERE user_id = $1 AND intent_sent_at::date = CURRENT_DATE`,
+      [req.user.id]
+    );
+    if ((used?.n ?? 0) >= lim) {
+      return res.status(429).json({ error: `今日主动次数已用完（${lim} 次）`, isVip: req.user.is_vip });
+    }
   }
 
   let mutual = false;
   await tx(async (db) => {
-    await db.query(
-      `INSERT INTO matches (user_id, target_id, status)
-       VALUES ($1, $2, 'intent_sent')
-       ON CONFLICT (user_id, target_id) DO UPDATE SET status = 'intent_sent'`,
-      [req.user.id, targetId]
+    const [a, b] = [req.user.id, targetId].sort();
+    await db.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [a, b]);
+
+    const upserted = await db.query(
+      `INSERT INTO matches (user_id, target_id, status, intent_sent_at, updated_at)
+       VALUES (
+         $1,
+         $2,
+         $3::match_status,
+         CASE WHEN $3::match_status = 'intent_sent'::match_status THEN now() ELSE NULL END,
+         now()
+       )
+       ON CONFLICT (user_id, target_id) DO UPDATE SET
+         status = CASE
+           WHEN EXCLUDED.status = 'declined'::match_status
+             AND matches.status IN ('intent_sent','matched','under_review','approved') THEN matches.status
+           WHEN EXCLUDED.status = 'intent_sent'::match_status
+             AND matches.status IN ('matched','under_review','approved') THEN matches.status
+           ELSE EXCLUDED.status
+         END,
+         intent_sent_at = CASE
+           WHEN EXCLUDED.status = 'intent_sent'::match_status
+             AND matches.status IN ('intent_sent','matched','under_review','approved') THEN matches.intent_sent_at
+           WHEN EXCLUDED.status = 'intent_sent'::match_status THEN now()
+           ELSE matches.intent_sent_at
+         END,
+         updated_at = now()
+       RETURNING id, status`,
+      [req.user.id, targetId, nextStatus]
     );
+    if (intent === 'pass') return;
+
     await awardPoints(db, req.user.id, 'points.intent_sent', {});
     // 检查是否互相心动 → 自动建私聊通道
     const reverse = await db.query(
-      `SELECT 1 FROM matches WHERE user_id=$1 AND target_id=$2 AND status='intent_sent'`,
+      `SELECT 1 FROM matches
+        WHERE user_id=$1 AND target_id=$2
+          AND status IN ('intent_sent','matched')`,
       [targetId, req.user.id]
     );
-    if (reverse.rows.length) {
+    if (upserted.rows[0]?.status === 'matched' || reverse.rows.length) {
       mutual = true;
-      const [a, b] = [req.user.id, targetId].sort();
-      // 获取 match_id（两条 match 行中取一条即可）
-      const matchRow = await db.query(
-        `SELECT id FROM matches WHERE user_id=$1 AND target_id=$2`,
-        [req.user.id, targetId]
-      );
-      const matchId = matchRow.rows[0]?.id;
+      const matchId = upserted.rows[0]?.id;
       if (matchId) {
         await db.query(
           `INSERT INTO chat_channels (match_id, user_a, user_b) VALUES ($1,$2,$3)
-           ON CONFLICT DO NOTHING`,
+           ON CONFLICT (user_a, user_b) DO NOTHING`,
           [matchId, a, b]
         );
       }
       await db.query(
-        `UPDATE matches SET status='matched'
-          WHERE (user_id=$1 AND target_id=$2) OR (user_id=$2 AND target_id=$1)`,
+        `UPDATE matches SET status='matched', updated_at=now()
+          WHERE ((user_id=$1 AND target_id=$2) OR (user_id=$2 AND target_id=$1))
+            AND status IN ('intent_sent','matched')`,
         [req.user.id, targetId]
       );
     }
@@ -192,6 +187,7 @@ router.get('/match/viewers', requireAuth, async (req, res) => {
 
 // 记录一次浏览（任何登录用户）
 router.post('/match/:targetId/view', requireAuth, async (req, res) => {
+  if (!UUID_RE.test(req.params.targetId)) return res.status(400).json({ error: '候选人不存在' });
   if (req.params.targetId === req.user.id) return res.json({ ok: true });
   await query(
     `INSERT INTO profile_views (viewer_id, viewed_id) VALUES ($1, $2)`,

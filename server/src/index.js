@@ -47,9 +47,19 @@ app.use('/api', pastorCertRoutes);
 app.use('/api', chatRoutes);
 app.use('/api/admin', adminRoutes);
 
-// 静态前端（项目根目录的 index.html / app.js / styles.css）
-const webRoot = path.resolve(__dirname, '../../');
-app.use(express.static(webRoot, { index: 'index.html', extensions: ['html'] }));
+// 静态前端：首页在项目根目录，React 应用区构建产物挂到 /app。
+const projectRoot = path.resolve(__dirname, '../../');
+const appRoot = path.join(projectRoot, 'web-dist');
+
+app.get('/app', (_req, res) => {
+  res.sendFile(path.join(appRoot, 'index.html'));
+});
+app.use('/app', express.static(appRoot, { index: 'index.html' }));
+app.get('/app/*', (_req, res) => {
+  res.sendFile(path.join(appRoot, 'index.html'));
+});
+
+app.use(express.static(projectRoot, { index: 'index.html', extensions: ['html'] }));
 
 // 兜底错误处理
 app.use((err, _req, res, _next) => {
