@@ -165,6 +165,8 @@ async function smokeRoutes(baseUrl, apiBase) {
   console.log('\n[verify:release] 探测首页、应用区和健康检查');
   await waitForHealth(apiBase);
   await smokeRoute(`${apiBase}/health`);
+  await smokeRoute(`${apiBase}/live`);
+  await smokeRoute(`${apiBase}/ready`);
   await smokeRoute(`${baseUrl}/`);
   await smokeRoute(`${baseUrl}/app`);
   await smokeRoute(`${baseUrl}/app/login`);
@@ -177,7 +179,8 @@ async function startServer(tempDatabaseUrl, port) {
     env: childEnv({
       DATABASE_URL: tempDatabaseUrl,
       PORT: String(port),
-      COOKIE_SECURE: 'false',
+      SESSION_SECRET: crypto.randomBytes(32).toString('hex'),
+      COOKIE_SECURE: 'true',
       NODE_ENV: 'production',
       EXPOSE_DEV_TOKENS: 'false',
     }),
