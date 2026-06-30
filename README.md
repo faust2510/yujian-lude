@@ -24,7 +24,7 @@ npm install --prefix web
 cp server/.env.example server/.env
 ```
 
-至少确认 `server/.env` 中的 `DATABASE_URL`、`PORT`、`SESSION_SECRET`。生产环境建议设置 `NODE_ENV=production`，如果走 HTTPS 且需要 secure cookie，再设置 `COOKIE_SECURE=true`。真实 `.env` 不要提交到 git。
+至少确认 `server/.env` 中的 `DATABASE_URL`、`PORT`、`SESSION_SECRET`。生产环境建议设置 `NODE_ENV=production`，如果走 HTTPS 且需要 secure cookie，再设置 `COOKIE_SECURE=true`。只有本地调试需要直接看邮箱/重置 token 时才设置 `EXPOSE_DEV_TOKENS=true`。真实 `.env` 不要提交到 git。
 
 准备本地 PostgreSQL fresh 数据库并初始化：
 

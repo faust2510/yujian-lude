@@ -178,6 +178,8 @@ async function startServer(tempDatabaseUrl, port) {
       DATABASE_URL: tempDatabaseUrl,
       PORT: String(port),
       COOKIE_SECURE: 'false',
+      NODE_ENV: 'production',
+      EXPOSE_DEV_TOKENS: 'false',
     }),
     stdio: 'inherit',
   });
@@ -262,7 +264,7 @@ async function run() {
     env: { DATABASE_URL: tempDatabaseUrl, API_BASE: apiBase },
   });
   await runCommand('真实多用户回归验收', 'npm', ['run', 'verify:real-users', '--prefix', 'server'], {
-    env: { DATABASE_URL: tempDatabaseUrl, API_BASE: apiBase },
+    env: { DATABASE_URL: tempDatabaseUrl, API_BASE: apiBase, EXPECT_NO_DEV_TOKENS: 'true' },
   });
 
   console.log('\n[verify:release] PASS：上线前体检完成。');

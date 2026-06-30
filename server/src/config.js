@@ -16,6 +16,8 @@ export const config = {
   sessionTtlDays: Number(process.env.SESSION_TTL_DAYS || 30),
   nodeEnv: process.env.NODE_ENV || 'development',
   cookieSecure: String(process.env.COOKIE_SECURE || 'false') === 'true',
+  exposeDevTokens: String(process.env.EXPOSE_DEV_TOKENS || 'false') === 'true',
 };
 
 export const isProd = config.nodeEnv === 'production';
+export const canExposeDevTokens = !isProd && config.exposeDevTokens;

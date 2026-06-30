@@ -10,6 +10,10 @@ export const auth = {
   login: (data) => api.post('/auth/login', data),
   logout: () => api.post('/auth/logout'),
   me: () => api.get('/auth/me'),
+  sendVerify: () => api.post('/auth/send-verify'),
+  verifyEmail: (token) => api.get('/auth/verify', { params: { token } }),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
   changePassword: (data) => api.post('/auth/change-password', data),
 }
 
@@ -130,12 +134,22 @@ export const vip = {
 }
 
 export const admin = {
-  users: () => api.get('/admin/users'),
+  stats: () => api.get('/admin/stats'),
+  auditLogs: () => api.get('/admin/audit-logs'),
+  users: (params) => api.get('/admin/users', { params }),
+  banUser: (id, ban) => api.post(`/admin/users/${id}/ban`, { ban }),
+  updateRole: (id, role) => api.post(`/admin/users/${id}/role`, { role }),
   settings: () => api.get('/admin/settings'),
   updateSetting: (key, value) => api.put(`/admin/settings/${key}`, { value }),
   endorsements: (state = 'pending') => api.get('/admin/endorsements', { params: { state } }),
   reviewEndorsement: (id, decision = 'verified') =>
     api.post(`/admin/endorsements/${id}/review`, { decision }),
+  reports: (state = 'pending') => api.get('/community/reports', { params: { state } }),
+  reviewReport: (id, action) => api.patch(`/community/reports/${id}`, { action }),
+  removePost: (id, reason) => api.delete(`/community/posts/${id}`, { data: { reason } }),
+  communityAdminApplications: () => api.get('/community/admin-applications'),
+  reviewCommunityAdminApplication: (id, action) =>
+    api.patch(`/community/admin-applications/${id}`, { action }),
   pastorApplications: () => api.get('/pastor-cert/applications'),
   reviewPastorApplication: (id, action = 'approve') =>
     api.patch(`/pastor-cert/applications/${id}`, { action }),

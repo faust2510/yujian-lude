@@ -236,6 +236,19 @@ CREATE TABLE app_settings (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 管理员操作审计
+CREATE TABLE admin_audit_logs (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    actor_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+    action       TEXT NOT NULL,
+    target_type  TEXT NOT NULL,
+    target_id    UUID,
+    detail       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_admin_audit_logs_created ON admin_audit_logs(created_at DESC);
+CREATE INDEX idx_admin_audit_logs_actor ON admin_audit_logs(actor_id, created_at DESC);
+
 -- ============================================================
 -- 11. sessions — 登录会话（session cookie）
 -- ============================================================
@@ -247,6 +260,19 @@ CREATE TABLE sessions (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_sessions_token ON sessions(token);
+CREATE INDEX idx_sessions_user ON sessions(user_id);
+CREATE INDEX idx_sessions_expires ON sessions(expires_at);
+
+-- 登录失败限流
+CREATE TABLE login_attempts (
+    email          CITEXT NOT NULL,
+    ip             INET NOT NULL,
+    failed_count   SMALLINT NOT NULL DEFAULT 0,
+    locked_until   TIMESTAMPTZ,
+    last_failed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (email, ip)
+);
+CREATE INDEX idx_login_attempts_locked ON login_attempts(locked_until);
 
 -- ============================================================
 -- 12. faith_tests — 信仰知识测试（v2 新增，入池前提）
@@ -484,6 +510,17 @@ CREATE TABLE email_tokens (
     expires_at   TIMESTAMPTZ NOT NULL,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 密码找回 token（只存 hash）
+CREATE TABLE password_reset_tokens (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash   TEXT UNIQUE NOT NULL,
+    expires_at   TIMESTAMPTZ NOT NULL,
+    used_at      TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_password_reset_tokens_user ON password_reset_tokens(user_id, created_at DESC);
 
 -- ============================================================
 -- v4 社区升级新表

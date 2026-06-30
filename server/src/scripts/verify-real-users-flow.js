@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { QUESTIONS } from '../lib/faith-questions.js';
+import { createPublicToken, hashToken } from '../lib/auth-security.js';
 
 const { Pool } = pg;
 
@@ -74,6 +75,16 @@ async function register(client, email, nickname) {
 
 async function makeAdmin(userId) {
   await pool.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [userId]);
+}
+
+async function createPasswordResetToken(userId) {
+  const token = createPublicToken();
+  await pool.query(
+    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+     VALUES ($1, $2, now() + INTERVAL '1 hour')`,
+    [userId, hashToken(token)]
+  );
+  return token;
 }
 
 async function completeProfile(client, index) {
@@ -160,6 +171,59 @@ async function verifyDailyCheckin(client) {
   assert(after.checkedInToday === true, 'checkin should persist across later reads');
   assert(after.daily === 10, `daily points should persist for today, got ${after.daily}`);
   await expectStatus(client, 'POST', '/me/checkin', {}, 409);
+}
+
+async function verifyAccountSecurity(stamp) {
+  const lockedUser = new ApiClient('locked-user');
+  await register(lockedUser, `real.locked.${stamp}@example.test`, '锁定测试');
+
+  const attacker = new ApiClient('attacker');
+  for (let index = 0; index < 4; index += 1) {
+    await expectStatus(attacker, 'POST', '/auth/login', {
+      email: lockedUser.user.email,
+      password: 'WrongPassw0rd!',
+    }, 401);
+  }
+  await expectStatus(attacker, 'POST', '/auth/login', {
+    email: lockedUser.user.email,
+    password: 'WrongPassw0rd!',
+  }, 429);
+  await expectStatus(attacker, 'POST', '/auth/login', {
+    email: lockedUser.user.email,
+    password: 'Passw0rd!2026',
+  }, 429);
+
+  const resetUser = new ApiClient('reset-user');
+  await register(resetUser, `real.reset.${stamp}@example.test`, '重置测试');
+  const resetRequest = new ApiClient('reset-request');
+  const forgot = await resetRequest.post('/auth/forgot-password', { email: resetUser.user.email });
+  assert(forgot.ok, 'forgot password should return ok');
+  if (process.env.EXPECT_NO_DEV_TOKENS === 'true') {
+    assert(!forgot.devToken, 'production-style verification must not expose reset devToken');
+  }
+  const resetToken = forgot.devToken || await createPasswordResetToken(resetUser.user.id);
+
+  const reset = await resetRequest.post('/auth/reset-password', {
+    token: resetToken,
+    new_password: 'NewPassw0rd!2026',
+  });
+  assert(reset.ok, 'reset password should succeed');
+  await expectStatus(resetRequest, 'POST', '/auth/reset-password', {
+    token: resetToken,
+    new_password: 'AnotherPassw0rd!2026',
+  }, 400);
+
+  const oldSession = await resetUser.get('/auth/me');
+  assert(oldSession.user === null, 'password reset should revoke existing sessions');
+  await expectStatus(resetRequest, 'POST', '/auth/login', {
+    email: resetUser.user.email,
+    password: 'Passw0rd!2026',
+  }, 401);
+  const login = await resetRequest.post('/auth/login', {
+    email: resetUser.user.email,
+    password: 'NewPassw0rd!2026',
+  });
+  assert(login.user?.id === resetUser.user.id, 'new password should allow login');
 }
 
 async function verifyMatchAndChat(users) {
@@ -303,6 +367,60 @@ async function verifyCommunity(users) {
   await alice.patch(`/community/groups/${applyGroup.id}/members/${bob.user.id}`, { action: 'approve' });
   const bobGroupDetail = await bob.get(`/community/groups/${applyGroup.id}`);
   assert(bobGroupDetail.group?.my_membership_state === 'approved', 'approved applicant should become group member');
+  return { postId: post.id };
+}
+
+async function verifyAdminOps(admin, users, communityResult) {
+  const [alice, bob, , dan, partial] = users;
+  const stats = await admin.get('/admin/stats');
+  assert(stats.users >= 1, 'admin stats should include users');
+  assert(typeof stats.pendingReports === 'number', 'admin stats should include pending reports');
+  assert(Array.isArray(stats.auditLogs), 'admin stats should include recent audit logs');
+
+  const userSearch = await admin.get(`/admin/users?q=${encodeURIComponent(alice.user.email)}`);
+  assert(userSearch.users?.some((item) => item.id === alice.user.id), 'admin user search should find alice');
+
+  await admin.post(`/admin/users/${partial.user.id}/ban`, { ban: true });
+  const bannedSession = await partial.get('/auth/me');
+  assert(bannedSession.user === null, 'banning a user should revoke their active session');
+  await admin.post(`/admin/users/${partial.user.id}/ban`, { ban: false });
+  await admin.post(`/admin/users/${partial.user.id}/role`, { role: 'vip' });
+  const vipSearch = await admin.get(`/admin/users?q=${encodeURIComponent(partial.user.email)}&role=vip`);
+  assert(vipSearch.users?.some((item) => item.id === partial.user.id && item.role === 'vip'), 'admin should update user role');
+
+  await bob.post('/community/reports', {
+    target_type: 'post',
+    target_id: communityResult.postId,
+    reason: 'spam',
+    detail: '运营后台验收举报',
+  });
+  const reports = await admin.get('/community/reports?state=pending');
+  const report = reports.reports?.find((item) => item.target_id === communityResult.postId);
+  assert(report, 'admin should see pending community report');
+  await admin.patch(`/community/reports/${report.id}`, { action: 'resolve' });
+  await expectStatus(admin, 'PATCH', `/community/reports/${report.id}`, { action: 'invalid' }, 400);
+
+  await dan.post('/pastor-cert/apply', {
+    church_name: '运营验收教会',
+    denomination: '长老会',
+    contact_email: `ops-pastor-${Date.now()}@example.test`,
+    statement: '运营后台牧者认证验收',
+  });
+  const pastorApps = await admin.get('/pastor-cert/applications');
+  const pastorApp = pastorApps.applications?.find((item) => item.user_id === dan.user.id && item.state === 'pending');
+  assert(pastorApp, 'admin should see pending pastor certification');
+  await admin.patch(`/pastor-cert/applications/${pastorApp.id}`, { action: 'approve' });
+
+  await bob.post('/community/admin-apply', { reason: '愿意协助维护社群秩序' });
+  const adminApps = await admin.get('/community/admin-applications');
+  const adminApp = adminApps.applications?.find((item) => item.user_id === bob.user.id && item.state === 'pending');
+  assert(adminApp, 'admin should see pending community admin application');
+  await admin.patch(`/community/admin-applications/${adminApp.id}`, { action: 'approve' });
+
+  const audit = await admin.get('/admin/audit-logs');
+  assert(audit.auditLogs?.some((item) => item.action === 'user.ban'), 'audit log should include user ban');
+  assert(audit.auditLogs?.some((item) => item.action === 'report.review'), 'audit log should include report review');
+  assert(audit.auditLogs?.some((item) => item.action === 'pastor_cert.review'), 'audit log should include pastor certification review');
 }
 
 async function run() {
@@ -321,11 +439,17 @@ async function run() {
   console.log('[verify-real-users] checking daily checkin...');
   await verifyDailyCheckin(users[0]);
 
+  console.log('[verify-real-users] checking account security...');
+  await verifyAccountSecurity(stamp);
+
   console.log('[verify-real-users] checking match and chat...');
   await verifyMatchAndChat(users);
 
   console.log('[verify-real-users] checking community...');
-  await verifyCommunity(users);
+  const communityResult = await verifyCommunity(users);
+
+  console.log('[verify-real-users] checking admin operations...');
+  await verifyAdminOps(admin, users, communityResult);
 
   console.log('[verify-real-users] PASS');
 }

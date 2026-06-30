@@ -19,6 +19,10 @@ function newToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+export function currentSessionToken(req) {
+  return req.cookies?.[COOKIE_NAME] || null;
+}
+
 // 创建会话并写 cookie
 export async function createSession(res, userId) {
   const token = newToken();

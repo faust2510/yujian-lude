@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { isInMatchPool } from '../lib/match-gate.js';
+import { normalizeReportAction, writeAdminAudit } from '../lib/admin-audit.js';
 
 const router = Router();
 
@@ -678,10 +679,21 @@ router.delete('/community/posts/:id', requireAuth, async (req, res) => {
     return res.status(403).json({ error: '无权删除' });
   }
   const reason = req.body?.reason || null;
-  await query(
-    `UPDATE community_posts SET state = 'removed', removed_by = $1, removed_reason = $2 WHERE id = $3`,
-    [req.user.id, reason, req.params.id]
-  );
+  await tx(async (db) => {
+    await db.query(
+      `UPDATE community_posts SET state = 'removed', removed_by = $1, removed_reason = $2 WHERE id = $3`,
+      [req.user.id, reason, req.params.id]
+    );
+    if (isGlobalAdmin) {
+      await writeAdminAudit(db, {
+        actorId: req.user.id,
+        action: 'post.remove',
+        targetType: 'community_post',
+        targetId: req.params.id,
+        detail: { reason, group_id: post.group_id },
+      });
+    }
+  });
   res.json({ ok: true });
 });
 
@@ -831,11 +843,32 @@ router.get('/community/reports', requireAuth, requireRole('admin'), async (req, 
 // PATCH /community/reports/:id — 处理举报
 router.patch('/community/reports/:id', requireAuth, requireRole('admin'), async (req, res) => {
   const { action } = req.body; // 'resolve' | 'dismiss'
-  const newState = action === 'resolve' ? 'resolved' : 'dismissed';
-  await query(
-    `UPDATE community_reports SET state = $1, resolved_by = $2, resolved_at = now() WHERE id = $3`,
-    [newState, req.user.id, req.params.id]
+  const newState = normalizeReportAction(action);
+  if (!newState) return res.status(400).json({ error: 'action 须为 resolve 或 dismiss' });
+  const report = await one(
+    `SELECT id, target_type, target_id, reason, state FROM community_reports WHERE id = $1`,
+    [req.params.id]
   );
+  if (!report) return res.status(404).json({ error: '举报不存在' });
+  const updated = await tx(async (db) => {
+    const { rows } = await db.query(
+      `UPDATE community_reports
+          SET state = $1, resolved_by = $2, resolved_at = now()
+        WHERE id = $3 AND state = 'pending'
+        RETURNING id`,
+      [newState, req.user.id, req.params.id]
+    );
+    if (!rows[0]) return null;
+    await writeAdminAudit(db, {
+      actorId: req.user.id,
+      action: 'report.review',
+      targetType: 'community_report',
+      targetId: req.params.id,
+      detail: { action, state: newState, target_type: report.target_type, target_id: report.target_id, reason: report.reason },
+    });
+    return rows[0];
+  });
+  if (!updated) return res.status(404).json({ error: '举报不存在或已处理' });
   res.json({ ok: true });
 });
 
@@ -903,10 +936,11 @@ router.post('/community/events/:id/rsvp', requireAuth, async (req, res) => {
 
 // --- 管理员申请 ---
 router.post('/community/admin-apply', requireAuth, async (req, res) => {
+  const { reason = null, group_id = null } = req.body || {};
   try {
     await query(
-      `INSERT INTO community_admin_applications (user_id, state) VALUES ($1, 'pending')`,
-      [req.user.id]
+      `INSERT INTO community_admin_applications (user_id, group_id, reason, state) VALUES ($1, $2, $3, 'pending')`,
+      [req.user.id, group_id, reason]
     );
     res.json({ ok: true });
   } catch (e) {
@@ -917,7 +951,13 @@ router.post('/community/admin-apply', requireAuth, async (req, res) => {
 
 router.get('/community/admin-applications', requireAuth, requireRole('admin'), async (_req, res) => {
   const { rows } = await query(
-    `SELECT id, user_id, state, created_at FROM community_admin_applications ORDER BY created_at DESC`
+    `SELECT a.id, a.user_id, a.group_id, a.reason, a.state, a.created_at,
+            u.email, p.nickname, g.name AS group_name
+       FROM community_admin_applications a
+       JOIN users u ON u.id = a.user_id
+       LEFT JOIN profiles p ON p.user_id = a.user_id
+       LEFT JOIN community_groups g ON g.id = a.group_id
+      ORDER BY a.created_at DESC`
   );
   res.json({ applications: rows });
 });
@@ -928,10 +968,24 @@ router.patch('/community/admin-applications/:id', requireAuth, requireRole('admi
     return res.status(400).json({ error: 'action 须为 approve 或 reject' });
   }
   const state = action === 'approve' ? 'approved' : 'rejected';
-  const row = await one(
-    `UPDATE community_admin_applications SET state = $1 WHERE id = $2 AND state = 'pending' RETURNING id`,
-    [state, req.params.id]
-  );
+  const row = await tx(async (db) => {
+    const { rows } = await db.query(
+      `UPDATE community_admin_applications
+          SET state = $1, reviewed_by = $2, reviewed_at = now()
+        WHERE id = $3 AND state = 'pending'
+        RETURNING id, user_id, group_id`,
+      [state, req.user.id, req.params.id]
+    );
+    if (!rows[0]) return null;
+    await writeAdminAudit(db, {
+      actorId: req.user.id,
+      action: 'community_admin.review',
+      targetType: 'community_admin_application',
+      targetId: req.params.id,
+      detail: { action, state, user_id: rows[0].user_id, group_id: rows[0].group_id },
+    });
+    return rows[0];
+  });
   if (!row) return res.status(404).json({ error: '申请不存在或已处理' });
   res.json({ ok: true });
 });

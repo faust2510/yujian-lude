@@ -1,15 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { auth } from '../api/client'
 import { AuthContext } from './AuthContext'
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(undefined) // undefined = loading
 
-  useEffect(() => {
-    auth.me()
-      .then(r => setUser(r.data.user))
-      .catch(() => setUser(null))
+  const refreshMe = useCallback(async () => {
+    const r = await auth.me()
+    setUser(r.data.user)
+    return r.data.user
   }, [])
+
+  useEffect(() => {
+    refreshMe()
+      .catch(() => setUser(null))
+  }, [refreshMe])
 
   const login = async (email, password) => {
     const r = await auth.login({ email, password })
@@ -29,7 +34,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, refreshMe }}>
       {children}
     </AuthContext.Provider>
   )

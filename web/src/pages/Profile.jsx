@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { profile, auth } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 function messageClass(text) {
   return /失败|错误|不一致|只能|重试|请确认/.test(text || '') ? 'error-msg' : 'success-msg'
 }
 
 export default function Profile() {
+  const { user, refreshMe } = useAuth()
   const [form, setForm] = useState({
     nickname:'', city:'', birth_year:'', education:'',
     goal:'', preference:'', intro:'', privacy_ok: false
@@ -21,7 +23,9 @@ export default function Profile() {
   const [endorsementMsg, setEndorsementMsg] = useState('')
   const [pwd, setPwd] = useState({ current_password:'', new_password:'', confirm:'' })
   const [pwdMsg, setPwdMsg] = useState('')
-  const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, endorsement: false, password: false })
+  const [verifyMsg, setVerifyMsg] = useState('')
+  const [verifyLink, setVerifyLink] = useState('')
+  const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, endorsement: false, password: false, verify: false })
 
   useEffect(() => {
     profile.get().then(r => {
@@ -47,6 +51,26 @@ export default function Profile() {
       setPwd({ current_password:'', new_password:'', confirm:'' })
     } catch { setPwdMsg('修改失败，请确认当前密码是否正确') }
     finally { setBusy(p => ({...p, password: false})) }
+  }
+
+  const sendVerify = async () => {
+    setBusy(p => ({...p, verify: true}))
+    setVerifyMsg('')
+    setVerifyLink('')
+    try {
+      const r = await auth.sendVerify()
+      if (r.data.already) {
+        await refreshMe?.()
+        setVerifyMsg('邮箱已验证')
+      } else {
+        setVerifyMsg('验证邮件已发送')
+        if (r.data.devToken) setVerifyLink(`/app/verify-email?token=${r.data.devToken}`)
+      }
+    } catch (err) {
+      setVerifyMsg(err.response?.data?.error || '发送验证邮件失败')
+    } finally {
+      setBusy(p => ({...p, verify: false}))
+    }
   }
 
   const saveProfile = async (e) => {
@@ -100,6 +124,16 @@ export default function Profile() {
       <h1 className="page-title">完善资料</h1>
       <p className="page-sub">资料越完整，曝光分越高，越容易被匹配到</p>
       {busy.initial && <div className="card" style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>正在加载你的资料…</div>}
+
+      <div className="card" style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+        <div>
+          <h3 style={{fontSize:15,marginBottom:6}}>账户安全</h3>
+          <div style={{fontSize:13,color:'var(--muted)'}}>{user?.email} · {user?.email_verified ? '邮箱已验证' : '邮箱未验证'}</div>
+          {verifyMsg && <div className={messageClass(verifyMsg)}>{verifyMsg}</div>}
+          {verifyLink && <div className="success-msg"><a href={verifyLink}>调试验证链接</a></div>}
+        </div>
+        {!user?.email_verified && <button className="btn btn-outline" onClick={sendVerify} disabled={busy.verify}>{busy.verify ? '发送中…' : '发送验证邮件'}</button>}
+      </div>
 
       <form className="card" onSubmit={saveProfile}>
         <h3 style={{fontSize:15,marginBottom:16}}>个人资料</h3>
@@ -193,7 +227,7 @@ export default function Profile() {
         </div>
         <div className="grid-2">
           <div className="field"><label>新密码</label>
-            <input type="password" value={pwd.new_password} onChange={e=>setPwd(p=>({...p,new_password:e.target.value}))} placeholder="至少 6 位" />
+            <input type="password" value={pwd.new_password} onChange={e=>setPwd(p=>({...p,new_password:e.target.value}))} placeholder="至少 8 位" />
           </div>
           <div className="field"><label>确认新密码</label>
             <input type="password" value={pwd.confirm} onChange={e=>setPwd(p=>({...p,confirm:e.target.value}))} />
