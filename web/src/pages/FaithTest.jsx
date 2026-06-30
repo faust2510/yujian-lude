@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { faithTest } from '../api/client'
 
 const LETTERS = ['A', 'B', 'C', 'D']
@@ -8,22 +8,57 @@ export default function FaithTest() {
   const [questions, setQuestions] = useState(null)
   const [answers, setAnswers] = useState({})
   const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [starting, setStarting] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  useEffect(() => { faithTest.status().then(r => setStatus(r.data ?? {})).catch(() => setStatus({})) }, [])
+  const loadStatus = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const r = await faithTest.status()
+      setStatus(r.data ?? {})
+    } catch (err) {
+      setStatus(null)
+      setError(err.response?.data?.error || '测试状态加载失败，请稍后重试')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadStatus() }, [loadStatus])
 
   const start = async () => {
-    const r = await faithTest.questions()
-    setQuestions(r.data.questions)
-    setAnswers({})
-    setResult(null)
+    setStarting(true)
+    setError('')
+    try {
+      const r = await faithTest.questions()
+      setQuestions(r.data.questions || [])
+      setAnswers({})
+      setResult(null)
+    } catch (err) {
+      setError(err.response?.data?.error || '题目加载失败，请稍后重试')
+    } finally {
+      setStarting(false)
+    }
   }
 
   const submit = async () => {
+    if (!questions || submitting) return
     // backend grade() expects [{id, a: 'A'|'B'|'C'|'D'}]
     const arr = questions.map(q => ({ id: q.id, a: LETTERS[answers[q.id]] }))
-    const r = await faithTest.submit(arr)
-    setResult(r.data)
-    setStatus(s => ({ ...s, attempted: true, latest: { passed: r.data.passed, score: r.data.score } }))
+    setSubmitting(true)
+    setError('')
+    try {
+      const r = await faithTest.submit(arr)
+      setResult(r.data)
+      setStatus(s => ({ ...s, attempted: true, latest: { passed: r.data.passed, score: r.data.score } }))
+    } catch (err) {
+      setError(err.response?.data?.error || '提交失败，请稍后重试')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const latest = status?.latest
@@ -35,7 +70,20 @@ export default function FaithTest() {
       <h1 className="page-title">信仰基础测试</h1>
       <p className="page-sub">使徒信经 + 尼西亚信经基本范围，答对 15 题及以上通过</p>
 
-      {status && !questions && (
+      {loading && <div className="card" style={{fontSize:14,color:'var(--muted)'}}>正在加载测试状态…</div>}
+
+      {error && (
+        <div className="card" style={{marginBottom:16}}>
+          <div className="error-msg" style={{marginTop:0}}>{error}</div>
+          {!questions && (
+            <button className="btn btn-outline" style={{marginTop:12}} onClick={status ? start : loadStatus}>
+              重试
+            </button>
+          )}
+        </div>
+      )}
+
+      {!loading && status && !questions && (
         <div className="card">
           {latest?.passed ? (
             <>
@@ -48,12 +96,16 @@ export default function FaithTest() {
               <p style={{ marginTop: 12, fontSize: 14, color: 'var(--muted)' }}>
                 上次得分 {latest?.score}/20。建议回到教会与牧者一起温习基要真理后重考。
               </p>
-              <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={start}>重新测试</button>
+              <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={start} disabled={starting}>
+                {starting ? '加载中…' : '重新测试'}
+              </button>
             </>
           ) : (
             <>
               <p style={{ fontSize: 14, marginBottom: 16 }}>完成 20 道基要真理单选题，通过后才能进入匹配池。</p>
-              <button className="btn btn-primary" onClick={start}>开始测试</button>
+              <button className="btn btn-primary" onClick={start} disabled={starting}>
+                {starting ? '加载中…' : '开始测试'}
+              </button>
             </>
           )}
         </div>
@@ -75,9 +127,9 @@ export default function FaithTest() {
               ))}
             </div>
           ))}
-          <button className="btn btn-primary" disabled={answered < total} onClick={submit}
+          <button className="btn btn-primary" disabled={answered < total || submitting} onClick={submit}
             style={{ marginTop: 16 }}>
-            提交测试（{answered}/{total}）
+            {submitting ? '提交中…' : `提交测试（${answered}/${total}）`}
           </button>
         </>
       )}
@@ -90,7 +142,9 @@ export default function FaithTest() {
           <p style={{ marginTop: 12, fontSize: 16 }}>得分：{result.score} / 20</p>
           <p style={{ marginTop: 8, fontSize: 14, color: 'var(--muted)' }}>{result.message}</p>
           {!result.passed && (
-            <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={start}>重新测试</button>
+            <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={start} disabled={starting}>
+              {starting ? '加载中…' : '重新测试'}
+            </button>
           )}
         </div>
       )}

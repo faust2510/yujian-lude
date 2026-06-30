@@ -1,33 +1,40 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { matches } from '../api/client'
+
+const EMPTY_FILTERS = { min_age: '', max_age: '', city: '' }
 
 export default function Match() {
   const navigate = useNavigate()
   const [candidates, setCandidates] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ min_age: '', max_age: '', city: '' })
+  const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [msg, setMsg] = useState({})
   const [mutuals, setMutuals] = useState({})
   const [lockedStatus, setLockedStatus] = useState(null)
+  const [error, setError] = useState('')
+  const [acting, setActing] = useState({})
 
-  const load = () => {
+  const loadCandidates = useCallback((nextFilters) => {
     setLoading(true)
-    matches.candidates(filters)
+    setError('')
+    matches.candidates(nextFilters)
       .then(r => {
         setCandidates(r.data.candidates || [])
         setLockedStatus(r.data.locked ? r.data.status : null)
       })
-      .catch(() => {
+      .catch((err) => {
         setCandidates([])
         setLockedStatus(null)
+        setError(err.response?.data?.error || '候选加载失败，请稍后重试')
       })
       .finally(() => setLoading(false))
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { loadCandidates(EMPTY_FILTERS) }, [loadCandidates])
 
   const express = async (id, intent) => {
+    setActing(p => ({...p, [id]: true}))
     try {
       const r = await matches.express(id, intent)
       if (intent === 'like') {
@@ -41,7 +48,15 @@ export default function Match() {
       }
     } catch (err) {
       setMsg(m => ({...m, [id]: err.response?.data?.error || '操作失败'}))
+    } finally {
+      setActing(p => ({...p, [id]: false}))
     }
+  }
+
+  const clearFilters = () => {
+    const blank = { ...EMPTY_FILTERS }
+    setFilters(blank)
+    loadCandidates(blank)
   }
 
   return (
@@ -62,12 +77,22 @@ export default function Match() {
           <label>城市</label>
           <input value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} />
         </div>
-        <button className="btn btn-outline" onClick={load}>筛选</button>
+        <button className="btn btn-outline" onClick={() => loadCandidates(filters)} disabled={loading}>
+          {loading ? '筛选中…' : '筛选'}
+        </button>
       </div>
 
       {loading && <div style={{color:'var(--muted)',padding:20,fontSize:14}}>加载中…</div>}
 
-      {!loading && lockedStatus && (
+      {!loading && error && (
+        <div className="card" style={{padding:28,marginBottom:16,color:'#B42318'}}>
+          <div style={{fontFamily:'var(--font-serif)',fontSize:18,marginBottom:8}}>候选加载失败</div>
+          <p style={{fontSize:14,marginBottom:16}}>{error}</p>
+          <button className="btn btn-outline" onClick={() => loadCandidates(filters)}>重试</button>
+        </div>
+      )}
+
+      {!loading && !error && lockedStatus && (
         <div className="card" style={{padding:28,marginBottom:16}}>
           <div style={{fontFamily:'var(--font-serif)',fontSize:20,marginBottom:8}}>还没有进入匹配池</div>
           <p style={{color:'var(--muted)',fontSize:14,marginBottom:18,lineHeight:1.7}}>{lockedStatus.gate}</p>
@@ -82,11 +107,11 @@ export default function Match() {
         </div>
       )}
 
-      {!loading && !lockedStatus && candidates.length === 0 && (
+      {!loading && !error && !lockedStatus && candidates.length === 0 && (
         <div className="card" style={{textAlign:'center',padding:40}}>
           <div style={{fontSize:24,marginBottom:8}}>暂无候选</div>
           <div style={{color:'var(--muted)',fontSize:14}}>试试放宽筛选条件，或先完成课程提升曝光分</div>
-          <button className="btn btn-outline" style={{marginTop:16}} onClick={()=>setFilters({min_age:'',max_age:'',city:''})}>
+          <button className="btn btn-outline" style={{marginTop:16}} onClick={clearFilters}>
             清空筛选
           </button>
         </div>
@@ -120,8 +145,10 @@ export default function Match() {
             ) : (
               <div style={{display:'flex',gap:8,marginTop:8}}>
                 <button className="btn btn-primary" style={{flex:1,fontSize:13}}
-                  onClick={() => express(c.id, 'like')}>心动</button>
+                  disabled={!!acting[c.id]}
+                  onClick={() => express(c.id, 'like')}>{acting[c.id] ? '处理中…' : '心动'}</button>
                 <button className="btn btn-outline" style={{flex:1,fontSize:13}}
+                  disabled={!!acting[c.id]}
                   onClick={() => express(c.id, 'pass')}>跳过</button>
               </div>
             )}

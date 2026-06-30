@@ -18,30 +18,48 @@ export default function Chat() {
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [loadingChannels, setLoadingChannels] = useState(true)
+  const [loadingMessages, setLoadingMessages] = useState(false)
+  const [error, setError] = useState('')
   const bottomRef = useRef(null)
   const pollRef = useRef(null)
 
   const loadChannels = useCallback(async () => {
+    setLoadingChannels(true)
+    setError('')
     try {
       const r = await chat.channels()
       setChannels(r.data?.channels || [])
-    } catch { /* ignore */ }
+    } catch (err) {
+      setError(err.response?.data?.error || '对话列表加载失败，请重试')
+    } finally {
+      setLoadingChannels(false)
+    }
   }, [])
 
-  const loadMessages = useCallback(async (id) => {
+  const loadMessages = useCallback(async (id, options = {}) => {
+    if (!options.silent) {
+      setLoadingMessages(true)
+      setError('')
+    }
     try {
       const r = await chat.messages(id)
       setMessages(r.data?.messages || [])
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
-    } catch { /* ignore */ }
+    } catch (err) {
+      if (!options.silent) setError(err.response?.data?.error || '消息加载失败，请重试')
+    } finally {
+      if (!options.silent) setLoadingMessages(false)
+    }
   }, [])
 
   useEffect(() => { loadChannels() }, [loadChannels])
 
   useEffect(() => {
     if (!active) return
+    setMessages([])
     loadMessages(active.id)
-    pollRef.current = setInterval(() => loadMessages(active.id), 5000)
+    pollRef.current = setInterval(() => loadMessages(active.id, { silent: true }), 5000)
     return () => clearInterval(pollRef.current)
   }, [active, loadMessages])
 
@@ -53,8 +71,11 @@ export default function Chat() {
       setText('')
       await loadMessages(active.id)
       await loadChannels()
-    } catch { /* ignore */ }
-    setSending(false)
+    } catch (err) {
+      setError(err.response?.data?.error || '发送失败，请稍后重试')
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -64,12 +85,16 @@ export default function Chat() {
           padding: '16px 20px', borderBottom: '1px solid var(--border)',
           fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 15, color: 'var(--fg)'
         }}>私信</div>
-        {channels.length === 0 && (
+        {loadingChannels && (
+          <div style={{ padding: 24, color: 'var(--muted)', fontSize: 13 }}>对话加载中…</div>
+        )}
+        {!loadingChannels && channels.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>💬</div>
             <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6 }}>
               暂无对话。<br />与候选人互相表达意向后，私信通道会自动开通。
             </p>
+            <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={loadChannels}>刷新</button>
           </div>
         )}
         {channels.map(ch => (
@@ -95,6 +120,11 @@ export default function Chat() {
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {error && (
+          <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+            <span className="error-msg" style={{ marginTop: 0 }}>{error}</span>
+          </div>
+        )}
         {!active ? (
           <div style={{
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -115,7 +145,12 @@ export default function Chat() {
               flex: 1, overflowY: 'auto', padding: '20px 24px',
               display: 'flex', flexDirection: 'column', gap: 12
             }}>
-              {messages.length === 0 && (
+              {loadingMessages && (
+                <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', fontSize: 13 }}>
+                  消息加载中…
+                </div>
+              )}
+              {!loadingMessages && messages.length === 0 && (
                 <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', fontSize: 13 }}>
                   发送第一条消息吧
                 </div>

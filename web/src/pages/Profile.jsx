@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react'
 import { profile, auth } from '../api/client'
 
+function messageClass(text) {
+  return /失败|错误|不一致|只能|重试|请确认/.test(text || '') ? 'error-msg' : 'success-msg'
+}
+
 export default function Profile() {
   const [form, setForm] = useState({
     nickname:'', city:'', birth_year:'', education:'',
@@ -17,13 +21,16 @@ export default function Profile() {
   const [endorsementMsg, setEndorsementMsg] = useState('')
   const [pwd, setPwd] = useState({ current_password:'', new_password:'', confirm:'' })
   const [pwdMsg, setPwdMsg] = useState('')
+  const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, endorsement: false, password: false })
 
   useEffect(() => {
     profile.get().then(r => {
       if (r.data.profile) setForm(p => ({...p, ...r.data.profile}))
       if (r.data.faith) setFaith(p => ({...p, ...r.data.faith}))
       setEndorsements(r.data.endorsements || [])
-    }).catch(()=>{})
+    }).catch(() => {
+      setMsg('资料加载失败，请刷新重试')
+    }).finally(() => setBusy(p => ({...p, initial: false})))
   }, [])
 
   const set = key => e => setForm(p => ({...p, [key]: e.target.value}))
@@ -32,26 +39,41 @@ export default function Profile() {
   const changePwd = async (e) => {
     e.preventDefault()
     if (pwd.new_password !== pwd.confirm) return setPwdMsg('两次密码不一致')
+    setBusy(p => ({...p, password: true}))
+    setPwdMsg('')
     try {
       await auth.changePassword({ current_password: pwd.current_password, new_password: pwd.new_password })
       setPwdMsg('密码已修改')
       setPwd({ current_password:'', new_password:'', confirm:'' })
     } catch { setPwdMsg('修改失败，请确认当前密码是否正确') }
+    finally { setBusy(p => ({...p, password: false})) }
   }
 
   const saveProfile = async (e) => {
     e.preventDefault()
-    try { await profile.save(form); setMsg('资料已保存，曝光分已更新') }
-    catch { setMsg('保存失败') }
+    setBusy(p => ({...p, profile: true}))
+    setMsg('')
+    try {
+      const r = await profile.save(form)
+      const completion = Number(r.data?.completion)
+      setMsg(Number.isFinite(completion) ? `资料已保存，完整度 ${completion}%` : '资料已保存，曝光分已更新')
+    }
+    catch (err) { setMsg(err.response?.data?.error || '保存失败，请检查资料后重试') }
+    finally { setBusy(p => ({...p, profile: false})) }
   }
   const saveFaith = async (e) => {
     e.preventDefault()
+    setBusy(p => ({...p, faith: true}))
+    setFaithMsg('')
     try { await profile.saveFaith(faith); setFaithMsg('信仰档案已保存') }
-    catch { setFaithMsg('保存失败') }
+    catch (err) { setFaithMsg(err.response?.data?.error || '保存失败，请检查信仰档案后重试') }
+    finally { setBusy(p => ({...p, faith: false})) }
   }
 
   const addEndorsement = async (e) => {
     e.preventDefault()
+    setBusy(p => ({...p, endorsement: true}))
+    setEndorsementMsg('')
     try {
       const r = await profile.addEndorsement(endorsement)
       setEndorsements(items => [...items, r.data.endorsement])
@@ -59,6 +81,8 @@ export default function Profile() {
       setEndorsementMsg('背书人已提交，等待审核确认')
     } catch (err) {
       setEndorsementMsg(err.response?.data?.error || '提交失败')
+    } finally {
+      setBusy(p => ({...p, endorsement: false}))
     }
   }
 
@@ -75,6 +99,7 @@ export default function Profile() {
     <>
       <h1 className="page-title">完善资料</h1>
       <p className="page-sub">资料越完整，曝光分越高，越容易被匹配到</p>
+      {busy.initial && <div className="card" style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>正在加载你的资料…</div>}
 
       <form className="card" onSubmit={saveProfile}>
         <h3 style={{fontSize:15,marginBottom:16}}>个人资料</h3>
@@ -101,8 +126,8 @@ export default function Profile() {
           <input type="checkbox" checked={!!form.privacy_ok} onChange={e => setForm(p => ({...p, privacy_ok: e.target.checked}))} />
           <span>我同意将资料用于平台内的匿名匹配，敏感信息仅顾问与匹配对象可见</span>
         </label>
-        <button className="btn btn-primary">保存资料</button>
-        {msg && <div className="success-msg">{msg}</div>}
+        <button className="btn btn-primary" disabled={busy.profile}>{busy.profile ? '保存中…' : '保存资料'}</button>
+        {msg && <div className={messageClass(msg)}>{msg}</div>}
       </form>
 
       <form className="card" onSubmit={saveFaith}>
@@ -120,8 +145,8 @@ export default function Profile() {
         <div className="field"><label>简短见证</label>
           <textarea rows={3} value={faith.testimony||''} onChange={setF('testimony')} />
         </div>
-        <button className="btn btn-primary">保存信仰档案</button>
-        {faithMsg && <div className="success-msg">{faithMsg}</div>}
+        <button className="btn btn-primary" disabled={busy.faith}>{busy.faith ? '保存中…' : '保存信仰档案'}</button>
+        {faithMsg && <div className={messageClass(faithMsg)}>{faithMsg}</div>}
       </form>
 
       <form className="card" onSubmit={addEndorsement}>
@@ -157,8 +182,8 @@ export default function Profile() {
           <div className="field"><label>教会 / 关系说明</label><input value={endorsement.church} onChange={e=>setEndorsement(p=>({...p,church:e.target.value}))} /></div>
         </div>
         <div className="field"><label>备注</label><textarea rows={3} value={endorsement.note} onChange={e=>setEndorsement(p=>({...p,note:e.target.value}))} placeholder="例如：小组长、团契负责人、属灵长辈或已认证会员" /></div>
-        <button className="btn btn-primary">提交背书人</button>
-        {endorsementMsg && <div className="success-msg">{endorsementMsg}</div>}
+        <button className="btn btn-primary" disabled={busy.endorsement}>{busy.endorsement ? '提交中…' : '提交背书人'}</button>
+        {endorsementMsg && <div className={messageClass(endorsementMsg)}>{endorsementMsg}</div>}
       </form>
 
       <form className="card" onSubmit={changePwd}>
@@ -174,8 +199,8 @@ export default function Profile() {
             <input type="password" value={pwd.confirm} onChange={e=>setPwd(p=>({...p,confirm:e.target.value}))} />
           </div>
         </div>
-        <button className="btn btn-primary">修改密码</button>
-        {pwdMsg && <div className="success-msg">{pwdMsg}</div>}
+        <button className="btn btn-primary" disabled={busy.password}>{busy.password ? '修改中…' : '修改密码'}</button>
+        {pwdMsg && <div className={messageClass(pwdMsg)}>{pwdMsg}</div>}
       </form>
     </>
   )

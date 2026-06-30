@@ -4,22 +4,52 @@ import { courses } from '../api/client'
 export default function Courses() {
   const [list, setList] = useState([])
   const [progress, setProgress] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState({})
+  const [msg, setMsg] = useState('')
 
-  useEffect(() => {
-    courses.list().then(r => {
+  const loadCourses = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const r = await courses.list()
       const cs = r.data.courses || []
       setList(cs)
-      cs.forEach(c => {
-        courses.detail(c.slug).then(p => setProgress(prev => ({...prev, [c.slug]: p.data}))).catch(()=>{})
+      const details = await Promise.allSettled(cs.map(c => courses.detail(c.slug)))
+      const nextProgress = {}
+      details.forEach((result, index) => {
+        if (result.status === 'fulfilled') nextProgress[cs[index].slug] = result.value.data
       })
-    }).catch(()=>{})
-  }, [])
+      setProgress(nextProgress)
+      if (details.some(result => result.status === 'rejected')) {
+        setError('部分课程进度加载失败，请稍后重试')
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || '课程加载失败，请稍后重试')
+      setList([])
+      setProgress({})
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadCourses() }, [])
 
   const completeUnit = async (unitIndex, courseSlug) => {
+    const key = `${courseSlug}-${unitIndex}`
+    setSubmitting(p => ({...p, [key]: true}))
+    setMsg('')
     try {
       await courses.submitUnit(courseSlug, unitIndex, { passed: true, score: 1 })
-      courses.detail(courseSlug).then(p => setProgress(prev => ({...prev, [courseSlug]: p.data})))
-    } catch {}
+      const detail = await courses.detail(courseSlug)
+      setProgress(prev => ({...prev, [courseSlug]: detail.data}))
+      setMsg('打卡已保存')
+    } catch (err) {
+      setMsg(err.response?.data?.error || '打卡失败，请重试')
+    } finally {
+      setSubmitting(p => ({...p, [key]: false}))
+    }
   }
 
   return (
@@ -27,8 +57,21 @@ export default function Courses() {
       <h1 className="page-title">婚恋课程</h1>
       <p className="page-sub">完成恋爱必修课后可进入匹配池；凯勒课程作为进阶装备提升曝光</p>
 
-      {list.length === 0 && (
+      {error && (
+        <div className="card" style={{color:'#B42318',fontSize:14,marginBottom:16}}>
+          {error}
+          <button className="btn btn-outline" style={{marginLeft:12}} onClick={loadCourses}>重试</button>
+        </div>
+      )}
+      {msg && <div className="card" style={{fontSize:13,color:msg.includes('失败') ? '#B42318' : '#17a34a',marginBottom:16}}>{msg}</div>}
+
+      {loading && (
         <div className="card" style={{color:'var(--muted)',fontSize:14}}>课程加载中…</div>
+      )}
+      {!loading && list.length === 0 && !error && (
+        <div className="card" style={{color:'var(--muted)',fontSize:14}}>
+          暂无课程。稍后刷新页面，或联系管理员确认课程配置。
+        </div>
       )}
 
       {list.map(c => {
@@ -56,6 +99,7 @@ export default function Courses() {
 
             {prog?.units?.map(u => {
               const att = prog?.attempts?.find(a => a.unit_index === u.unit_index)
+              const key = `${c.slug}-${u.unit_index}`
               return (
                 <div key={u.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',
                   padding:'10px 12px',background:att?.passed?'#F0FAF4':'var(--bg)',
@@ -63,7 +107,10 @@ export default function Courses() {
                   <span style={{color:att?.passed?'#1A7A3C':'var(--fg)'}}>{att?.passed ? '✓ ' : ''}{u.title}</span>
                   {!att?.passed && (
                     <button className="btn btn-outline" style={{fontSize:12,padding:'4px 12px'}}
-                      onClick={() => completeUnit(u.unit_index, c.slug)}>打卡完成</button>
+                      disabled={!!submitting[key]}
+                      onClick={() => completeUnit(u.unit_index, c.slug)}>
+                      {submitting[key] ? '提交中…' : '打卡完成'}
+                    </button>
                   )}
                 </div>
               )
