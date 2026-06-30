@@ -40,6 +40,27 @@ async function getMembership(userId, groupId) {
   );
 }
 
+async function canViewPost(userId, postId) {
+  const row = await one(
+    `SELECT p.id, p.author_id, p.group_id
+       FROM community_posts p
+      WHERE p.id = $1
+        AND p.state IN ('visible','pinned','featured')
+        AND p.moderation = 'approved'
+        AND (
+          p.group_id IS NULL
+          OR EXISTS (
+            SELECT 1 FROM community_memberships cm
+             WHERE cm.group_id = p.group_id
+               AND cm.user_id = $2
+               AND cm.state = 'approved'
+          )
+        )`,
+    [postId, userId]
+  );
+  return row;
+}
+
 async function canPost(userId) {
   return isInMatchPool(userId);
 }
@@ -267,9 +288,11 @@ router.get('/community/posts/search', requireAuth, async (req, res) => {
             (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id)::int AS like_count,
             (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id)::int AS comment_count,
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me
-       FROM community_posts p
+      FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
       WHERE p.state IN ('visible','pinned')
+        AND p.moderation = 'approved'
+        AND p.group_id IS NULL
         AND p.body ILIKE '%' || $2 || '%'
       ORDER BY p.created_at DESC
       LIMIT $3 OFFSET $4`,
@@ -283,14 +306,24 @@ router.get('/community/posts', requireAuth, async (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = 20;
   const offset = (page - 1) * limit;
+  const userId = req.user.id;
   const params = [];
-  let where = `WHERE p.state IN ('visible','pinned') AND p.moderation = 'approved'`;
+  let where = `WHERE p.state IN ('visible','pinned','featured')`;
 
   if (req.query.group_id) {
+    const membership = await getMembership(userId, req.query.group_id);
+    if (!membership || membership.state !== 'approved') {
+      return res.json({ posts: [], page });
+    }
     params.push(req.query.group_id);
     where += ` AND p.group_id = $${params.length}`;
+    if (['owner', 'admin'].includes(membership.role)) {
+      where += ` AND p.moderation IN ('approved','pending')`;
+    } else {
+      where += ` AND p.moderation = 'approved'`;
+    }
   } else {
-    where += ` AND p.group_id IS NULL`; // 全站广场
+    where += ` AND p.group_id IS NULL AND p.moderation = 'approved'`; // 全站广场
   }
   if (req.query.tag) {
     params.push(req.query.tag.toLowerCase());
@@ -303,9 +336,9 @@ router.get('/community/posts', requireAuth, async (req, res) => {
   }
 
   params.push(limit, offset);
-  const userId = req.user.id;
   const { rows } = await query(
     `SELECT p.id, p.author_id, p.title, p.body AS content, p.image_url, p.post_type,
+            p.moderation,
             p.state, p.created_at,
             COALESCE(pr.nickname, '匿名') AS author_nickname,
             (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id)::int AS like_count,
@@ -337,6 +370,8 @@ router.get('/community/feed/following', requireAuth, async (req, res) => {
        FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        WHERE p.state IN ('visible','pinned')
+         AND p.moderation = 'approved'
+         AND p.group_id IS NULL
          AND p.author_id IN (SELECT followee_id FROM community_follows WHERE follower_id = $1)
       ORDER BY p.created_at DESC
       LIMIT $2 OFFSET $3`,
@@ -361,7 +396,8 @@ router.get('/community/feed/hot', requireAuth, async (req, res) => {
             EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $1) AS bookmarked_by_me
        FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
-       WHERE p.state IN ('visible','pinned') AND p.moderation = 'approved'
+       WHERE p.state IN ('visible','pinned','featured') AND p.moderation = 'approved'
+         AND p.group_id IS NULL
          AND p.created_at > now() - INTERVAL '7 days'
       ORDER BY like_count DESC, p.created_at DESC
       LIMIT $2 OFFSET $3`,
@@ -387,6 +423,7 @@ router.get('/community/feed/trending', requireAuth, async (req, res) => {
        FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        WHERE p.state IN ('visible','pinned','featured') AND p.moderation = 'approved'
+         AND p.group_id IS NULL
       ORDER BY (p.state = 'featured') DESC,
                (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id) DESC,
                p.created_at DESC
@@ -439,6 +476,8 @@ router.post('/community/posts', requireAuth, async (req, res) => {
 router.post('/community/posts/:id/like', requireAuth, async (req, res) => {
   const postId = req.params.id;
   const userId = req.user.id;
+  const visiblePost = await canViewPost(userId, postId);
+  if (!visiblePost) return res.status(403).json({ error: '无权访问该帖子' });
   const existing = await one(
     `SELECT 1 FROM community_likes WHERE user_id = $1 AND post_id = $2`,
     [userId, postId]
@@ -467,6 +506,8 @@ router.post('/community/posts/:id/like', requireAuth, async (req, res) => {
 
 // --- 评论 ---
 router.get('/community/posts/:id/comments', requireAuth, async (req, res) => {
+  const visiblePost = await canViewPost(req.user.id, req.params.id);
+  if (!visiblePost) return res.status(403).json({ error: '无权访问该帖子' });
   const { rows } = await query(
     `SELECT c.id, c.post_id, c.author_id, c.parent_id, c.body, c.created_at,
             COALESCE(pr.nickname, '匿名') AS author_nickname
@@ -493,6 +534,8 @@ router.post('/community/posts/:id/comments', requireAuth, async (req, res) => {
   const { body, parent_id } = req.body;
   if (!body) return res.status(400).json({ error: '缺少 body' });
   const postId = req.params.id;
+  const visiblePost = await canViewPost(req.user.id, postId);
+  if (!visiblePost) return res.status(403).json({ error: '无权访问该帖子' });
 
   const comment = await tx(async (client) => {
     const { rows } = await client.query(
@@ -576,7 +619,9 @@ router.get('/community/hashtags', requireAuth, async (_req, res) => {
        FROM community_hashtags ch
        JOIN community_post_hashtags cph ON cph.hashtag_id = ch.id
        JOIN community_posts p ON p.id = cph.post_id
-      WHERE p.state IN ('visible','pinned')
+      WHERE p.state IN ('visible','pinned','featured')
+        AND p.moderation = 'approved'
+        AND p.group_id IS NULL
       GROUP BY ch.id, ch.tag
       ORDER BY post_count DESC
       LIMIT 20`
@@ -692,6 +737,8 @@ router.patch('/community/posts/:id/moderate', requireAuth, async (req, res) => {
 router.post('/community/posts/:id/bookmark', requireAuth, async (req, res) => {
   const postId = req.params.id;
   const userId = req.user.id;
+  const visiblePost = await canViewPost(userId, postId);
+  if (!visiblePost) return res.status(403).json({ error: '无权访问该帖子' });
   const existing = await one(
     `SELECT 1 FROM community_bookmarks WHERE user_id = $1 AND post_id = $2`,
     [userId, postId]
@@ -725,7 +772,18 @@ router.get('/community/bookmarks', requireAuth, async (req, res) => {
        FROM community_bookmarks b
        JOIN community_posts p ON p.id = b.post_id
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
-      WHERE b.user_id = $1 AND p.state IN ('visible','pinned','featured')
+      WHERE b.user_id = $1
+        AND p.state IN ('visible','pinned','featured')
+        AND p.moderation = 'approved'
+        AND (
+          p.group_id IS NULL
+          OR EXISTS (
+            SELECT 1 FROM community_memberships cm
+             WHERE cm.group_id = p.group_id
+               AND cm.user_id = $1
+               AND cm.state = 'approved'
+          )
+        )
       ORDER BY b.created_at DESC
       LIMIT $2 OFFSET $3`,
     [userId, limit, offset]
@@ -886,7 +944,7 @@ router.get('/community/user/:userId/profile', requireAuth, async (req, res) => {
         u.id,
         COALESCE(pr.nickname, '匿名') AS nickname,
         pr.intro,
-        (SELECT COUNT(*) FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned'))::int AS post_count,
+        (SELECT COUNT(*) FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned','featured') AND moderation = 'approved' AND group_id IS NULL)::int AS post_count,
         (SELECT COUNT(*) FROM community_follows WHERE followee_id = u.id)::int AS follower_count,
         (SELECT COUNT(*) FROM community_follows WHERE follower_id = u.id)::int AS following_count,
         EXISTS(SELECT 1 FROM community_follows WHERE follower_id = $1 AND followee_id = u.id) AS followed_by_me
@@ -912,9 +970,12 @@ router.get('/community/user/:userId/posts', requireAuth, async (req, res) => {
             (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id)::int AS like_count,
             (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id)::int AS comment_count,
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me
-       FROM community_posts p
+      FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
-      WHERE p.author_id = $2 AND p.state IN ('visible','pinned')
+      WHERE p.author_id = $2
+        AND p.state IN ('visible','pinned','featured')
+        AND p.moderation = 'approved'
+        AND p.group_id IS NULL
       ORDER BY p.created_at DESC
       LIMIT $3 OFFSET $4`,
     [curUserId, userId, limit, offset]
@@ -929,15 +990,15 @@ router.get('/community/suggested-users', requireAuth, async (req, res) => {
     `SELECT u.id,
             COALESCE(pr.nickname, '匿名') AS nickname,
             pr.intro,
-            (SELECT COUNT(*) FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned'))::int AS post_count,
+            (SELECT COUNT(*) FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned','featured') AND moderation = 'approved' AND group_id IS NULL)::int AS post_count,
             (SELECT COUNT(*) FROM community_follows WHERE followee_id = u.id)::int AS follower_count
        FROM users u
        LEFT JOIN profiles pr ON pr.user_id = u.id
       WHERE u.id != $1
         AND u.id NOT IN (SELECT followee_id FROM community_follows WHERE follower_id = $1)
-        AND EXISTS (SELECT 1 FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned'))
+        AND EXISTS (SELECT 1 FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned','featured') AND moderation = 'approved' AND group_id IS NULL)
       ORDER BY (SELECT COUNT(*) FROM community_follows WHERE followee_id = u.id) DESC,
-               (SELECT COUNT(*) FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned')) DESC
+               (SELECT COUNT(*) FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned','featured') AND moderation = 'approved' AND group_id IS NULL) DESC
       LIMIT 10`,
     [userId]
   );

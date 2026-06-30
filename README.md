@@ -63,6 +63,18 @@ DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude_mvp_verify' API_BASE='ht
 
 `verify:mvp` 会自动创建 3 个普通用户和 1 个管理员，并跑通资料、信仰测试、背书提交与审核、恋爱必修课、入池、匹配、私聊和全站广场互动。
 
+更贴近真实用户行为的多账号验收可以用独立端口和数据库运行：
+
+```bash
+dropdb --if-exists yujian_lude_real_users_verify
+createdb yujian_lude_real_users_verify
+DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude_real_users_verify' npm run migrate --prefix server
+DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude_real_users_verify' PORT=8091 npm start --prefix server
+DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude_real_users_verify' API_BASE='http://localhost:8091/api' npm run verify:real-users --prefix server
+```
+
+`verify:real-users` 会创建 5 个普通用户和 1 个管理员，覆盖签到持久化、未入池限制、多人入池、候选匹配、双向私聊、第三人无权访问私聊、全站帖跨账号可见、关注流、搜索、收藏、评论、点赞、通知、小组发帖审核、申请制小组审批和活动报名。
+
 ## 常用检查
 
 ```bash

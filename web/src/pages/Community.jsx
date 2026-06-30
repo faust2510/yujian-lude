@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { community } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso)) / 1000)
@@ -41,7 +42,8 @@ const GROUP_TAB_LABELS = { posts: '帖子', members: '成员', events: '活动',
 
 export default function Community() {
   const navigate = useNavigate()
-  const user = JSON.parse(localStorage.getItem('yu_user') ?? '{}')
+  const { user: currentUser } = useAuth()
+  const user = currentUser ?? {}
 
   // ─── view state ───
   const [view, setView] = useState('global') // 'global' | 'groups' | 'group-detail'
@@ -163,7 +165,7 @@ export default function Community() {
   const loadGroupDetail = async (groupId) => {
     try {
       const res = await community.groupDetail(groupId)
-      setGroupDetail(res.data)
+      setGroupDetail(res.data.group)
     } catch {}
   }
 
@@ -177,7 +179,7 @@ export default function Community() {
   const loadPending = async (groupId) => {
     try {
       const res = await community.groupPending(groupId)
-      setPendingRequests(res.data.members ?? [])
+      setPendingRequests(res.data.pending ?? [])
     } catch {}
   }
 
@@ -510,8 +512,9 @@ export default function Community() {
     })
   }
 
-  const isAdmin = selectedGroup && (selectedGroup.my_role === 'owner' || selectedGroup.my_role === 'admin')
-  const isMember = selectedGroup && selectedGroup.my_membership_state === 'approved'
+  const currentGroup = groupDetail ?? selectedGroup
+  const isAdmin = currentGroup && (currentGroup.my_role === 'owner' || currentGroup.my_role === 'admin')
+  const isMember = currentGroup && currentGroup.my_membership_state === 'approved'
 
   // ═══════════════════════════════════════════════════════════════
   // RENDER: GROUPS LIST

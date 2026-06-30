@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { community } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso)) / 1000)
@@ -22,7 +23,8 @@ function Avatar({ name, size = 40 }) {
 export default function UserTimeline() {
   const { userId } = useParams()
   const navigate = useNavigate()
-  const user = JSON.parse(localStorage.getItem('yu_user') ?? '{}')
+  const { user: currentUser } = useAuth()
+  const user = currentUser ?? {}
 
   const [profile, setProfile] = useState(null)
   const [posts, setPosts] = useState([])
