@@ -123,7 +123,10 @@ export const pastorCert = {
 export const vip = {
   plans: () => api.get('/vip/plans'),
   redeem: (days) => api.post('/vip/redeem', { days }),
-  subscribe: (_planId) => Promise.reject(new Error('payment not yet implemented')),
+  subscribe: (_planId) => {
+    void _planId
+    return Promise.reject(new Error('payment not yet implemented'))
+  },
 }
 
 export const admin = {

@@ -40,6 +40,10 @@ const CATEGORY_TABS = [
 
 const GROUP_TAB_LABELS = { posts: '帖子', members: '成员', events: '活动', announcements: '公告' }
 
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.error || fallback
+}
+
 export default function Community() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
@@ -90,7 +94,6 @@ export default function Community() {
   const [openComments, setOpenComments] = useState(new Set())
   const [comments, setComments] = useState({})
   const [commentBodies, setCommentBodies] = useState({})
-  const [commenting, setCommenting] = useState({})
   const [replyTo, setReplyTo] = useState(null)
 
   // ─── notifications ───
@@ -128,7 +131,9 @@ export default function Community() {
       if (q) params.q = q
       const res = await community.groups(params)
       setGroups(res.data.groups ?? [])
-    } catch {} finally {
+    } catch (e) {
+      setError(getErrorMessage(e, '小组加载失败'))
+    } finally {
       setLoadingGroups(false)
     }
   }, [])
@@ -166,45 +171,53 @@ export default function Community() {
     try {
       const res = await community.groupDetail(groupId)
       setGroupDetail(res.data.group)
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '小组详情加载失败'))
+    }
   }
 
   const loadMembers = async (groupId) => {
     try {
       const res = await community.groupMembers(groupId)
       setMembers(res.data.members ?? [])
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '成员加载失败'))
+    }
   }
 
   const loadPending = async (groupId) => {
     try {
       const res = await community.groupPending(groupId)
       setPendingRequests(res.data.pending ?? [])
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '待审核申请加载失败'))
+    }
   }
 
   const loadEvents = async (groupId) => {
     try {
       const res = await community.groupEvents(groupId)
       setEvents(res.data.events ?? [])
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '活动加载失败'))
+    }
   }
 
   // ─── initial load ───
   useEffect(() => {
-    community.unreadCount().then(r => setNotifCount(r.data.unread)).catch(() => {})
+    community.unreadCount().then(r => setNotifCount(r.data.unread)).catch(() => setNotifCount(0))
     community.following().then(r => {
       setFollowed(new Set((r.data.following ?? []).map(f => f.user_id)))
-    }).catch(() => {})
+    }).catch(() => setFollowed(new Set()))
     community.suggestedUsers().then(r => {
       setSuggestedUsers(r.data.users ?? [])
-    }).catch(() => {})
+    }).catch(() => setSuggestedUsers([]))
     loadPosts(1, { tab: 'trending' })
-  }, [])
+  }, [loadPosts])
 
   useEffect(() => {
     if (showNotifs) {
-      community.notifications(1).then(r => setNotifList(r.data.notifications ?? [])).catch(() => {})
+      community.notifications(1).then(r => setNotifList(r.data.notifications ?? [])).catch(() => setNotifList([]))
     }
   }, [showNotifs])
 
@@ -290,7 +303,7 @@ export default function Community() {
 
   const joinGroup = async (groupId) => {
     try {
-      const res = await community.joinGroup(groupId)
+      await community.joinGroup(groupId)
       if (selectedGroup?.id === groupId) {
         loadGroupDetail(groupId)
       }
@@ -344,7 +357,9 @@ export default function Community() {
     try {
       await community.deletePost(id)
       setPosts(prev => prev.filter(p => p.id !== id))
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '删除帖子失败'))
+    }
   }
 
   const toggleLike = async (postId) => {
@@ -355,7 +370,9 @@ export default function Community() {
           ? { ...p, liked_by_me: res.data.liked, like_count: p.like_count + (res.data.liked ? 1 : -1) }
           : p
       ))
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '点赞失败'))
+    }
   }
 
   const toggleBookmark = async (postId) => {
@@ -364,21 +381,27 @@ export default function Community() {
       setPosts(prev => prev.map(p =>
         p.id === postId ? { ...p, bookmarked_by_me: res.data.bookmarked } : p
       ))
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '收藏失败'))
+    }
   }
 
   const moderatePost = async (postId, action) => {
     try {
       await community.moderate(postId, action)
       setPosts(prev => prev.filter(p => p.id !== postId))
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '审核失败'))
+    }
   }
 
   const featurePost = async (postId, action) => {
     try {
       await community.feature(postId, action)
       if (selectedGroup) loadPosts(1, { groupId: selectedGroup.id })
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '操作失败'))
+    }
   }
 
   const submitReport = async () => {
@@ -388,7 +411,9 @@ export default function Community() {
       setShowReport(null)
       setReportReason('spam')
       setReportDetail('')
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '举报失败'))
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -405,7 +430,10 @@ export default function Community() {
         try {
           const res = await community.getComments(postId)
           setComments(prev => ({ ...prev, [postId]: res.data.comments ?? [] }))
-        } catch {}
+        } catch (e) {
+          setComments(prev => ({ ...prev, [postId]: [] }))
+          setError(getErrorMessage(e, '评论加载失败'))
+        }
       }
     }
     setOpenComments(next)
@@ -415,7 +443,6 @@ export default function Community() {
   const submitComment = async (postId) => {
     const body = commentBodies[postId]
     if (!body?.trim()) return
-    setCommenting(prev => ({ ...prev, [postId]: true }))
     try {
       const data = { body: body.trim() }
       if (replyTo?.postId === postId) data.parent_id = replyTo.commentId
@@ -424,8 +451,8 @@ export default function Community() {
       setReplyTo(null)
       const res = await community.getComments(postId)
       setComments(prev => ({ ...prev, [postId]: res.data.comments ?? [] }))
-    } catch {} finally {
-      setCommenting(prev => ({ ...prev, [postId]: false }))
+    } catch (e) {
+      setError(getErrorMessage(e, '评论失败'))
     }
   }
 
@@ -442,7 +469,9 @@ export default function Community() {
         else next.delete(authorId)
         return next
       })
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '关注失败'))
+    }
   }
 
   const loadBookmarks = async () => {
@@ -450,7 +479,10 @@ export default function Community() {
       const res = await community.bookmarks(1)
       setBookmarks(res.data.posts ?? [])
       setShowBookmarks(true)
-    } catch {}
+    } catch (e) {
+      setBookmarks([])
+      setError(getErrorMessage(e, '收藏加载失败'))
+    }
   }
 
   const doSearch = async () => {
@@ -461,7 +493,9 @@ export default function Community() {
       setPosts(res.data.posts ?? [])
       setPage(1)
       setHasMore(false)
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '搜索失败'))
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -484,7 +518,9 @@ export default function Community() {
     try {
       await community.rsvpEvent(eventId, status)
       loadEvents(selectedGroup.id)
-    } catch {}
+    } catch (e) {
+      setError(getErrorMessage(e, '报名失败'))
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -515,6 +551,10 @@ export default function Community() {
   const currentGroup = groupDetail ?? selectedGroup
   const isAdmin = currentGroup && (currentGroup.my_role === 'owner' || currentGroup.my_role === 'admin')
   const isMember = currentGroup && currentGroup.my_membership_state === 'approved'
+
+  const renderErrorBanner = () => error ? (
+    <div className="com-error" style={{ margin: '0 0 12px 0' }}>{error}</div>
+  ) : null
 
   // ═══════════════════════════════════════════════════════════════
   // RENDER: GROUPS LIST
@@ -863,9 +903,13 @@ export default function Community() {
                           }}>回复</span>
                           {c.author_id === user.id && (
                             <span className="com-comment-reply-btn" onClick={async () => {
-                              await community.deleteComment(c.id)
-                              const res = await community.getComments(post.id)
-                              setComments(prev => ({ ...prev, [post.id]: res.data.comments ?? [] }))
+                              try {
+                                await community.deleteComment(c.id)
+                                const res = await community.getComments(post.id)
+                                setComments(prev => ({ ...prev, [post.id]: res.data.comments ?? [] }))
+                              } catch (e) {
+                                setError(getErrorMessage(e, '删除评论失败'))
+                              }
                             }}>删除</span>
                           )}
                         </div>
@@ -950,8 +994,12 @@ export default function Community() {
                 <div className="com-notif-header">
                   通知
                   <span className="com-notif-readall" onClick={async () => {
-                    await community.readNotifications()
-                    setNotifCount(0)
+                    try {
+                      await community.readNotifications()
+                      setNotifCount(0)
+                    } catch (e) {
+                      setError(getErrorMessage(e, '通知标记失败'))
+                    }
                   }}>标为已读</span>
                 </div>
                 {notifList.length === 0 && <div className="com-notif-empty">暂无通知</div>}
@@ -966,7 +1014,8 @@ export default function Community() {
             )}
           </div>
           <button className="com-bookmark-btn" onClick={loadBookmarks} title="收藏">⭐</button>
-        </div>
+	        </div>
+        {renderErrorBanner()}
 
         {/* Global: hashtags */}
         {view === 'global' && activeTag && (

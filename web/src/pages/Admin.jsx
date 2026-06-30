@@ -36,7 +36,9 @@ function SettingsTab() {
       await admin.updateSetting(key, edited[key])
       setSaved(key)
       setTimeout(()=>setSaved(''), 1500)
-    } catch {}
+    } catch {
+      // Keep the existing silent failure behavior for settings saves.
+    }
   }
 
   return (

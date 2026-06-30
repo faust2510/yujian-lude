@@ -24,7 +24,7 @@ export default function UserTimeline() {
   const { userId } = useParams()
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
-  const user = currentUser ?? {}
+  const currentUserId = currentUser?.id
 
   const [profile, setProfile] = useState(null)
   const [posts, setPosts] = useState([])
@@ -32,31 +32,39 @@ export default function UserTimeline() {
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [followed, setFollowed] = useState(false)
+  const [error, setError] = useState('')
+  const [profileError, setProfileError] = useState('')
 
   useEffect(() => {
-    if (!userId || userId === user.id) return
+    if (!userId || userId === currentUserId) return
+    setProfileError('')
     community.userProfile(userId).then(r => {
       setProfile(r.data.profile)
       setFollowed(r.data.profile.followed_by_me)
-    }).catch(() => navigate('/community'))
-  }, [userId])
+    }).catch(e => {
+      setProfileError(e.response?.data?.error || '用户资料加载失败')
+    })
+  }, [currentUserId, userId])
 
   const loadPosts = useCallback(async (p = 1) => {
     setLoading(true)
+    setError('')
     try {
       const res = await community.userPosts(userId, { page: p })
       const newPosts = res.data.posts ?? []
       setPosts(prev => p === 1 ? newPosts : [...prev, ...newPosts])
       setPage(p)
       setHasMore(newPosts.length >= 20)
-    } catch {} finally {
+    } catch (e) {
+      setError(e.response?.data?.error || '动态加载失败')
+    } finally {
       setLoading(false)
     }
   }, [userId])
 
   useEffect(() => {
     if (userId) loadPosts(1)
-  }, [userId])
+  }, [loadPosts, userId])
 
   const toggleFollow = async () => {
     try {
@@ -66,7 +74,9 @@ export default function UserTimeline() {
         ...prev,
         follower_count: prev.follower_count + (res.data.following ? 1 : -1)
       } : prev)
-    } catch {}
+    } catch (e) {
+      setError(e.response?.data?.error || '关注失败')
+    }
   }
 
   const toggleLike = async (postId) => {
@@ -77,14 +87,31 @@ export default function UserTimeline() {
           ? { ...p, liked_by_me: res.data.liked, like_count: p.like_count + (res.data.liked ? 1 : -1) }
           : p
       ))
-    } catch {}
+    } catch (e) {
+      setError(e.response?.data?.error || '点赞失败')
+    }
   }
 
-  if (!profile && userId !== user.id) {
+  if (profileError && userId !== currentUserId) {
+    return (
+      <div className="com-layout">
+        <div className="com-main">
+          <div className="com-tabs">
+            <button className="com-tab" onClick={() => navigate('/community')}>
+              ← 社群
+            </button>
+          </div>
+          <div className="com-error" style={{ margin: 24 }}>{profileError}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!profile && userId !== currentUserId) {
     return <div className="com-loading" style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>加载中…</div>
   }
 
-  if (userId === user.id) {
+  if (userId === currentUserId) {
     return (
       <div className="com-layout">
         <div className="com-main">
@@ -132,6 +159,7 @@ export default function UserTimeline() {
         </div>
 
         <div className="com-feed">
+          {error && <div className="com-error" style={{ margin: '0 0 12px 0' }}>{error}</div>}
           {!loading && posts.length === 0 && (
             <div className="com-empty">该用户暂无帖子</div>
           )}
