@@ -1,16 +1,14 @@
-# React + Vite
+# 遇见路得 Web 应用区
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+这是遇见路得挂载在 `/app` 下的 React/Vite 单页应用。项目入口和完整运行说明以根目录 `README.md` 为准。
 
-Currently, two official plugins are available:
+## 常用命令
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install --prefix web
+npm run dev --prefix web
+npm run lint --prefix web
+npm run build --prefix web
+```
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+开发服务会把 `/api` 代理到 `http://localhost:8090`。生产构建输出到根目录 `web-dist`，并由后端挂载到 `/app`。

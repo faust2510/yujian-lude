@@ -7,10 +7,13 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
+    "test": "node --test src/lib/*.test.js",
     "migrate": "node src/scripts/migrate.js",
     "seed": "node src/scripts/migrate.js --seed",
+    "diagnose:schema": "node src/scripts/diagnose-schema.js",
     "verify:mvp": "node src/scripts/verify-mvp-flow.js",
-    "verify:real-users": "node src/scripts/verify-real-users-flow.js"
+    "verify:real-users": "node src/scripts/verify-real-users-flow.js",
+    "verify:release": "node src/scripts/verify-release.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
