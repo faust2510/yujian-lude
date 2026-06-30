@@ -49,6 +49,16 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+async function expectStatus(client, method, path, body, status) {
+  try {
+    await client.request(method, path, body);
+  } catch (err) {
+    assert(err.status === status, `${client.label} ${method} ${path} expected ${status}, got ${err.status}`);
+    return err.data;
+  }
+  throw new Error(`${client.label} ${method} ${path} expected ${status}, got 2xx`);
+}
+
 async function register(client, email, nickname) {
   const data = await client.post('/auth/register', {
     email,
@@ -57,6 +67,16 @@ async function register(client, email, nickname) {
   });
   assert(data.user?.id, `register ${email} did not return user id`);
   return data.user;
+}
+
+async function verifyDailyCheckin(client) {
+  const before = await client.get('/me/points');
+  assert(before.checkedInToday === false, 'new user should not be checked in yet');
+  await client.post('/me/checkin', {});
+  const after = await client.get('/me/points');
+  assert(after.checkedInToday === true, 'checkin should persist checkedInToday');
+  assert(after.daily === 10, `checkin should add 10 daily points, got ${after.daily}`);
+  await expectStatus(client, 'POST', '/me/checkin', {}, 409);
 }
 
 async function makeAdmin(userId) {
@@ -155,6 +175,9 @@ async function run() {
     await register(client, `user${idx + 1}.${stamp}@example.test`, `路得测试${idx + 1}`);
   }
 
+  console.log('[verify-mvp] checking daily checkin...');
+  await verifyDailyCheckin(users[0]);
+
   console.log('[verify-mvp] completing pool gates...');
   for (const [idx, client] of users.entries()) {
     await onboard(client, admin, idx + 1);
@@ -174,9 +197,18 @@ async function run() {
   const channels = await users[0].get('/chat/channels');
   assert(channels.channels?.length >= 1, 'expected chat channel after mutual match');
   const channelId = channels.channels[0].id;
+  assert(channels.channels[0].other_id === user2Id, 'user1 channel should point to user2');
+  const peerChannels = await users[1].get('/chat/channels');
+  const peerChannel = peerChannels.channels?.find((channel) => channel.id === channelId);
+  assert(peerChannel, 'user2 should see the same chat channel');
+  assert(peerChannel.other_id === user1.user.id, 'user2 channel should point to user1');
   await users[0].post(`/chat/channels/${channelId}/messages`, { body: '你好，这是 MVP 私聊验收消息。' });
   const messages = await users[1].get(`/chat/channels/${channelId}/messages`);
   assert(messages.messages?.some((msg) => msg.body.includes('MVP 私聊验收消息')), 'chat message not visible to peer');
+  await users[1].post(`/chat/channels/${channelId}/messages`, { body: '收到，这是 MVP 私聊回复。' });
+  const replyMessages = await users[0].get(`/chat/channels/${channelId}/messages`);
+  assert(replyMessages.messages?.some((msg) => msg.body.includes('MVP 私聊回复')), 'chat reply not visible to original sender');
+  await expectStatus(users[2], 'GET', `/chat/channels/${channelId}/messages`, undefined, 403);
 
   console.log('[verify-mvp] checking community...');
   const post = await users[0].post('/community/posts', {
@@ -184,11 +216,29 @@ async function run() {
     title: 'MVP 验收',
   });
   assert(post.id, 'community post did not return id');
+  const peerPosts = await users[1].get('/community/posts');
+  assert(
+    peerPosts.posts?.some((item) => item.id === post.id && item.content.includes('MVP 全站广场验收帖')),
+    'community post should be visible in peer global post list'
+  );
+  const trendingPosts = await users[2].get('/community/feed/trending');
+  assert(
+    trendingPosts.posts?.some((item) => item.id === post.id && item.content.includes('MVP 全站广场验收帖')),
+    'community post should be visible in peer trending feed'
+  );
   await users[1].post(`/community/posts/${post.id}/comments`, { body: '这是一条 MVP 评论。' });
   const like = await users[2].post(`/community/posts/${post.id}/like`, {});
   assert(like.liked === true, 'third user should like the post');
   const comments = await users[0].get(`/community/posts/${post.id}/comments`);
-  assert(comments.comments?.length >= 1, 'expected at least one comment');
+  assert(
+    comments.comments?.some((comment) => comment.body.includes('MVP 评论')),
+    'expected peer community comment to be visible'
+  );
+  const likedFeed = await users[2].get('/community/posts');
+  const likedPost = likedFeed.posts?.find((item) => item.id === post.id);
+  assert(likedPost?.liked_by_me === true, 'liker should see liked_by_me on the post list');
+  assert(likedPost?.like_count >= 1, 'post list should expose like count after peer like');
+  assert(likedPost?.comment_count >= 1, 'post list should expose comment count after peer comment');
 
   console.log('[verify-mvp] PASS');
 }

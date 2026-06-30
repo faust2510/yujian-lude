@@ -13,7 +13,7 @@ export default function Dashboard() {
   useEffect(() => {
     points.balance().then(r => {
       setPts(r.data)
-      if (r.data?.checkedInToday) setCheckedIn(true)
+      setCheckedIn(!!r.data?.checkedInToday)
     }).catch(() => {})
     matches.status().then(r => setQualification(r.data)).catch(() => {})
   }, [])
@@ -22,11 +22,12 @@ export default function Dashboard() {
     try {
       const r = await points.checkin()
       setMsg(r.data.message || '签到成功，+10 分！')
-      setCheckedIn(true)
-      setPts(p => p ? {...p, earned: (p.earned||0) + 10} : p)
+      setPts(r.data)
+      setCheckedIn(!!r.data.checkedInToday)
     } catch (err) {
       setMsg(err.response?.data?.error || '今日已签到')
-      setCheckedIn(true)
+      if (err.response?.status === 409) setCheckedIn(true)
+      points.balance().then(r => setPts(r.data)).catch(() => {})
     }
   }
 
@@ -46,6 +47,9 @@ export default function Dashboard() {
         <div className="card">
           <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>每日签到</div>
           <p style={{fontSize:13,marginBottom:12,color:'var(--muted)'}}>每天签到 +10 分，坚持打卡！</p>
+          <div style={{fontSize:13,color:'var(--fg)',marginBottom:12}}>
+            今日积分：<strong style={{color:'var(--brand)'}}>{pts?.daily ?? 0}</strong>
+          </div>
           <button className="btn btn-primary" onClick={doCheckin} disabled={checkedIn}>
             {checkedIn ? '✓ 已签到' : '签到 +10'}
           </button>

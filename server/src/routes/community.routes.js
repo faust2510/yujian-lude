@@ -312,11 +312,11 @@ router.get('/community/posts', requireAuth, async (req, res) => {
             (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id)::int AS comment_count,
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $${params.length + 1}) AS liked_by_me,
             EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $${params.length + 1}) AS bookmarked_by_me
-       FROM community_posts p
+      FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        ${where}
       ORDER BY (p.state = 'pinned') DESC, (p.state = 'featured') DESC, p.created_at DESC
-      LIMIT $${params.length} OFFSET $${params.length - 1}`,
+      LIMIT $${params.length - 1} OFFSET $${params.length}`,
     [...params, userId]
   );
   res.json({ posts: rows, page });

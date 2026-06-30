@@ -72,7 +72,7 @@ export const community = {
   getComments: (id) => api.get(`/community/posts/${id}/comments`),
   addComment: (id, data) => api.post(`/community/posts/${id}/comments`, data),
   deleteComment: (id) => api.delete(`/community/comments/${id}`),
-  bookmark: (id) => api.post(`/community/posts/${id}/bookmarks`),
+  bookmark: (id) => api.post(`/community/posts/${id}/bookmark`),
   bookmarks: (page) => api.get('/community/bookmarks', { params: { page } }),
   // 关注
   follow: (userId) => api.post(`/community/follow/${userId}`),
