@@ -2,31 +2,51 @@
 import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
-import { loadSettings, setSetting } from '../settings.js';
+import { loadSettings, setSetting, settingsToAdminRows, validateSettingUpdate } from '../settings.js';
 import { recomputeExposure } from '../lib/rewards.js';
 import { buildEndorsementReviewPatch, validateEndorsementDecision } from '../lib/endorsement-review.js';
-import { isAllowedAdminRole, writeAdminAudit } from '../lib/admin-audit.js';
+import { isAllowedAdminRole, validateAdminActorStatus, validateAdminUserAction, writeAdminAudit } from '../lib/admin-audit.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
 
+const ADMIN_USER_OP_LOCK_KEY = 871406252;
+
+function routeError(status, message) {
+  const err = new Error(message);
+  err.status = status;
+  return err;
+}
+
+function sendRouteError(res, err) {
+  if (err.status) return res.status(err.status).json({ error: err.message });
+  console.error('[admin] 高危操作失败：', err.message);
+  return res.status(500).json({ error: '后台操作失败' });
+}
+
 // ---- 设置（价格/积分/兑换/额度，全部可改）----
 router.get('/settings', async (_req, res) => {
   const s = await loadSettings(true);
-  res.json({ settings: s });
+  res.json({ settings: settingsToAdminRows(s) });
 });
 
 router.put('/settings/:key', async (req, res) => {
   const { value } = req.body ?? {};
   if (value === undefined) return res.status(400).json({ error: '缺少 value' });
-  await setSetting(req.params.key, value, req.user.id);
-  await writeAdminAudit(query, {
-    actorId: req.user.id,
-    action: 'settings.update',
-    targetType: 'setting',
-    targetId: null,
-    detail: { key: req.params.key },
-  });
+  const validation = validateSettingUpdate(req.params.key, value);
+  if (!validation.ok) return res.status(400).json({ error: validation.error });
+  try {
+    await setSetting(req.params.key, validation.value, req.user.id);
+    await writeAdminAudit(query, {
+      actorId: req.user.id,
+      action: 'settings.update',
+      targetType: 'setting',
+      targetId: null,
+      detail: { key: req.params.key },
+    });
+  } catch (err) {
+    return sendRouteError(res, err);
+  }
   res.json({ ok: true });
 });
 
@@ -69,33 +89,89 @@ router.get('/users', async (req, res) => {
 
 router.post('/users/:id/ban', async (req, res) => {
   const ban = req.body?.ban !== false;
-  await tx(async (db) => {
-    await db.query('UPDATE users SET is_banned = $2 WHERE id = $1', [req.params.id, ban]);
-    if (ban) await db.query('DELETE FROM sessions WHERE user_id = $1', [req.params.id]);
-    await writeAdminAudit(db, {
-      actorId: req.user.id,
-      action: ban ? 'user.ban' : 'user.unban',
-      targetType: 'user',
-      targetId: req.params.id,
-      detail: { ban },
+  try {
+    await tx(async (db) => {
+      await db.query('SELECT pg_advisory_xact_lock($1)', [ADMIN_USER_OP_LOCK_KEY]);
+      const actor = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      const actorError = validateAdminActorStatus(actor.rows[0]);
+      if (actorError) throw routeError(403, actorError);
+      const { rows } = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.params.id]
+      );
+      const targetUser = rows[0];
+      if (!targetUser) throw routeError(404, '用户不存在');
+      const activeAdmins = await db.query(
+        `SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND is_banned = FALSE`
+      );
+      const error = validateAdminUserAction({
+        actorId: req.user.id,
+        targetUser,
+        action: 'ban',
+        ban,
+        activeAdminCount: activeAdmins.rows[0]?.n ?? 0,
+      });
+      if (error) throw routeError(400, error);
+      await db.query('UPDATE users SET is_banned = $2 WHERE id = $1', [req.params.id, ban]);
+      if (ban) await db.query('DELETE FROM sessions WHERE user_id = $1', [req.params.id]);
+      await writeAdminAudit(db, {
+        actorId: req.user.id,
+        action: ban ? 'user.ban' : 'user.unban',
+        targetType: 'user',
+        targetId: req.params.id,
+        detail: { ban },
+      });
     });
-  });
+  } catch (err) {
+    return sendRouteError(res, err);
+  }
   res.json({ ok: true, banned: ban });
 });
 
 router.post('/users/:id/role', async (req, res) => {
   const role = req.body?.role;
   if (!isAllowedAdminRole(role)) return res.status(400).json({ error: '非法角色' });
-  await tx(async (db) => {
-    await db.query('UPDATE users SET role = $2 WHERE id = $1', [req.params.id, role]);
-    await writeAdminAudit(db, {
-      actorId: req.user.id,
-      action: 'user.role',
-      targetType: 'user',
-      targetId: req.params.id,
-      detail: { role },
+  try {
+    await tx(async (db) => {
+      await db.query('SELECT pg_advisory_xact_lock($1)', [ADMIN_USER_OP_LOCK_KEY]);
+      const actor = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      const actorError = validateAdminActorStatus(actor.rows[0]);
+      if (actorError) throw routeError(403, actorError);
+      const { rows } = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.params.id]
+      );
+      const targetUser = rows[0];
+      if (!targetUser) throw routeError(404, '用户不存在');
+      const activeAdmins = await db.query(
+        `SELECT count(*)::int AS n FROM users WHERE role = 'admin' AND is_banned = FALSE`
+      );
+      const error = validateAdminUserAction({
+        actorId: req.user.id,
+        targetUser,
+        action: 'role',
+        nextRole: role,
+        activeAdminCount: activeAdmins.rows[0]?.n ?? 0,
+      });
+      if (error) throw routeError(400, error);
+      await db.query('UPDATE users SET role = $2 WHERE id = $1', [req.params.id, role]);
+      await writeAdminAudit(db, {
+        actorId: req.user.id,
+        action: 'user.role',
+        targetType: 'user',
+        targetId: req.params.id,
+        detail: { role },
+      });
     });
-  });
+  } catch (err) {
+    return sendRouteError(res, err);
+  }
   res.json({ ok: true, role });
 });
 

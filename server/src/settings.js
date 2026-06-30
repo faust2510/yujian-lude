@@ -29,6 +29,73 @@ const DEFAULTS = {
   'limits.daily_intents_vip': { value: 15 },
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const POOLS = new Set(['daily', 'earned']);
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function positiveNumber(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function validateSettingObject(key, value, shape) {
+  if (!isPlainObject(value)) return { ok: false, error: '配置值类型不正确' };
+  const allowedKeys = new Set(Object.keys(shape));
+  for (const itemKey of Object.keys(value)) {
+    if (!allowedKeys.has(itemKey)) return { ok: false, error: `不支持字段 ${itemKey}` };
+  }
+  for (const [itemKey, shapeValue] of Object.entries(shape)) {
+    if (!(itemKey in value)) return { ok: false, error: `缺少字段 ${itemKey}` };
+    const item = value[itemKey];
+    if (['amount', 'value', 'price', 'points', 'days', 'daily_cap'].includes(itemKey)) {
+      if (!positiveNumber(item)) return { ok: false, error: `${itemKey} 必须是正数` };
+    } else if (itemKey === 'pool') {
+      if (!POOLS.has(item)) return { ok: false, error: 'pool 必须是 daily 或 earned' };
+    } else if (typeof shapeValue === 'boolean') {
+      if (typeof item !== 'boolean') return { ok: false, error: `${itemKey} 必须是布尔值` };
+    } else if (typeof shapeValue === 'string') {
+      if (typeof item !== 'string' || !item.trim()) return { ok: false, error: `${itemKey} 必须是非空字符串` };
+    }
+  }
+  return { ok: true, value };
+}
+
+export function validateSettingUpdate(key, value) {
+  if (!Object.hasOwn(DEFAULTS, key)) return { ok: false, error: '未知配置项' };
+  const shape = DEFAULTS[key];
+
+  if (typeof shape === 'boolean') {
+    return typeof value === 'boolean'
+      ? { ok: true, value }
+      : { ok: false, error: '配置值类型不正确' };
+  }
+
+  if (typeof shape === 'string') {
+    if (key === 'match.light_course_id') {
+      return typeof value === 'string' && UUID_RE.test(value)
+        ? { ok: true, value }
+        : { ok: false, error: '课程 ID 必须是 UUID' };
+    }
+    return typeof value === 'string' && value.trim()
+      ? { ok: true, value }
+      : { ok: false, error: '配置值类型不正确' };
+  }
+
+  return validateSettingObject(key, value, shape);
+}
+
+export function settingStorageValue(value) {
+  return JSON.stringify(value);
+}
+
+export function settingsToAdminRows(settings) {
+  return Object.entries(settings)
+    .map(([key, value]) => ({ key, value }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
 export async function loadSettings(force = false) {
   const now = Date.now();
   if (!force && cache && now - cacheAt < TTL_MS) return cache;
@@ -54,7 +121,7 @@ export async function setSetting(key, value, adminId) {
     `INSERT INTO app_settings (key, value, updated_by, updated_at)
      VALUES ($1, $2, $3, now())
      ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = now()`,
-    [key, value, adminId ?? null]
+    [key, settingStorageValue(value), adminId ?? null]
   );
   cache = null; // 失效缓存
 }

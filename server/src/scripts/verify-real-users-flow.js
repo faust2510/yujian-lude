@@ -380,6 +380,14 @@ async function verifyAdminOps(admin, users, communityResult) {
   const userSearch = await admin.get(`/admin/users?q=${encodeURIComponent(alice.user.email)}`);
   assert(userSearch.users?.some((item) => item.id === alice.user.id), 'admin user search should find alice');
 
+  await expectStatus(admin, 'POST', `/admin/users/${admin.user.id}/ban`, { ban: true }, 400);
+  await expectStatus(admin, 'POST', `/admin/users/${admin.user.id}/role`, { role: 'vip' }, 400);
+  await expectStatus(admin, 'PUT', '/admin/settings/unknown.setting', { value: true }, 400);
+  await expectStatus(admin, 'PUT', '/admin/settings/points.daily_checkin', { value: { amount: -1, pool: 'daily' } }, 400);
+  const settings = await admin.get('/admin/settings');
+  assert(Array.isArray(settings.settings), 'admin settings should return rows for the settings UI');
+  await admin.put('/admin/settings/match.light_course_id', { value: '22222222-2222-2222-2222-222222222222' });
+
   await admin.post(`/admin/users/${partial.user.id}/ban`, { ban: true });
   const bannedSession = await partial.get('/auth/me');
   assert(bannedSession.user === null, 'banning a user should revoke their active session');
