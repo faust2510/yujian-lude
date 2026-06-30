@@ -37,6 +37,10 @@ test('production rejects weak or default session secrets', () => {
   })), /SESSION_SECRET/);
   assert.throws(() => validateConfig(buildConfig({
     ...base,
+    SESSION_SECRET: 'change-this-to-a-long-random-string',
+  })), /SESSION_SECRET/);
+  assert.throws(() => validateConfig(buildConfig({
+    ...base,
     SESSION_SECRET: 'too-short',
   })), /SESSION_SECRET/);
 });

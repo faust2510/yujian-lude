@@ -22,6 +22,7 @@ const requiredEnums = [
 ];
 
 const requiredTables = [
+  'schema_migrations',
   'users',
   'profiles',
   'faith_profiles',
@@ -57,6 +58,7 @@ const requiredTables = [
 ];
 
 const requiredColumns = [
+  ['schema_migrations', ['version', 'name', 'checksum', 'applied_at']],
   ['users', ['email', 'password_hash', 'role', 'last_checkin_on']],
   ['admin_audit_logs', ['actor_id', 'action', 'target_type', 'target_id', 'detail']],
   ['login_attempts', ['email', 'ip', 'failed_count', 'locked_until', 'last_failed_at']],

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add the first production operations guardrails for 遇见路得 without changing user-facing product behavior.
+**Goal:** Add production operations guardrails for 遇见路得 without changing user-facing product behavior.
 
-**Architecture:** Keep the existing Express server and release verification script. Add small focused helpers for config validation and readiness checks, wire them into `server/src/index.js`, and extend `verify:release` to probe the new endpoints. Later tasks will add versioned migrations and deployment runbooks.
+**Architecture:** Keep the existing Express server and release verification script. Add small focused helpers for config validation, readiness checks, and versioned migrations; wire them into CLI scripts and release verification. Document server backup, deploy, quality check, and rollback steps under `ops/`.
 
 **Tech Stack:** Node.js ESM, Express, PostgreSQL, React/Vite, Node built-in test runner.
 
@@ -125,3 +125,80 @@ git diff --check
 - [x] **Step 3: Commit and push**
 
 Commit only the Release Ops v1 first-slice files.
+
+### Task 4: Versioned Migration Runner
+
+**Files:**
+- Create: `server/src/lib/migrations.js`
+- Create: `server/src/lib/migrations.test.js`
+- Create: `server/src/scripts/migrate-up.js`
+- Create: `server/db/migrations/0001_create_schema_migrations.sql`
+- Modify: `server/db/schema.sql`
+- Modify: `server/src/scripts/diagnose-schema.js`
+- Modify: `server/src/scripts/verify-release.js`
+- Modify: `server/package.json`
+
+- [x] **Step 1: Write failing migration tests**
+
+Cover filename parsing, checksum generation, duplicate version rejection, pending migration planning, checksum drift rejection, transaction recording, and advisory lock usage.
+
+- [x] **Step 2: Implement migration helper**
+
+Add `checksumSql`, `parseMigrationFile`, `sortMigrations`, `planMigrations`, `loadMigrationFiles`, `ensureMigrationsTable`, `listAppliedMigrations`, `applyMigration`, and `runMigrations`.
+
+- [x] **Step 3: Add CLI**
+
+Add `npm run migrate:up --prefix server` and `npm run migrate:up --prefix server -- --dry-run`.
+
+- [x] **Step 4: Wire release verification**
+
+After fresh schema diagnostics, run `migrate:up` and `migrate:up --dry-run` against the temporary release database.
+
+### Task 5: Backup Deploy Rollback Runbook
+
+**Files:**
+- Create: `ops/deploy-runbook.md`
+- Modify: `README.md`
+- Modify: `server/.env.example`
+- Modify: `.gitignore`
+
+- [x] **Step 1: Document preflight**
+
+Require local `npm run verify:release --prefix server` and a clean git status before deployment.
+
+- [x] **Step 2: Document backup**
+
+Add `pg_dump --format=custom`, commit manifest, and `web-dist` backup steps without storing secrets.
+
+- [x] **Step 3: Document deploy**
+
+Add fetch/reset, dependency install, frontend build, `migrate:up`, service restart, and `/api/ready` checks.
+
+- [x] **Step 4: Document rollback**
+
+Prefer code/build rollback first; restore database only when necessary after stopping writes and preserving the failure state.
+
+### Task 6: Final Quality Gate
+
+**Files:**
+- All Release Ops v1 files
+
+- [x] **Step 1: Run backend tests**
+
+```bash
+npm run test --prefix server
+```
+
+- [x] **Step 2: Run frontend checks**
+
+```bash
+npm run lint --prefix web
+npm run build --prefix web
+```
+
+- [x] **Step 3: Run full release gate**
+
+```bash
+npm run verify:release --prefix server
+git diff --check
+```

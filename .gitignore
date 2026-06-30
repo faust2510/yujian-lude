@@ -4,6 +4,10 @@ node_modules/
 .env
 *.log
 logs/
+backups/
+*.backup
+*.dump
+*.sql.gz
 dist/
 dist-ssr/
 coverage/

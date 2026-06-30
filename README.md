@@ -7,7 +7,7 @@
 - 首页：项目根目录静态官网，作为用户第一入口。
 - 应用区：React/Vite 单页应用，构建后由后端挂载到 `/app`。
 - 后端：Node.js + Express + PostgreSQL，提供登录、资料、信仰测试、牧者背书、课程、匹配、私聊、广场和后台审核接口。
-- 数据库：`server/db/schema.sql` 定义结构，`server/db/seed.sql` 提供基础种子数据。
+- 数据库：`server/db/schema.sql` 定义 fresh install 结构，`server/db/seed.sql` 提供基础种子数据，`server/db/migrations/` 存放上线后的增量迁移。
 
 ## 运行方式
 
@@ -33,7 +33,13 @@ createdb yujian_lude
 DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude' npm run migrate --prefix server
 ```
 
-> 当前 `server/db/schema.sql` 是 fresh install 初始化脚本，不是旧库增量升级脚本。旧库上线前先备份，再运行 schema 诊断；不要把生产库直接当验收临时库。
+对已有库执行增量迁移：
+
+```bash
+DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude' npm run migrate:up --prefix server
+```
+
+> 当前 `server/db/schema.sql` 是 fresh install 初始化脚本，不直接打到已有生产库；已有库上线前先备份，再运行 schema 诊断和 `migrate:up`。不要把生产库直接当验收临时库。
 
 启动后端：
 
@@ -58,6 +64,8 @@ npm run build --prefix web
 - 官网首页：`http://localhost:8090/`
 - 应用区：`http://localhost:8090/app`
 - 健康检查：`http://localhost:8090/api/health`
+- 存活检查：`http://localhost:8090/api/live`
+- 就绪检查：`http://localhost:8090/api/ready`
 
 ## 上线前体检
 
@@ -74,11 +82,12 @@ npm run verify:release --prefix server
 3. `npm run test --prefix server`
 4. 创建临时 fresh PostgreSQL 数据库
 5. 对临时库执行 schema + seed
-6. 启动后端临时服务
-7. 探测 `/api/health`、`/`、`/app`、`/app/login`
-8. 跑 `verify:mvp`
-9. 跑 `verify:real-users`
-10. 停止服务并删除临时数据库
+6. 执行 `migrate:up` 和 `migrate:up --dry-run` 演练
+7. 启动后端临时服务
+8. 探测 `/api/health`、`/api/live`、`/api/ready`、`/`、`/app`、`/app/login`
+9. 跑 `verify:mvp`
+10. 跑 `verify:real-users`
+11. 停止服务并删除临时数据库
 
 要求：`DATABASE_URL` 指向的 PostgreSQL 用户需要有创建和删除临时数据库的权限。`verify:release` 自身不会主动打印连接串或 secret；如果你在业务代码里增加了调试日志，也要避免输出敏感环境变量。
 
@@ -89,6 +98,12 @@ DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude' npm run diagnose:schema
 ```
 
 `diagnose:schema` 是只读检查，会报告缺表、缺列、缺枚举、缺唯一约束和关键 seed 数据。它适合排查旧本地库为什么不能跑当前代码。
+
+查看有哪些增量迁移待执行：
+
+```bash
+DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude' npm run migrate:up --prefix server -- --dry-run
+```
 
 ## 分层验收
 
@@ -138,16 +153,18 @@ npm run build --prefix web
 | `type "user_role" already exists` | 当前库不是 fresh DB；先备份，再用 `diagnose:schema` 判断漂移，或新建临时库验收。 |
 | `permission denied to create database` | `verify:release` 需要 PostgreSQL 用户有 `CREATEDB` 权限；换有权限的本地连接串。 |
 | 端口被占用 | 后端手动启动时换 `PORT`；`verify:release` 可设置 `RELEASE_VERIFY_PORT=8100`。 |
-| `/api/health` 正常但登录或匹配失败 | 健康检查只证明服务进程响应；继续跑 `verify:mvp` 或 `verify:release`。 |
+| `/api/health` 正常但登录或匹配失败 | 健康检查只证明服务进程响应；继续看 `/api/ready`，并跑 `verify:mvp` 或 `verify:release`。 |
 | `/app/login` 刷新 404 | 确认后端挂载了最新 `web-dist`，并重新执行 `npm run build --prefix web`。 |
 | 登录刷新后丢失 | 检查 `SESSION_SECRET` 是否稳定、cookie 设置是否与 HTTP/HTTPS 环境一致。 |
+| `Migration 0001 checksum changed` | 已应用迁移文件被改动；不要直接编辑旧迁移，新增下一号迁移。 |
 
 ## 部署边界
 
 - 提交源码、README、`server/.env.example`、必要的 `web-dist` 构建产物。
 - 不提交 `server/.env`、`node_modules/`、日志、Playwright 缓存、数据库 dump、真实 secret。
 - 部署前先跑 `npm run verify:release --prefix server`。
-- 部署后至少探测 `/api/health`、`/`、`/app`、`/app/login`，再进行一次登录和发帖 smoke test。
+- 服务器步骤见 `ops/deploy-runbook.md`：先备份，再拉代码、构建、`migrate:up`、重启和探测 `/api/ready`。
+- 部署后至少探测 `/api/health`、`/api/live`、`/api/ready`、`/`、`/app`、`/app/login`，再进行一次登录和发帖 smoke test。
 
 ## 下一步建议
 

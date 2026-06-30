@@ -9,6 +9,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 export const DEV_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/yujian_lude';
 export const DEV_SESSION_SECRET = 'dev-insecure-secret';
+export const EXAMPLE_SESSION_SECRET = 'change-this-to-a-long-random-string';
 
 export function buildConfig(env = process.env) {
   return {
@@ -33,6 +34,7 @@ export function validateConfig(value) {
     if (
       !value.sessionSecretExplicit ||
       value.sessionSecret === DEV_SESSION_SECRET ||
+      value.sessionSecret === EXAMPLE_SESSION_SECRET ||
       String(value.sessionSecret).length < 32
     ) {
       errors.push('SESSION_SECRET must be at least 32 characters for production');

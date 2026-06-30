@@ -259,6 +259,12 @@ async function run() {
   await runCommand('fresh DB schema 诊断', 'npm', ['run', 'diagnose:schema', '--prefix', 'server'], {
     env: { DATABASE_URL: tempDatabaseUrl },
   });
+  await runCommand('fresh DB 增量迁移演练', 'npm', ['run', 'migrate:up', '--prefix', 'server'], {
+    env: { DATABASE_URL: tempDatabaseUrl },
+  });
+  await runCommand('fresh DB 增量迁移 dry-run', 'npm', ['run', 'migrate:up', '--prefix', 'server', '--', '--dry-run'], {
+    env: { DATABASE_URL: tempDatabaseUrl },
+  });
 
   await startServer(tempDatabaseUrl, port);
   await smokeRoutes(baseUrl, apiBase);

@@ -15,6 +15,14 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 扩展：大小写不敏感文本（用于邮箱字段）
 CREATE EXTENSION IF NOT EXISTS "citext";
 
+-- 版本化增量迁移记录。schema.sql 仍作为 fresh install 初始化脚本。
+CREATE TABLE schema_migrations (
+    version    TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    checksum   TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ------------------------------------------------------------
 -- 枚举类型
 -- ------------------------------------------------------------
