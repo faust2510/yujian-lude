@@ -124,4 +124,4 @@ git diff --check
 
 - [x] **Step 3: Commit and push**
 
-Commit only the Release Ops v1 first-slice files and leave unrelated `matcha` changes alone.
+Commit only the Release Ops v1 first-slice files.

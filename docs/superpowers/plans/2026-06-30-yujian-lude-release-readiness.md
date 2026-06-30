@@ -161,4 +161,4 @@ git diff --check
 git status --short
 ```
 
-Expected: no whitespace errors; only intended files are modified, plus unrelated `matcha` remains unstaged.
+Expected: no whitespace errors; only intended files are modified.
