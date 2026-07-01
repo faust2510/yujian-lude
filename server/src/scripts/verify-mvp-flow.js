@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { courseExamAnswers } from '../lib/course-exams.js';
 import { QUESTIONS } from '../lib/faith-questions.js';
 
 const { Pool } = pg;
@@ -76,6 +77,7 @@ async function verifyDailyCheckin(client) {
   const after = await client.get('/me/points');
   assert(after.checkedInToday === true, 'checkin should persist checkedInToday');
   assert(after.daily === 10, `checkin should add 10 daily points, got ${after.daily}`);
+  assert(after.earned === before.earned + 10, `checkin should add 10 earned points, got before=${before.earned} after=${after.earned}`);
   await expectStatus(client, 'POST', '/me/checkin', {}, 409);
 }
 
@@ -140,11 +142,15 @@ async function completeLightCourse(client) {
   assert(detail.units?.length > 0, 'light course has no units');
   for (const unit of detail.units) {
     await client.post(`/courses/${course.slug}/units/${unit.unit_index}/submit`, {
-      passed: true,
-      score: 1,
-      qaLog: [{ q: 'read', a: 'done' }],
+      readConfirmed: true,
     });
   }
+  const exam = await client.get(`/courses/${course.slug}/exam`);
+  assert(exam.questions?.length > 0, 'light course exam should have questions');
+  const result = await client.post(`/courses/${course.slug}/exam/submit`, {
+    answers: courseExamAnswers(course.slug),
+  });
+  assert(result.passed, `light course exam expected passed, got ${result.score}/${result.total}`);
   const after = await client.get(`/courses/${course.slug}`);
   assert(after.progress?.state === 'completed', `light course expected completed, got ${after.progress?.state}`);
 }

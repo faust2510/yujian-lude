@@ -37,6 +37,8 @@ export const courses = {
   enroll: (slug) => api.post(`/courses/${slug}/enroll`),
   submitUnit: (slug, index, data) =>
     api.post(`/courses/${slug}/units/${index}/submit`, data),
+  exam: (slug) => api.get(`/courses/${slug}/exam`),
+  submitExam: (slug, answers) => api.post(`/courses/${slug}/exam/submit`, { answers }),
 }
 
 export const faithTest = {

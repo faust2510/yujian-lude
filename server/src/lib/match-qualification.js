@@ -2,7 +2,7 @@ const ACTIONS = {
   profile: { key: 'profile', label: '完善个人资料并同意匿名匹配', to: '/profile' },
   faithProfile: { key: 'faithProfile', label: '补全信仰档案', to: '/profile' },
   faithTest: { key: 'faithTest', label: '通过信仰基础测试', to: '/faith-test' },
-  endorsement: { key: 'endorsement', label: '获得牧者或成熟引荐人背书', to: '/profile' },
+  endorsement: { key: 'endorsement', label: '获得牧者或引荐人背书', to: '/profile' },
   lightCourse: { key: 'lightCourse', label: '完成恋爱必修课', to: '/courses' },
 };
 
@@ -51,6 +51,6 @@ export function buildMatchQualification({
     inPool: missing.length === 0,
     missing,
     nextActions: missing.map((key) => ACTIONS[key]),
-    gate: '需完成资料、信仰档案、信仰基础测试、牧者或成熟引荐人背书，以及恋爱必修课后进入匹配池',
+    gate: '需完成资料、信仰档案、信仰基础测试、牧者或引荐人背书，以及恋爱必修课后进入匹配池',
   };
 }

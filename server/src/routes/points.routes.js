@@ -21,9 +21,9 @@ async function getPointsSummary(db, userId) {
         (u.last_checkin_on = CURRENT_DATE) AS checked_in_today
        FROM users u
        LEFT JOIN points_balance pb ON pb.user_id = u.id
-       LEFT JOIN points_ledger pl
+      LEFT JOIN points_ledger pl
          ON pl.user_id = u.id
-        AND pl.pool = 'daily'
+        AND pl.reason = 'points.daily_checkin'
         AND pl.created_at::date = CURRENT_DATE
       WHERE u.id = $1
       GROUP BY u.id, pb.earned_total, u.last_checkin_on`,
@@ -53,7 +53,7 @@ router.get('/me/points/ledger', requireAuth, async (req, res) => {
   res.json({ entries: rows });
 });
 
-// 每日签到 +10（daily 池，当天清零；这里只发放并标记，清零由读取逻辑处理）
+// 每日签到 +10（进入 earned 累积余额；daily 字段展示今日获得）
 router.post('/me/checkin', requireAuth, async (req, res) => {
   const result = await tx(async (db) => {
     const u = await db.query(

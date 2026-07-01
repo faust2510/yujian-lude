@@ -202,7 +202,7 @@ function EndorsementsTab() {
         <div key={e.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
           <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start'}}>
             <div>
-              <div style={{fontSize:14,fontFamily:'var(--font-serif)'}}>{e.name} · {e.kind === 'pastor' ? '牧者' : '成熟引荐人'}</div>
+              <div style={{fontSize:14,fontFamily:'var(--font-serif)'}}>{e.name} · {e.kind === 'pastor' ? '牧者' : '引荐人'}</div>
               <div style={{fontSize:13,color:'var(--muted)',margin:'4px 0'}}>申请人：{e.nickname || e.email}</div>
               <div style={{fontSize:12,color:'var(--muted)'}}>教会：{e.church || '未填写'} · 联系：{e.contact}</div>
               {e.note && <div style={{fontSize:13,color:'var(--muted)',marginTop:6}}>备注：{e.note}</div>}

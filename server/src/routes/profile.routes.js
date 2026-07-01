@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { awardPoints, recomputeExposure } from '../lib/rewards.js';
+import { ProfileInputError, normalizeBaptismDate, normalizeFaithYears } from '../lib/profile-inputs.js';
 
 const router = Router();
 
@@ -59,15 +60,25 @@ router.put('/me/profile', requireAuth, async (req, res) => {
 router.put('/me/faith', requireAuth, async (req, res) => {
   const uid = req.user.id;
   const { church_name, presbytery, region, denomination, baptism_date, testimony, faith_years, coworker } = req.body || {};
-  await query(
-    `INSERT INTO faith_profiles (user_id, church_name, presbytery, region, denomination, baptism_date, testimony, faith_years, coworker, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
-     ON CONFLICT (user_id) DO UPDATE SET
-       church_name=$2, presbytery=$3, region=$4, denomination=$5,
-       baptism_date=$6, testimony=$7, faith_years=$8, coworker=$9, updated_at=now()`,
-    [uid, church_name, presbytery, region, denomination, baptism_date || null, testimony, faith_years || null, coworker]
-  );
-  res.json({ ok: true });
+  let normalizedBaptismDate;
+  let normalizedFaithYears;
+  try {
+    normalizedBaptismDate = normalizeBaptismDate(baptism_date);
+    normalizedFaithYears = normalizeFaithYears(faith_years);
+    await query(
+      `INSERT INTO faith_profiles (user_id, church_name, presbytery, region, denomination, baptism_date, testimony, faith_years, coworker, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9, now())
+       ON CONFLICT (user_id) DO UPDATE SET
+         church_name=$2, presbytery=$3, region=$4, denomination=$5,
+         baptism_date=$6, testimony=$7, faith_years=$8, coworker=$9, updated_at=now()`,
+      [uid, church_name, presbytery, region, denomination, normalizedBaptismDate, testimony, normalizedFaithYears, coworker]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof ProfileInputError) return res.status(400).json({ error: err.message });
+    console.error('[profile:faith]', err);
+    return res.status(500).json({ error: '信仰档案保存失败，请稍后重试' });
+  }
 });
 
 // 添加背书人（牙者/引荐人），初始 pending

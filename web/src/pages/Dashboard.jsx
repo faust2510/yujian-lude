@@ -32,7 +32,7 @@ const GATE_STEPS = [
     actionKey: 'endorsement',
     key: 'endorsementVerified',
     label: '获得背书确认',
-    desc: '提交牧者或成熟引荐人背书，等待管理员审核通过。',
+    desc: '提交牧者或引荐人背书，等待管理员审核通过。',
     to: '/profile',
     action: '提交背书人',
   },

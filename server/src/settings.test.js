@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { settingStorageValue, settingsToAdminRows, validateSettingUpdate } from './settings.js';
+import { getDefaultSetting, settingStorageValue, settingsToAdminRows, validateSettingUpdate } from './settings.js';
 
 test('rejects unknown setting keys', () => {
   assert.deepEqual(validateSettingUpdate('unknown.setting', true), {
@@ -22,9 +22,13 @@ test('validates boolean settings by type', () => {
 });
 
 test('validates numeric object settings', () => {
-  assert.deepEqual(validateSettingUpdate('points.daily_checkin', { amount: 12, pool: 'daily' }), {
+  assert.deepEqual(validateSettingUpdate('points.daily_checkin', { amount: 12, pool: 'earned' }), {
     ok: true,
-    value: { amount: 12, pool: 'daily' },
+    value: { amount: 12, pool: 'earned' },
+  });
+  assert.deepEqual(validateSettingUpdate('points.daily_checkin', { amount: 12, pool: 'daily' }), {
+    ok: false,
+    error: '每日签到积分必须进入 earned 累积池',
   });
   assert.deepEqual(validateSettingUpdate('points.daily_checkin', { amount: -1, pool: 'daily' }), {
     ok: false,
@@ -54,15 +58,22 @@ test('validates match light course id as uuid string', () => {
 test('serializes setting values before writing to jsonb', () => {
   assert.equal(settingStorageValue('22222222-2222-2222-2222-222222222222'), '"22222222-2222-2222-2222-222222222222"');
   assert.equal(settingStorageValue(true), 'true');
-  assert.equal(settingStorageValue({ amount: 12, pool: 'daily' }), '{"amount":12,"pool":"daily"}');
+  assert.equal(settingStorageValue({ amount: 12, pool: 'earned' }), '{"amount":12,"pool":"earned"}');
 });
 
 test('converts settings map to admin rows', () => {
   assert.deepEqual(settingsToAdminRows({
     'match.require_faith_test': true,
-    'points.daily_checkin': { amount: 10, pool: 'daily' },
+    'points.daily_checkin': { amount: 10, pool: 'earned' },
   }), [
     { key: 'match.require_faith_test', value: true },
-    { key: 'points.daily_checkin', value: { amount: 10, pool: 'daily' } },
+    { key: 'points.daily_checkin', value: { amount: 10, pool: 'earned' } },
   ]);
+});
+
+test('daily check-in points are cumulative by default', () => {
+  assert.deepEqual(getDefaultSetting('points.daily_checkin'), {
+    amount: 10,
+    pool: 'earned',
+  });
 });

@@ -10,7 +10,7 @@ const TTL_MS = 30_000; // 30 秒缓存，改设置后会主动失效
 const DEFAULTS = {
   'pricing.vip_basic': { price: 29, currency: 'CNY', period: 'month', name: '基础 VIP' },
   'pricing.vip_pro': { price: 59, currency: 'CNY', period: 'month', name: '进阶 VIP' },
-  'points.daily_checkin': { amount: 10, pool: 'daily' },
+  'points.daily_checkin': { amount: 10, pool: 'earned' },
   'points.profile_complete': { amount: 50, pool: 'earned', once: true },
   'points.endorsement_done': { amount: 50, pool: 'earned', once: true },
   'points.email_verified': { amount: 20, pool: 'earned', once: true },
@@ -31,6 +31,11 @@ const DEFAULTS = {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const POOLS = new Set(['daily', 'earned']);
+
+export function getDefaultSetting(key) {
+  if (!Object.hasOwn(DEFAULTS, key)) return undefined;
+  return JSON.parse(JSON.stringify(DEFAULTS[key]));
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -83,7 +88,12 @@ export function validateSettingUpdate(key, value) {
       : { ok: false, error: '配置值类型不正确' };
   }
 
-  return validateSettingObject(key, value, shape);
+  const result = validateSettingObject(key, value, shape);
+  if (!result.ok) return result;
+  if (key === 'points.daily_checkin' && result.value.pool !== 'earned') {
+    return { ok: false, error: '每日签到积分必须进入 earned 累积池' };
+  }
+  return result;
 }
 
 export function settingStorageValue(value) {
