@@ -107,6 +107,60 @@ h1, h2, h3 { font-family: var(--font-serif); }
   border-radius: var(--radius); padding: 20px; margin-bottom: 16px;
 }
 
+/* Courses */
+.course-unit-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.course-unit-tags span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 8px;
+}
+
+.course-material {
+  color: var(--fg);
+  display: grid;
+  gap: 12px;
+  line-height: 1.85;
+  margin-top: 14px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.course-material-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.course-material-section:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.course-material-section h4 {
+  color: var(--brand-dark);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.course-material-section p {
+  font-size: 14px;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.course-material-empty {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 /* Badges */
 .badge {
   display: inline-block; padding: 2px 10px; border-radius: 20px;

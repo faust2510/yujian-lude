@@ -136,24 +136,71 @@ async function reviewEndorsement(admin, id) {
   assert(data.ok, `admin review endorsement ${id} failed`);
 }
 
-async function completeLightCourse(client) {
+async function completeCourse(client, {
+  slug,
+  label,
+  expectedUnits,
+  expectedQuestions,
+  expectedPassThreshold,
+  expectedState,
+  isMatchGateCourse,
+}) {
   const list = await client.get('/courses');
-  const course = list.courses.find((item) => item.slug === 'christian-dating-basics');
-  assert(course, 'christian-dating-basics course not found');
+  const course = list.courses.find((item) => item.slug === slug);
+  assert(course, `${slug} course not found`);
+  assert(course.is_match_gate_course === isMatchGateCourse, `${client.label} ${label} match-gate flag mismatch`);
+  if (isMatchGateCourse) {
+    assert(course.reward_points === 0, `${client.label} ${label} should not grant deep-course points`);
+    assert(course.reward_vip_days === 0, `${client.label} ${label} should not grant VIP days`);
+  } else {
+    assert(course.reward_points > 0, `${client.label} ${label} should expose completion point reward`);
+    assert(course.reward_vip_days > 0, `${client.label} ${label} should expose VIP day reward`);
+  }
   await client.post(`/courses/${course.slug}/enroll`, {});
   const detail = await client.get(`/courses/${course.slug}`);
-  assert(detail.units?.length > 0, 'light course has no units');
+  assert(detail.units?.length === expectedUnits, `${client.label} ${label} expected ${expectedUnits} units, got ${detail.units?.length || 0}`);
   for (const unit of detail.units) {
+    assert(unit.material?.includes('学习目标'), `${client.label} ${label} unit ${unit.unit_index} missing learning objective`);
+    assert(unit.material?.includes('反思题'), `${client.label} ${label} unit ${unit.unit_index} missing reflection question`);
+    assert(unit.material?.includes('讨论题'), `${client.label} ${label} unit ${unit.unit_index} missing discussion question`);
     await client.post(`/courses/${course.slug}/units/${unit.unit_index}/submit`, {
       readConfirmed: true,
     });
   }
   const exam = await client.get(`/courses/${course.slug}/exam`);
-  assert(exam.questions?.length > 0, `${client.label} light course exam should have questions`);
+  assert(exam.questions?.length === expectedQuestions, `${client.label} ${label} expected ${expectedQuestions} exam questions, got ${exam.questions?.length || 0}`);
+  assert(exam.passThreshold === expectedPassThreshold, `${client.label} ${label} expected pass threshold ${expectedPassThreshold}, got ${exam.passThreshold}`);
   const result = await client.post(`/courses/${course.slug}/exam/submit`, {
     answers: courseExamAnswers(course.slug),
   });
-  assert(result.passed, `${client.label} light course exam expected passed, got ${result.score}/${result.total}`);
+  assert(result.passed, `${client.label} ${label} exam expected passed, got ${result.score}/${result.total}`);
+  const after = await client.get(`/courses/${course.slug}`);
+  assert(after.progress?.state === expectedState, `${client.label} ${label} expected ${expectedState}, got ${after.progress?.state}`);
+  assert(after.progress?.latest_exam?.passed === true, `${client.label} ${label} latest exam should be passed`);
+}
+
+async function completeLightCourse(client) {
+  await completeCourse(client, {
+    slug: 'christian-dating-basics',
+    label: 'light course',
+    expectedUnits: 8,
+    expectedQuestions: 8,
+    expectedPassThreshold: 6,
+    expectedState: 'completed',
+    isMatchGateCourse: true,
+  });
+}
+
+async function completeDeepMarriageCourse(client) {
+  await completeCourse(client, {
+    slug: 'keller-meaning-of-marriage',
+    label: 'deep marriage course',
+    expectedUnits: 10,
+    expectedQuestions: 10,
+    expectedPassThreshold: 8,
+    expectedState: 'pastor_review',
+    isMatchGateCourse: false,
+  });
 }
 
 async function onboard(client, admin, index) {
@@ -452,6 +499,9 @@ async function run() {
 
   console.log('[verify-real-users] checking daily checkin...');
   await verifyDailyCheckin(users[0]);
+
+  console.log('[verify-real-users] checking deep marriage course...');
+  await completeDeepMarriageCourse(users[0]);
 
   console.log('[verify-real-users] checking account security...');
   await verifyAccountSecurity(stamp);

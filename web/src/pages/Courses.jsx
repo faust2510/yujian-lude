@@ -11,6 +11,42 @@ function statusText(progress, latestExam) {
   return '未开始'
 }
 
+function materialSections(material = '') {
+  const text = material.trim()
+  if (!text) return []
+  const labels = ['学习目标', '导读', '反思题', '讨论题']
+  const pattern = /(学习目标|导读|反思题|讨论题)：/g
+  const matches = [...text.matchAll(pattern)]
+  if (matches.length === 0) return [{ label: '', body: text }]
+
+  return matches.map((match, index) => {
+    const bodyStart = match.index + match[0].length
+    const bodyEnd = matches[index + 1]?.index ?? text.length
+    return {
+      label: match[1],
+      body: text.slice(bodyStart, bodyEnd).trim(),
+    }
+  }).filter(section => labels.includes(section.label) && section.body)
+}
+
+function CourseMaterial({ material }) {
+  const sections = materialSections(material)
+  if (sections.length === 0) {
+    return <div className="course-material course-material-empty">本单元阅读材料正在整理中。</div>
+  }
+
+  return (
+    <div className="course-material">
+      {sections.map((section, index) => (
+        <section className="course-material-section" key={`${section.label}-${index}`}>
+          {section.label && <h4>{section.label}</h4>}
+          <p>{section.body}</p>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export default function Courses() {
   const [list, setList] = useState([])
   const [progress, setProgress] = useState({})
@@ -212,15 +248,20 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
           const key = `${course.slug}-${u.unit_index}`
           return (
             <details key={u.id} style={{border:'1px solid var(--border)',borderRadius:8,background:read ? '#F0FAF4' : 'var(--bg)',padding:12}}>
-              <summary style={{cursor:'pointer',listStyle:'none',display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}>
-                <span style={{fontSize:14,fontWeight:600,color:read ? '#1A7A3C' : 'var(--fg)'}}>
-                  {read ? '✓ ' : ''}{u.unit_index}. {u.title}
-                </span>
-                {u.is_pastor_node && <span className="badge badge-yellow" style={{whiteSpace:'nowrap',flex:'0 0 auto'}}>牧者节点</span>}
+              <summary style={{cursor:'pointer',listStyle:'none'}}>
+                <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center'}}>
+                  <span style={{fontSize:14,fontWeight:600,color:read ? '#1A7A3C' : 'var(--fg)'}}>
+                    {read ? '✓ ' : ''}{u.unit_index}. {u.title}
+                  </span>
+                  {u.is_pastor_node && <span className="badge badge-yellow" style={{whiteSpace:'nowrap',flex:'0 0 auto'}}>牧者节点</span>}
+                </div>
+                <div className="course-unit-tags">
+                  <span>学习目标</span>
+                  <span>反思题</span>
+                  <span>讨论题</span>
+                </div>
               </summary>
-              <div style={{fontSize:14,lineHeight:1.8,color:'var(--fg)',whiteSpace:'pre-wrap',marginTop:12}}>
-                {u.material || '本单元阅读材料正在整理中。'}
-              </div>
+              <CourseMaterial material={u.material} />
               <button className="btn btn-outline" style={{fontSize:12,padding:'6px 12px',marginTop:12}}
                 disabled={read || !!submitting[key]}
                 onClick={() => onMarkRead(u.unit_index, course.slug)}>
