@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { query, one } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
+import { hasPassedRequiredCourseExam } from '../lib/relationship-eligibility.js';
+import { getSetting } from '../settings.js';
 
 const router = Router();
 
@@ -8,10 +10,11 @@ router.post('/relationships/initiate', requireAuth, async (req, res) => {
   const { partner_id } = req.body;
   if (!partner_id) return res.status(400).json({ error: '缺少 partner_id' });
 
-  const examPassed = await one(
-    `SELECT 1 FROM course_exam_attempts WHERE user_id = $1 AND passed = TRUE LIMIT 1`,
-    [req.user.id]
-  );
+  const lightCourseId = await getSetting('match.light_course_id');
+  const examPassed = await hasPassedRequiredCourseExam(one, {
+    userId: req.user.id,
+    requiredCourseId: lightCourseId,
+  });
   if (!examPassed) return res.status(403).json({ error: '需先通过恋爱必修课考试' });
 
   const [user_a, user_b] = [req.user.id, partner_id].sort();
