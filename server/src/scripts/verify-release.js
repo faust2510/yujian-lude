@@ -248,6 +248,7 @@ async function run() {
   console.log('[verify:release] 开始上线前完整体检。');
   console.log('[verify:release] 提示：会创建并删除一个临时 fresh DB；脚本自身不会主动打印连接串或 secret。');
 
+  await runCommand('前端 test', 'npm', ['run', 'test', '--prefix', 'web']);
   await runCommand('前端 lint', 'npm', ['run', 'lint', '--prefix', 'web']);
   await runCommand('前端 build', 'npm', ['run', 'build', '--prefix', 'web']);
   await runCommand('后端 lib 单测', 'npm', ['run', 'test', '--prefix', 'server']);
