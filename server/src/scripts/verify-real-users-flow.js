@@ -47,6 +47,7 @@ class ApiClient {
   post(path, body) { return this.request('POST', path, body); }
   put(path, body) { return this.request('PUT', path, body); }
   patch(path, body) { return this.request('PATCH', path, body); }
+  delete(path, body) { return this.request('DELETE', path, body); }
 }
 
 function assert(condition, message) {
@@ -213,6 +214,34 @@ async function onboard(client, admin, index) {
   assert(status.inPool, `${client.label} should be in pool: ${JSON.stringify(status.missing)}`);
 }
 
+async function verifyAiConsultation(client) {
+  const scoped = await client.post('/ai/ask', { question: '如果对方聊天很频繁，我怎样设定边界？' });
+  assert(scoped.outOfScope === false, `${client.label} AI should answer in-scope relationship boundary questions`);
+  assert(scoped.sources?.length >= 1, `${client.label} AI answer should include sources`);
+  const out = await client.post('/ai/ask', { question: '请直接判断这个人是不是神预定给我的配偶' });
+  assert(out.outOfScope === true, `${client.label} AI should refuse prophecy-like questions`);
+  const history = await client.get('/ai/history');
+  assert(history.history?.length >= 2, `${client.label} AI history should include recent consultations`);
+}
+
+async function verifyRelationshipConfirmation(alice, bob, reviewer, outsider) {
+  const initiated = await alice.post('/relationships/initiate', { partner_id: bob.user.id });
+  assert(initiated.relationship?.id, 'relationship initiate should return relationship');
+  const relationshipId = initiated.relationship.id;
+
+  const first = await alice.post(`/relationships/${relationshipId}/request-confirmation`, {});
+  assert(first.relationship?.state === 'relationship_requested', `expected relationship_requested, got ${first.relationship?.state}`);
+  const second = await bob.post(`/relationships/${relationshipId}/request-confirmation`, {});
+  assert(second.relationship?.state === 'mutual_confirmed', `expected mutual_confirmed, got ${second.relationship?.state}`);
+  await expectStatus(outsider, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' }, 403);
+  const aSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' });
+  assert(aSide.relationship?.state === 'pastoral_review', `expected pastoral_review, got ${aSide.relationship?.state}`);
+  const bSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' });
+  assert(bSide.relationship?.state === 'confirmed', `expected confirmed, got ${bSide.relationship?.state}`);
+  const mine = await alice.get('/relationships/mine');
+  assert(mine.relationship?.state === 'confirmed', 'confirmed relationship should appear in mine');
+}
+
 async function verifyDailyCheckin(client) {
   const before = await client.get('/me/points');
   assert(before.checkedInToday === false, 'fresh user should not start checked in');
@@ -279,7 +308,7 @@ async function verifyAccountSecurity(stamp) {
   assert(login.user?.id === resetUser.user.id, 'new password should allow login');
 }
 
-async function verifyMatchAndChat(users) {
+async function verifyMatchAndChat(users, admin) {
   const [alice, bob, cara, dan, partial] = users;
   const aliceCandidates = await alice.get('/match/candidates');
   const candidateIds = new Set((aliceCandidates.candidates || []).map((candidate) => candidate.id));
@@ -310,6 +339,7 @@ async function verifyMatchAndChat(users) {
   assert(aliceMessages.messages?.some((msg) => msg.body.includes('Bob 实战回复')), 'alice should see bob reply');
   assert(bobMessages.messages?.some((msg) => msg.body.includes('Alice 实战消息')), 'bob should see alice message');
   await expectStatus(cara, 'GET', `/chat/channels/${aliceChannel.id}/messages`, undefined, 403);
+  await verifyRelationshipConfirmation(alice, bob, admin, cara);
 }
 
 async function verifyCommunity(users) {
@@ -499,6 +529,8 @@ async function run() {
 
   console.log('[verify-real-users] checking daily checkin...');
   await verifyDailyCheckin(users[0]);
+  console.log('[verify-real-users] checking AI consultation...');
+  await verifyAiConsultation(users[0]);
 
   console.log('[verify-real-users] checking deep marriage course...');
   await completeDeepMarriageCourse(users[0]);
@@ -507,7 +539,7 @@ async function run() {
   await verifyAccountSecurity(stamp);
 
   console.log('[verify-real-users] checking match and chat...');
-  await verifyMatchAndChat(users);
+  await verifyMatchAndChat(users, admin);
 
   console.log('[verify-real-users] checking community...');
   const communityResult = await verifyCommunity(users);

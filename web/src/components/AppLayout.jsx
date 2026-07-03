@@ -19,6 +19,8 @@ export default function AppLayout() {
         <NavLink to="/faith-test">信仰测试</NavLink>
         <NavLink to="/courses">课程</NavLink>
         <NavLink to="/match">匹配</NavLink>
+        <NavLink to="/ai">AI 咨询</NavLink>
+        <NavLink to="/relationships">关系</NavLink>
         <NavLink to="/chat">私信</NavLink>
         <NavLink to="/community">社群</NavLink>
         <NavLink to="/vip">套餐</NavLink>

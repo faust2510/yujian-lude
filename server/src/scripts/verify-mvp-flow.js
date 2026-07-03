@@ -44,6 +44,7 @@ class ApiClient {
   get(path) { return this.request('GET', path); }
   post(path, body) { return this.request('POST', path, body); }
   put(path, body) { return this.request('PUT', path, body); }
+  delete(path, body) { return this.request('DELETE', path, body); }
 }
 
 function assert(condition, message) {
@@ -205,6 +206,34 @@ async function assertInPool(client, label) {
   assert(status.inPool, `${label} should be in match pool: missing ${JSON.stringify(status.missing)}`);
 }
 
+async function verifyAiConsultation(client) {
+  const scoped = await client.post('/ai/ask', { question: '认识初期怎样设定聊天边界和线下见面节奏？' });
+  assert(scoped.outOfScope === false, 'AI should answer in-scope relationship boundary questions');
+  assert(scoped.sources?.length >= 1, 'AI answer should include sources');
+  const out = await client.post('/ai/ask', { question: '请给我离婚诉讼法律建议' });
+  assert(out.outOfScope === true, 'AI should refuse legal advice');
+  const history = await client.get('/ai/history');
+  assert(history.history?.length >= 2, 'AI history should include recent consultations');
+}
+
+async function verifyRelationshipConfirmation({ alice, bob, reviewer, outsider, bobId }) {
+  const initiated = await alice.post('/relationships/initiate', { partner_id: bobId });
+  assert(initiated.relationship?.id, 'relationship initiate should return relationship');
+  const relationshipId = initiated.relationship.id;
+
+  const first = await alice.post(`/relationships/${relationshipId}/request-confirmation`, {});
+  assert(first.relationship?.state === 'relationship_requested', `expected relationship_requested, got ${first.relationship?.state}`);
+  const second = await bob.post(`/relationships/${relationshipId}/request-confirmation`, {});
+  assert(second.relationship?.state === 'mutual_confirmed', `expected mutual_confirmed, got ${second.relationship?.state}`);
+  await expectStatus(outsider, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' }, 403);
+  const aSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' });
+  assert(aSide.relationship?.state === 'pastoral_review', `expected pastoral_review, got ${aSide.relationship?.state}`);
+  const bSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' });
+  assert(bSide.relationship?.state === 'confirmed', `expected confirmed, got ${bSide.relationship?.state}`);
+  const mine = await alice.get('/relationships/mine');
+  assert(mine.relationship?.state === 'confirmed', 'confirmed relationship should appear in mine');
+}
+
 async function onboard(client, admin, index) {
   await completeProfile(client, index);
   await passFaithTest(client);
@@ -228,6 +257,8 @@ async function run() {
 
   console.log('[verify-mvp] checking daily checkin...');
   await verifyDailyCheckin(users[0]);
+  console.log('[verify-mvp] checking AI consultation...');
+  await verifyAiConsultation(users[0]);
 
   console.log('[verify-mvp] completing pool gates...');
   for (const [idx, client] of users.entries()) {
@@ -263,6 +294,15 @@ async function run() {
   const replyMessages = await users[0].get(`/chat/channels/${channelId}/messages`);
   assert(replyMessages.messages?.some((msg) => msg.body.includes('MVP 私聊回复')), 'chat reply not visible to original sender');
   await expectStatus(users[2], 'GET', `/chat/channels/${channelId}/messages`, undefined, 403);
+
+  console.log('[verify-mvp] checking relationship confirmation...');
+  await verifyRelationshipConfirmation({
+    alice: users[0],
+    bob: users[1],
+    reviewer: admin,
+    outsider: users[2],
+    bobId: user2Id,
+  });
 
   console.log('[verify-mvp] checking community...');
   const post = await users[0].post('/community/posts', {

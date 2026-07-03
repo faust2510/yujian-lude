@@ -1,82 +1,178 @@
 import { useEffect, useState } from 'react'
-import { relationships } from '../api/client'
+import { chat, relationships } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+
+function stageLabel(rel) {
+  if (rel.state === 'confirmed') return { text: '已确立', cls: 'badge-green' }
+  if (rel.state === 'ended') return { text: '已结束', cls: 'badge-gray' }
+  if (rel.state === 'pastoral_review') return { text: '属灵审核中', cls: 'badge-soft' }
+  if (rel.state === 'mutual_confirmed') return { text: '双方已确认', cls: 'badge-soft' }
+  if (rel.state === 'relationship_requested') return { text: '等待对方确认', cls: 'badge-yellow' }
+  return { text: '了解期', cls: 'badge-soft' }
+}
 
 export default function Relationships() {
   const { user } = useAuth()
   const [data, setData] = useState(null)
+  const [channels, setChannels] = useState([])
   const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState('')
+  const [msg, setMsg] = useState('')
+  const [error, setError] = useState('')
 
-  const load = () => {
+  const load = async () => {
     setLoading(true)
-    relationships.list()
-      .then(r => setData(r.data))
-      .catch(() => setData({ relationship: null }))
-      .finally(() => setLoading(false))
+    setError('')
+    try {
+      const [rel, ch] = await Promise.all([relationships.list(), chat.channels()])
+      setData(rel.data)
+      setChannels(ch.data.channels || [])
+    } catch (err) {
+      setError(err.response?.data?.error || '关系信息加载失败')
+      setData({ relationship: null })
+      setChannels([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
 
-  const stageLabel = (rel) => {
-    if (rel.state === 'confirmed') return { text: '恋情确认期', cls: 'badge-green' }
-    if (rel.state === 'ended') return { text: '已结束', cls: '' }
-    if (rel.state === 'pastoral_review') return { text: '牧者审核中', cls: 'badge-soft' }
-    return { text: '了解期', cls: 'badge-soft' }
+  const runAction = async (key, action, success) => {
+    setBusy(key)
+    setMsg('')
+    setError('')
+    try {
+      await action()
+      setMsg(success)
+      await load()
+    } catch (err) {
+      setError(err.response?.data?.error || '操作失败，请稍后重试')
+    } finally {
+      setBusy('')
+    }
   }
+
+  const startRelationship = (partnerId) => runAction(
+    `start-${partnerId}`,
+    () => relationships.initiate(partnerId),
+    '关系确认流程已开启'
+  )
+
+  const requestConfirm = (id) => runAction(
+    `confirm-${id}`,
+    () => relationships.requestConfirmation(id),
+    '你的确认已提交'
+  )
+
+  const approveSide = (id, side) => runAction(
+    `approve-${side}`,
+    () => relationships.pastorApprove(id, side),
+    '审核确认已保存'
+  )
+
+  const endRel = (id) => {
+    const reason = window.prompt('请简短说明结束原因（可留空）') || ''
+    return runAction(`end-${id}`, () => relationships.end(id, reason), '关系已结束')
+  }
+
+  const activeChannels = channels.filter(channel => channel.other_id)
 
   return (
     <>
       <h1 className="page-title">我的关系</h1>
-      <p className="page-sub">匹配后先了解 → 双方修完必修课并通过考试 → 双方牧者点头 → 确立关系</p>
+      <p className="page-sub">互相表达意向后进入了解期；双方确认后，由牧者或管理员完成属灵审核。</p>
 
       {loading && <div style={{color:'var(--muted)',padding:20,fontSize:14}}>加载中…</div>}
+      {msg && <div className="success-msg" style={{marginBottom:12}}>{msg}</div>}
+      {error && <div className="error-msg" style={{marginBottom:12}}>{error}</div>}
 
       {!loading && !data?.relationship && (
-        <div className="card" style={{textAlign:'center',padding:40,color:'var(--muted)'}}>
-          <div style={{fontSize:18,marginBottom:8,color:'var(--fg)'}}>还没有进行中的关系</div>
-          <div style={{fontSize:14}}>先去匹配页表达意向，双方互相心动后开启了解通道</div>
+        <div className="card">
+          <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:8}}>还没有进行中的关系</h3>
+          <p style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>可以从已经互相表达意向的私聊对象中，开启关系确认流程。</p>
+          {activeChannels.length === 0 && <div className="muted-small">暂无互相匹配的私聊对象。</div>}
+          <div className="relationship-channel-list">
+            {activeChannels.map(channel => (
+              <div className="relationship-channel" key={channel.id}>
+                <div>
+                  <strong>{channel.other_nickname || '对方'}</strong>
+                  <span>{channel.last_msg || '尚未开始对话'}</span>
+                </div>
+                <button className="btn btn-primary" disabled={busy === `start-${channel.other_id}`} onClick={() => startRelationship(channel.other_id)}>
+                  {busy === `start-${channel.other_id}` ? '开启中…' : '开启关系确认'}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {data?.relationship && (() => {
-        const rel = data.relationship
-        const stage = stageLabel(rel)
-        const isA = rel.user_a === user?.id
-        const myExam = isA ? rel.user_a_exam_passed : rel.user_b_exam_passed
-        const otherExam = isA ? rel.user_b_exam_passed : rel.user_a_exam_passed
-        const myPastor = isA ? rel.pastor_a_approved : rel.pastor_b_approved
-        const otherPastor = isA ? rel.pastor_b_approved : rel.pastor_a_approved
-        return (
-          <div className="card" key={rel.id}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-              <div style={{fontFamily:'var(--font-serif)',fontSize:16}}>与 {rel.other_nickname || '对方'}</div>
-              <span className={`badge ${stage.cls}`}>{stage.text}</span>
-            </div>
-
-            <div style={{display:'grid',gap:8,fontSize:13}}>
-              <Step ok={myExam} label="我已通过婚姻必修课考试" />
-              <Step ok={otherExam} label="对方已通过婚姻必修课考试" />
-              <Step ok={myPastor} label="我的牧者已确认" />
-              <Step ok={otherPastor} label="对方牧者已确认" />
-            </div>
-
-            {rel.state !== 'confirmed' && rel.state !== 'ended' && (
-              <div style={{marginTop:14,display:'flex',gap:8,flexDirection:'column'}}>
-                {!myExam && (
-                  <span style={{fontSize:13,color:'var(--muted)'}}>先到课程页修完必修课并通过考试，才能发起关系确认</span>
-                )}
-                {myExam && rel.state === 'chatting' && (
-                  <button className="btn btn-primary" style={{fontSize:13,alignSelf:'flex-start'}}
-                    onClick={() => relationships.examConfirm(rel.id).then(load).catch(()=>{})}>
-                    确认我已完成课程考试
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )
-      })()}
+      {data?.relationship && (
+        <RelationshipCard
+          rel={data.relationship}
+          user={user}
+          busy={busy}
+          onConfirm={requestConfirm}
+          onApprove={approveSide}
+          onEnd={endRel}
+        />
+      )}
     </>
+  )
+}
+
+function RelationshipCard({ rel, user, busy, onConfirm, onApprove, onEnd }) {
+  const stage = stageLabel(rel)
+  const isA = rel.user_a === user?.id
+  const myConfirmed = isA ? rel.user_a_confirmed : rel.user_b_confirmed
+  const otherConfirmed = isA ? rel.user_b_confirmed : rel.user_a_confirmed
+  const myPastor = isA ? rel.pastor_a_approved : rel.pastor_b_approved
+  const otherPastor = isA ? rel.pastor_b_approved : rel.pastor_a_approved
+  const canReview = ['admin', 'pastor'].includes(user?.role)
+  const canConfirm = !myConfirmed && !['confirmed', 'ended'].includes(rel.state)
+  const partnerName = rel.partner_nickname || rel.other_nickname || '对方'
+
+  return (
+    <div className="card">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,marginBottom:12}}>
+        <div>
+          <div style={{fontFamily:'var(--font-serif)',fontSize:16}}>与 {partnerName}</div>
+          <div className="muted-small">关系 ID：{rel.id}</div>
+        </div>
+        <span className={`badge ${stage.cls}`}>{stage.text}</span>
+      </div>
+
+      <div className="relationship-steps">
+        <Step ok={myConfirmed} label="我已确认愿意进入关系确认" />
+        <Step ok={otherConfirmed} label="对方已确认愿意进入关系确认" />
+        <Step ok={myPastor} label="我方牧者 / 管理员已确认" />
+        <Step ok={otherPastor} label="对方牧者 / 管理员已确认" />
+      </div>
+
+      <div className="relationship-actions">
+        {canConfirm && (
+          <button className="btn btn-primary" disabled={busy === `confirm-${rel.id}`} onClick={() => onConfirm(rel.id)}>
+            {busy === `confirm-${rel.id}` ? '提交中…' : '确认进入关系流程'}
+          </button>
+        )}
+        {canReview && rel.user_a_confirmed && rel.user_b_confirmed && rel.state !== 'confirmed' && (
+          <>
+            <button className="btn btn-outline" disabled={busy === 'approve-user_a' || rel.pastor_a_approved} onClick={() => onApprove(rel.id, 'user_a')}>
+              确认甲方属灵审核
+            </button>
+            <button className="btn btn-outline" disabled={busy === 'approve-user_b' || rel.pastor_b_approved} onClick={() => onApprove(rel.id, 'user_b')}>
+              确认乙方属灵审核
+            </button>
+          </>
+        )}
+        {!['confirmed', 'ended'].includes(rel.state) && (
+          <button className="btn btn-outline" disabled={busy === `end-${rel.id}`} onClick={() => onEnd(rel.id)}>
+            结束关系
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 

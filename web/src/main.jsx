@@ -14,6 +14,7 @@ import FaithTest from './pages/FaithTest'
 import Courses from './pages/Courses'
 import Match from './pages/Match'
 import Relationships from './pages/Relationships'
+import AiConsult from './pages/AiConsult'
 import Community from './pages/Community'
 import UserTimeline from './pages/UserTimeline'
 import Vip from './pages/Vip'
@@ -37,6 +38,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="/faith-test" element={<FaithTest />} />
             <Route path="/courses" element={<Courses />} />
             <Route path="/match" element={<Match />} />
+            <Route path="/ai" element={<AiConsult />} />
             <Route path="/relationships" element={<Relationships />} />
             <Route path="/community" element={<Community />} />
             <Route path="/community/user/:userId" element={<UserTimeline />} />

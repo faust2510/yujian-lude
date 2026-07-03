@@ -19,6 +19,7 @@ const requiredEnums = [
   ['moderation_state', ['approved', 'pending', 'rejected']],
   ['membership_state', ['approved', 'pending', 'rejected', 'kicked']],
   ['notif_kind', ['like', 'comment', 'reply', 'follow', 'group_join', 'post_approved', 'post_featured', 'event_new', 'report_resolved']],
+  ['relationship_state', ['chatting', 'exam_required', 'relationship_requested', 'mutual_confirmed', 'pastoral_review', 'confirmed', 'ended']],
 ];
 
 const requiredTables = [
@@ -40,6 +41,7 @@ const requiredTables = [
   'sessions',
   'login_attempts',
   'faith_tests',
+  'relationships',
   'community_groups',
   'community_admin_applications',
   'community_posts',
@@ -68,6 +70,20 @@ const requiredColumns = [
   ['faith_profiles', ['user_id', 'church_name', 'testimony']],
   ['endorsements', ['user_id', 'kind', 'state', 'verified_at']],
   ['matches', ['user_id', 'target_id', 'status', 'intent_sent_at']],
+  [
+    'relationships',
+    [
+      'user_a',
+      'user_b',
+      'state',
+      'confirmation_requested_by',
+      'user_a_confirmed',
+      'user_b_confirmed',
+      'pastor_a_approved',
+      'pastor_b_approved',
+      'ended_reason',
+    ],
+  ],
   ['chat_channels', ['match_id', 'user_a', 'user_b']],
   ['community_admin_applications', ['user_id', 'group_id', 'reason', 'state', 'reviewed_by', 'reviewed_at']],
   ['community_posts', ['author_id', 'group_id', 'post_type', 'body', 'moderation']],
@@ -79,6 +95,7 @@ const requiredColumns = [
 
 const requiredUniqueIndexes = [
   ['matches', ['user_id', 'target_id']],
+  ['relationships', ['user_a', 'user_b']],
   ['login_attempts', ['email', 'ip']],
   ['chat_channels', ['user_a', 'user_b']],
   ['unit_attempts', ['user_id', 'unit_id']],
@@ -97,7 +114,7 @@ const requiredSettings = [
 ];
 
 const requiredCourses = [
-  ['christian-dating-basics', 4],
+  ['christian-dating-basics', 8],
   ['keller-meaning-of-marriage', 10],
 ];
 

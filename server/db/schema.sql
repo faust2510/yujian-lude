@@ -321,7 +321,7 @@ CREATE INDEX idx_pastor_letters_user ON pastor_letters(user_id);
 -- ============================================================
 
 -- 14. relationships — 关系确认生命周期
-CREATE TYPE relationship_state AS ENUM ('chatting', 'exam_required', 'pastoral_review', 'confirmed', 'ended');
+CREATE TYPE relationship_state AS ENUM ('chatting', 'exam_required', 'relationship_requested', 'mutual_confirmed', 'pastoral_review', 'confirmed', 'ended');
 CREATE TABLE relationships (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_a          UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -333,8 +333,15 @@ CREATE TABLE relationships (
     -- 牧者审核（双方牧者各自点头）
     pastor_a_approved   BOOLEAN NOT NULL DEFAULT FALSE,
     pastor_b_approved   BOOLEAN NOT NULL DEFAULT FALSE,
+    confirmation_requested_by UUID REFERENCES users(id),
+    confirmation_requested_at TIMESTAMPTZ,
+    user_a_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    user_b_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    user_a_confirmed_at TIMESTAMPTZ,
+    user_b_confirmed_at TIMESTAMPTZ,
     confirmed_at    TIMESTAMPTZ,                         -- 关系正式确立时间
     ended_at        TIMESTAMPTZ,
+    ended_reason    TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (user_a, user_b)
 );

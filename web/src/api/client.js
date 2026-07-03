@@ -112,11 +112,18 @@ export const chat = {
   send: (id, body) => api.post(`/chat/channels/${id}/messages`, { body }),
 }
 
+export const ai = {
+  ask: (question) => api.post('/ai/ask', { question }),
+  history: () => api.get('/ai/history'),
+}
+
 export const relationships = {
   list: () => api.get('/relationships/mine'),
   initiate: (partnerId) => api.post('/relationships/initiate', { partner_id: partnerId }),
   examConfirm: (id) => api.post(`/relationships/${id}/exam-confirm`),
-  pastorApprove: (id) => api.post(`/relationships/${id}/pastor-approve`),
+  requestConfirmation: (id) => api.post(`/relationships/${id}/request-confirmation`),
+  pastorApprove: (id, side) => api.post(`/relationships/${id}/pastor-approve`, { side }),
+  end: (id, reason) => api.delete(`/relationships/${id}`, { data: { reason } }),
 }
 
 export const pastorCert = {

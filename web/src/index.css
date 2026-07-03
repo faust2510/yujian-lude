@@ -183,6 +183,38 @@ h1, h2, h3 { font-family: var(--font-serif); }
 /* Error */
 .error-msg { color: #dc2626; font-size: 13px; margin-top: 12px; }
 .success-msg { color: #17a34a; font-size: 13px; margin-top: 12px; }
+.muted-small { color: var(--muted); font-size: 12px; }
+
+/* AI consultation */
+.ai-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; }
+.ai-main textarea { min-height: 130px; resize: vertical; }
+.ai-answer {
+  border: 1px solid var(--border); border-radius: 8px; margin-top: 18px;
+  padding: 14px; background: var(--bg);
+}
+.ai-answer.out { border-color: #F0D060; background: #FFFAEB; }
+.ai-question { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.ai-answer-body { font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
+.ai-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.ai-sources span, .ai-history-item span {
+  border: 1px solid var(--border); border-radius: 999px; color: var(--muted);
+  font-size: 11px; padding: 4px 8px;
+}
+.ai-side h3 { font-size: 14px; margin-bottom: 8px; }
+.ai-side ul { color: var(--muted); font-size: 13px; line-height: 1.8; margin: 0 0 18px 18px; }
+.ai-history-item { border-top: 1px solid var(--border); display: grid; gap: 6px; padding: 10px 0; }
+.ai-history-item div { font-size: 13px; line-height: 1.5; }
+
+/* Relationship confirmation */
+.relationship-channel-list { display: grid; gap: 10px; }
+.relationship-channel {
+  align-items: center; border: 1px solid var(--border); border-radius: 8px;
+  display: flex; gap: 12px; justify-content: space-between; padding: 12px;
+}
+.relationship-channel div { display: grid; gap: 4px; }
+.relationship-channel span { color: var(--muted); font-size: 12px; }
+.relationship-steps { display: grid; gap: 8px; font-size: 13px; }
+.relationship-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 
 /* Gate banner */
 .gate-banner {
@@ -689,6 +721,8 @@ textarea.com-modal-input { resize: vertical; font-family: inherit; }
   .sidebar { display: none; }
   .main-content { margin-left: 0; padding: 16px; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .ai-layout { grid-template-columns: 1fr; }
+  .relationship-channel { align-items: stretch; flex-direction: column; }
   .com-layout { flex-direction: column; }
   .com-sidebar { display: none; }
   .com-search-input { width: 100px; }
