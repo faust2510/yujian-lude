@@ -1001,7 +1001,13 @@ textarea.com-modal-input { resize: vertical; font-family: inherit; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .ai-layout { grid-template-columns: 1fr; }
   .relationship-channel { align-items: stretch; flex-direction: column; }
-  .com-layout { flex-direction: column; }
+  .com-layout { flex-direction: column; width: 100%; min-width: 0; }
+  .com-main { max-width: 100%; min-width: 0; width: 100%; }
+  .com-tabs { flex-wrap: wrap; min-width: 0; }
+  .com-tab { padding: 8px 10px; }
+  .com-composer-row { min-width: 0; }
+  .com-composer-input { min-width: 0; }
+  .com-composer-footer { align-items: flex-start; flex-wrap: wrap; }
   .com-sidebar { display: none; }
   .com-search-input { width: 100px; }
   .com-search-input:focus { width: 120px; }

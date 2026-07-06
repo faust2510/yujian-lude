@@ -89,7 +89,7 @@ router.post('/me/endorsements', requireAuth, async (req, res) => {
   if (!name || !contact) return res.status(400).json({ error: '姓名和联系方式必填' });
   const row = await one(
     `INSERT INTO endorsements (user_id, kind, name, contact, church, note)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, kind, name, state`,
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, kind, name, church, state`,
     [uid, kind, name, contact, church || null, note || null]
   );
   res.status(201).json({ endorsement: row });

@@ -16,6 +16,7 @@ const requiredEnums = [
   ['user_role', ['free', 'vip', 'pastor', 'admin']],
   ['match_status', ['suggested', 'intent_sent', 'matched', 'under_review', 'approved', 'declined']],
   ['post_type', ['post', 'event', 'announcement']],
+  ['post_state', ['visible', 'pinned', 'removed', 'featured']],
   ['moderation_state', ['approved', 'pending', 'rejected']],
   ['membership_state', ['approved', 'pending', 'rejected', 'kicked']],
   ['notif_kind', ['like', 'comment', 'reply', 'follow', 'group_join', 'post_approved', 'post_featured', 'event_new', 'report_resolved']],
