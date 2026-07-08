@@ -10,6 +10,7 @@
     "test": "node --test \"src/**/*.test.js\"",
     "migrate": "node src/scripts/migrate.js",
     "migrate:up": "node src/scripts/migrate-up.js",
+    "import:textbook": "node src/scripts/import-textbook.js",
     "seed": "node src/scripts/migrate.js --seed",
     "diagnose:schema": "node src/scripts/diagnose-schema.js",
     "verify:mvp": "node src/scripts/verify-mvp-flow.js",
