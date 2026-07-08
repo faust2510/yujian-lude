@@ -161,6 +161,201 @@ h1, h2, h3 { font-family: var(--font-serif); }
   font-size: 14px;
 }
 
+.course-unit-readings {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.course-unit-readings-title {
+  color: var(--brand-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.course-reading-link {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 9px 10px;
+  text-decoration: none;
+}
+
+.course-reading-link:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+
+.course-reading-link span,
+.course-reading-link small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.course-reading-link small {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.course-reading-link.is-done {
+  background: #F0FAF4;
+  border-color: #CFE8D6;
+  color: #1A7A3C;
+}
+
+/* Textbooks */
+.textbook-page {
+  display: grid;
+  gap: 16px;
+}
+
+.textbook-shell {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(0, 1.4fr);
+  align-items: start;
+}
+
+.textbook-list {
+  display: grid;
+  gap: 10px;
+}
+
+.textbook-row {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 14px;
+  text-decoration: none;
+}
+
+.textbook-row:hover {
+  border-color: var(--brand);
+}
+
+.textbook-row h3,
+.textbook-toc h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.textbook-row p,
+.textbook-toc p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.textbook-toc-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.textbook-chapter-list {
+  display: grid;
+  gap: 8px;
+}
+
+.textbook-chapter-link {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 10px 12px;
+  text-decoration: none;
+}
+
+.textbook-chapter-link:hover {
+  border-color: var(--brand);
+  color: var(--brand-dark);
+}
+
+.textbook-chapter-link span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.textbook-chapter-link small {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.textbook-chapter-link.is-done {
+  background: #F0FAF4;
+  border-color: #CFE8D6;
+  color: #1A7A3C;
+}
+
+.textbook-reader {
+  display: grid;
+  gap: 18px;
+}
+
+.reader-topbar,
+.reader-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.reader-header p {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.reader-header h1 {
+  font-size: 24px;
+  line-height: 1.35;
+}
+
+.reader-body {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1.8;
+  max-width: 760px;
+  overflow-wrap: anywhere;
+  padding: 24px;
+}
+
+.reader-body p {
+  margin-bottom: 1em;
+}
+
+.reader-body h1,
+.reader-body h2,
+.reader-body h3 {
+  font-size: 20px;
+  line-height: 1.45;
+  margin: 1.2em 0 0.7em;
+}
+
 /* Badges */
 .badge {
   display: inline-block; padding: 2px 10px; border-radius: 20px;
@@ -1001,6 +1196,11 @@ textarea.com-modal-input { resize: vertical; font-family: inherit; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .ai-layout { grid-template-columns: 1fr; }
   .relationship-channel { align-items: stretch; flex-direction: column; }
+  .textbook-shell { grid-template-columns: 1fr; }
+  .reader-actions { align-items: stretch; flex-direction: column; }
+  .reader-actions .btn { text-align: center; width: 100%; }
+  .reader-body { max-width: 100%; padding: 16px; }
+  .course-reading-link { align-items: flex-start; flex-direction: column; }
   .com-layout { flex-direction: column; width: 100%; min-width: 0; }
   .com-main { max-width: 100%; min-width: 0; width: 100%; }
   .com-tabs { flex-wrap: wrap; min-width: 0; }

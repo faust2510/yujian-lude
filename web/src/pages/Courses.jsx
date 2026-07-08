@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { courses } from '../api/client'
 
 const LETTERS = ['A', 'B', 'C', 'D']
@@ -43,6 +44,25 @@ function CourseMaterial({ material }) {
           <p>{section.body}</p>
         </section>
       ))}
+    </div>
+  )
+}
+
+function CourseUnitReadings({ readings = [] }) {
+  if (!readings.length) return null
+
+  return (
+    <div className="course-unit-readings">
+      <div className="course-unit-readings-title">教材阅读</div>
+      {readings.map((reading) => {
+        const path = `/textbooks/${reading.textbook_slug}/chapters/${reading.chapter_index}?returnTo=${encodeURIComponent('/courses')}`
+        return (
+          <Link className={`course-reading-link ${reading.completed ? 'is-done' : ''}`} to={path} key={`${reading.textbook_slug}-${reading.chapter_index}`}>
+            <span>{reading.completed ? '✓ ' : ''}{reading.chapter_title}</span>
+            <small>{reading.textbook_title}{reading.required ? ' · 必读' : ''}</small>
+          </Link>
+        )
+      })}
     </div>
   )
 }
@@ -246,6 +266,9 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
           const att = attemptsByUnit.get(u.unit_index)
           const read = !!att?.passed
           const key = `${course.slug}-${u.unit_index}`
+          const requiredReadings = u.readings?.filter(item => item.required) || []
+          const missingRequiredReadings = requiredReadings.filter(item => !item.completed)
+          const blockedByReadings = missingRequiredReadings.length > 0
           return (
             <details key={u.id} style={{border:'1px solid var(--border)',borderRadius:8,background:read ? '#F0FAF4' : 'var(--bg)',padding:12}}>
               <summary style={{cursor:'pointer',listStyle:'none'}}>
@@ -261,9 +284,13 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
                   <span>讨论题</span>
                 </div>
               </summary>
+              <CourseUnitReadings readings={u.readings || []} />
+              {blockedByReadings && (
+                <div className="error-msg">请先读完本单元绑定教材章节</div>
+              )}
               <CourseMaterial material={u.material} />
               <button className="btn btn-outline" style={{fontSize:12,padding:'6px 12px',marginTop:12}}
-                disabled={read || !!submitting[key]}
+                disabled={read || blockedByReadings || !!submitting[key]}
                 onClick={() => onMarkRead(u.unit_index, course.slug)}>
                 {read ? '已阅读' : submitting[key] ? '保存中…' : '我已阅读本单元'}
               </button>

@@ -12,6 +12,8 @@ import Dashboard from './pages/Dashboard'
 import Profile from './pages/Profile'
 import FaithTest from './pages/FaithTest'
 import Courses from './pages/Courses'
+import Textbooks from './pages/Textbooks'
+import TextbookReader from './pages/TextbookReader'
 import Match from './pages/Match'
 import Relationships from './pages/Relationships'
 import AiConsult from './pages/AiConsult'
@@ -37,6 +39,9 @@ createRoot(document.getElementById('root')).render(
             <Route path="/profile" element={<Profile />} />
             <Route path="/faith-test" element={<FaithTest />} />
             <Route path="/courses" element={<Courses />} />
+            <Route path="/textbooks" element={<Textbooks />} />
+            <Route path="/textbooks/:slug" element={<Textbooks />} />
+            <Route path="/textbooks/:slug/chapters/:index" element={<TextbookReader />} />
             <Route path="/match" element={<Match />} />
             <Route path="/ai" element={<AiConsult />} />
             <Route path="/relationships" element={<Relationships />} />

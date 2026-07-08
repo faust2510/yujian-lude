@@ -18,6 +18,7 @@ export default function AppLayout() {
         <NavLink to="/profile">完善资料</NavLink>
         <NavLink to="/faith-test">信仰测试</NavLink>
         <NavLink to="/courses">课程</NavLink>
+        <NavLink to="/textbooks">教材</NavLink>
         <NavLink to="/match">匹配</NavLink>
         <NavLink to="/ai">AI 咨询</NavLink>
         <NavLink to="/relationships">关系</NavLink>

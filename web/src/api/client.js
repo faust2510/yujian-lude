@@ -41,6 +41,13 @@ export const courses = {
   submitExam: (slug, answers) => api.post(`/courses/${slug}/exam/submit`, { answers }),
 }
 
+export const textbooks = {
+  list: () => api.get('/textbooks'),
+  detail: (slug) => api.get(`/textbooks/${slug}`),
+  chapter: (slug, index) => api.get(`/textbooks/${slug}/chapters/${index}`),
+  markRead: (slug, index) => api.post(`/textbooks/${slug}/chapters/${index}/read`),
+}
+
 export const faithTest = {
   status: () => api.get('/faith-test/status'),
   questions: () => api.get('/faith-test/questions'),
