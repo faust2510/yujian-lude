@@ -38,10 +38,12 @@ async function writeFixture(root) {
   <manifest>
     <item id="toc" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
     <item id="c1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="c1b" href="chapter1b.xhtml" media-type="application/xhtml+xml"/>
     <item id="c2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
   </manifest>
   <spine toc="toc">
     <itemref idref="c1"/>
+    <itemref idref="c1b"/>
     <itemref idref="c2"/>
   </spine>
 </package>`);
@@ -53,6 +55,7 @@ async function writeFixture(root) {
   </navMap>
 </ncx>`);
   await writeFile(path.join(root, 'OEBPS/chapter1.xhtml'), '<html><body><h1 onclick="x()">Ignored</h1><script>bad()</script><p>Alpha beta</p></body></html>');
+  await writeFile(path.join(root, 'OEBPS/chapter1b.xhtml'), '<html><body><p>Split continuation</p></body></html>');
   await writeFile(path.join(root, 'OEBPS/chapter2.xhtml'), '<html><body><h1>Second</h1><p>Gamma delta</p></body></html>');
 }
 
@@ -77,5 +80,6 @@ test('parseEpub reads metadata, spine order, toc titles, and sanitized chapters'
   assert.equal(book.chapters[0].title, 'Chapter One');
   assert.equal(book.chapters[0].sourceHref, 'chapter1.xhtml');
   assert.match(book.chapters[0].bodyHtml, /<p>Alpha beta<\/p>/);
+  assert.match(book.chapters[0].bodyHtml, /<p>Split continuation<\/p>/);
   assert.doesNotMatch(book.chapters[0].bodyHtml, /script|onclick/i);
 });

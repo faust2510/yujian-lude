@@ -56,16 +56,16 @@ function stripFragment(href = '') {
   return href.split('#')[0];
 }
 
-function tocTitles(ncx = '') {
-  const map = new Map();
+function tocEntries(ncx = '') {
+  const entries = [];
   for (const match of ncx.matchAll(/<navPoint\b[^>]*>([\s\S]*?)<\/navPoint>/gi)) {
     const block = match[1];
     const title = firstText(block, 'text');
     const content = block.match(/<content\b([^>]*)\/?>/i);
     const src = content ? stripFragment(attrs(content[1]).src || '') : '';
-    if (title && src) map.set(src, title);
+    if (title && src) entries.push({ title, src });
   }
-  return map;
+  return entries;
 }
 
 function fallbackTitle(html, index) {
@@ -87,17 +87,17 @@ export async function parseEpub(filePath) {
   const manifest = new Map(itemTags(opf, 'item').map((item) => [item.id, item]));
   const spine = itemTags(opf, 'itemref').map((item) => item.idref).filter(Boolean);
   const ncxItem = [...manifest.values()].find((item) => item['media-type'] === 'application/x-dtbncx+xml' || item.id === 'toc');
-  let titleMap = new Map();
+  let navEntries = [];
   if (ncxItem?.href) {
     try {
       const ncx = await run('/usr/bin/unzip', ['-p', filePath, joinZipPath(opfPath, ncxItem.href)]);
-      titleMap = tocTitles(ncx);
+      navEntries = tocEntries(ncx);
     } catch {
-      titleMap = new Map();
+      navEntries = [];
     }
   }
 
-  const chapters = [];
+  const sections = [];
   for (const idref of spine) {
     const item = manifest.get(idref);
     if (!item?.href || !/xhtml|html/i.test(item['media-type'] || '')) continue;
@@ -107,15 +107,48 @@ export async function parseEpub(filePath) {
     const bodyHtml = sanitizeChapterHtml(raw);
     const bodyText = htmlToText(bodyHtml);
     if (!bodyText) continue;
-    const chapterIndex = chapters.length + 1;
-    chapters.push({
-      chapterIndex,
-      title: titleMap.get(sourceHref) || titleMap.get(zipPath) || fallbackTitle(raw, chapterIndex),
-      bodyHtml,
-      bodyText,
-      sourceHref,
-      wordCount: countWords(bodyText),
-    });
+    sections.push({ raw, bodyHtml, bodyText, sourceHref });
+  }
+
+  const starts = navEntries
+    .map((entry) => ({
+      ...entry,
+      sectionIndex: sections.findIndex((section) => (
+        section.sourceHref === entry.src || joinZipPath(opfPath, section.sourceHref) === entry.src
+      )),
+    }))
+    .filter((entry) => entry.sectionIndex >= 0)
+    .sort((a, b) => a.sectionIndex - b.sectionIndex)
+    .filter((entry, index, all) => index === 0 || entry.sectionIndex !== all[index - 1].sectionIndex);
+
+  const chapters = [];
+  if (starts.length > 0) {
+    for (const [index, entry] of starts.entries()) {
+      const end = starts[index + 1]?.sectionIndex ?? sections.length;
+      const chunk = sections.slice(entry.sectionIndex, end);
+      const bodyText = chunk.map((section) => section.bodyText).join(' ').trim();
+      if (!bodyText) continue;
+      chapters.push({
+        chapterIndex: chapters.length + 1,
+        title: entry.title,
+        bodyHtml: chunk.map((section) => section.bodyHtml).join('\n'),
+        bodyText,
+        sourceHref: chunk[0].sourceHref,
+        wordCount: countWords(bodyText),
+      });
+    }
+  } else {
+    for (const section of sections) {
+      const chapterIndex = chapters.length + 1;
+      chapters.push({
+        chapterIndex,
+        title: fallbackTitle(section.raw, chapterIndex),
+        bodyHtml: section.bodyHtml,
+        bodyText: section.bodyText,
+        sourceHref: section.sourceHref,
+        wordCount: countWords(section.bodyText),
+      });
+    }
   }
 
   return {
