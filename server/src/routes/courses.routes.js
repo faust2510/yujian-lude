@@ -6,6 +6,7 @@ import { awardPoints, recomputeExposure, grantVipDays } from '../lib/rewards.js'
 import { getSetting } from '../settings.js';
 import { computeCourseState, shouldGrantCourseCompletionRewards } from '../lib/course-completion.js';
 import { gradeCourseExam, publicCourseExam } from '../lib/course-exams.js';
+import { incompleteRequiredReadings, readingsForCourseUnits } from '../lib/textbook-reading.js';
 
 const router = Router();
 
@@ -81,6 +82,11 @@ router.get('/courses/:slug', async (req, res) => {
        FROM course_units WHERE course_id = $1 ORDER BY unit_index`,
     [course.id]
   );
+  const readingsByUnit = await readingsForCourseUnits({ query }, { courseId: course.id, userId: req.user?.id ?? null });
+  const unitsWithReadings = units.map((unit) => ({
+    ...unit,
+    readings: readingsByUnit.get(unit.id) ?? [],
+  }));
   let progress = null;
   let attempts = [];
   if (req.user) {
@@ -104,7 +110,7 @@ router.get('/courses/:slug', async (req, res) => {
     );
     progress = progress ? { ...progress, latest_exam: latestExam ?? null } : progress;
   }
-  res.json({ course, units, progress, attempts });
+  res.json({ course, units: unitsWithReadings, progress, attempts });
 });
 
 // 报名 / 开始课程
@@ -140,6 +146,11 @@ router.post('/courses/:slug/units/:index/submit', requireAuth, async (req, res) 
       [req.user.id, course.id]
     );
 
+    const incompleteReadings = await incompleteRequiredReadings(db, { unitId: unit.id, userId: req.user.id });
+    if (incompleteReadings.length > 0) {
+      return { blockedByReadings: true, incompleteReadings };
+    }
+
     await db.query(
       `INSERT INTO unit_attempts (user_id, unit_id, passed, score, qa_log)
        VALUES ($1, $2, $3, $4, $5)
@@ -172,6 +183,12 @@ router.post('/courses/:slug/units/:index/submit', requireAuth, async (req, res) 
     );
     return { unitsDone, totalUnits, state, examReady: unitsDone >= totalUnits, isPastorNode: unit.is_pastor_node };
   });
+  if (out.blockedByReadings) {
+    return res.status(409).json({
+      error: '请先读完本单元绑定教材章节',
+      readings: out.incompleteReadings,
+    });
+  }
   res.json({ ok: true, ...out });
 });
 
