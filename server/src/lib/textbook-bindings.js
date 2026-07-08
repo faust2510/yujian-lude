@@ -14,6 +14,36 @@ export function distributeChapterIndexes(chapterCount, unitCount) {
   return buckets;
 }
 
+const MEANING_OF_MARRIAGE_COURSE_SLUG = 'keller-meaning-of-marriage';
+const MEANING_OF_MARRIAGE_TEXTBOOK_SLUG = 'meaning-of-marriage';
+const MEANING_OF_MARRIAGE_EXCLUDED_TITLES = new Set(['扉页', '目录', '致谢', '注释', '版权页']);
+
+function normalizedTitle(title) {
+  return String(title || '').replace(/\s+/g, ' ').trim();
+}
+
+function meaningOfMarriageChapterIndexes(chapters) {
+  return chapters
+    .filter((chapter) => !MEANING_OF_MARRIAGE_EXCLUDED_TITLES.has(normalizedTitle(chapter.title)))
+    .map((chapter) => chapter.chapter_index);
+}
+
+export function planCourseChapterDistribution({ courseSlug, textbookSlug, chapters, unitCount }) {
+  const rows = Array.isArray(chapters) ? chapters : [];
+  const units = Math.max(0, Number(unitCount) || 0);
+
+  if (courseSlug === MEANING_OF_MARRIAGE_COURSE_SLUG && textbookSlug === MEANING_OF_MARRIAGE_TEXTBOOK_SLUG) {
+    const courseChapterIndexes = meaningOfMarriageChapterIndexes(rows);
+    if (courseChapterIndexes.length > 0) {
+      return distributeChapterIndexes(courseChapterIndexes.length, units).map((bucket) =>
+        bucket.map((chapterOffset) => courseChapterIndexes[chapterOffset - 1]).filter(Boolean)
+      );
+    }
+  }
+
+  return distributeChapterIndexes(rows.length, units);
+}
+
 export async function bindTextbookToCourse(db, { textbookId, courseSlug }) {
   if (!courseSlug) return 0;
 
@@ -26,17 +56,23 @@ export async function bindTextbookToCourse(db, { textbookId, courseSlug }) {
     [courseSlug]
   );
   const chaptersResult = await db.query(
-    `SELECT id, chapter_index
-       FROM textbook_chapters
-      WHERE textbook_id = $1
-      ORDER BY chapter_index`,
+    `SELECT tc.id, tc.chapter_index, tc.title, t.slug AS textbook_slug
+       FROM textbook_chapters tc
+       JOIN textbooks t ON t.id = tc.textbook_id
+      WHERE tc.textbook_id = $1
+      ORDER BY tc.chapter_index`,
     [textbookId]
   );
 
   const units = unitsResult.rows;
   const chapters = chaptersResult.rows;
   const chapterByIndex = new Map(chapters.map((chapter) => [chapter.chapter_index, chapter]));
-  const distribution = distributeChapterIndexes(chapters.length, units.length);
+  const distribution = planCourseChapterDistribution({
+    courseSlug,
+    textbookSlug: chapters[0]?.textbook_slug,
+    chapters,
+    unitCount: units.length,
+  });
 
   await db.query(
     `DELETE FROM course_unit_readings cur
