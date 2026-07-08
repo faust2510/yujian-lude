@@ -86,6 +86,7 @@ const requiredColumns = [
     ],
   ],
   ['chat_channels', ['match_id', 'user_a', 'user_b']],
+  ['community_groups', ['id', 'name', 'category', 'join_policy', 'cover_image', 'created_by']],
   ['community_admin_applications', ['user_id', 'group_id', 'reason', 'state', 'reviewed_by', 'reviewed_at']],
   ['community_posts', ['author_id', 'group_id', 'post_type', 'body', 'moderation']],
   ['community_reports', ['reporter_id', 'target_type', 'target_id', 'reason', 'state', 'resolved_by', 'resolved_at']],

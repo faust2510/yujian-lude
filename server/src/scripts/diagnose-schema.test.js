@@ -10,3 +10,7 @@ const source = readFileSync(path.join(__dirname, 'diagnose-schema.js'), 'utf8');
 test('schema diagnosis checks community post state enum values used by feeds', () => {
   assert.match(source, /\['post_state', \['visible', 'pinned', 'removed', 'featured'\]\]/);
 });
+
+test('schema diagnosis checks community group columns used by group creation', () => {
+  assert.match(source, /\['community_groups', \['id', 'name', 'category', 'join_policy', 'cover_image', 'created_by'\]\]/);
+});

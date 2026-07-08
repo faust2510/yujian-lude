@@ -48,4 +48,7 @@ test('legacy schema backfill covers community and account tables diagnosed by re
 
   assert.match(sql, /ADD COLUMN IF NOT EXISTS post_type post_type/i);
   assert.match(sql, /ADD COLUMN IF NOT EXISTS moderation moderation_state/i);
+  assert.match(sql, /ALTER TABLE community_groups ADD COLUMN IF NOT EXISTS category group_category/i);
+  assert.match(sql, /ALTER TABLE community_groups ADD COLUMN IF NOT EXISTS join_policy group_join_policy/i);
+  assert.match(sql, /ALTER TABLE community_groups ADD COLUMN IF NOT EXISTS cover_image TEXT/i);
 });
