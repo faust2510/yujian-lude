@@ -18,6 +18,10 @@ test('legacy schema backfill covers community and account tables diagnosed by re
   for (const item of [
     'login_attempts',
     'admin_audit_logs',
+    'textbooks',
+    'textbook_chapters',
+    'textbook_reading_progress',
+    'course_unit_readings',
     'community_reports',
     'community_likes',
     'community_comments',
@@ -51,4 +55,7 @@ test('legacy schema backfill covers community and account tables diagnosed by re
   assert.match(sql, /ALTER TABLE community_groups ADD COLUMN IF NOT EXISTS category group_category/i);
   assert.match(sql, /ALTER TABLE community_groups ADD COLUMN IF NOT EXISTS join_policy group_join_policy/i);
   assert.match(sql, /ALTER TABLE community_groups ADD COLUMN IF NOT EXISTS cover_image TEXT/i);
+  assert.match(sql, /UNIQUE \(textbook_id, chapter_index\)/i);
+  assert.match(sql, /PRIMARY KEY \(user_id, chapter_id\)/i);
+  assert.match(sql, /PRIMARY KEY \(course_unit_id, chapter_id\)/i);
 });
