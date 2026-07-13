@@ -41,7 +41,7 @@ export default function Pastor() {
       {isPastor && (
         <div className="card" style={{background:'#F0FAF4',border:'1px solid #B8E0C8'}}>
           <span className="badge badge-green">已认证牧者</span>
-          <p style={{fontSize:14,marginTop:8,color:'var(--muted)'}}>
+          <p style={{fontSize:14,marginTop:8,color:'var(--legacy-muted)'}}>
             你可以在用户的信仰档案中接收背书请求、为关系确认对接、撰写牧者介绍信。
           </p>
         </div>
@@ -50,14 +50,14 @@ export default function Pastor() {
       {!isPastor && certState === 'pending' && (
         <div className="card" style={{background:'#FFF8E8',border:'1px solid #F0D896'}}>
           <span className="badge badge-soft">审核中</span>
-          <p style={{fontSize:14,marginTop:8,color:'var(--muted)'}}>你的牧者认证申请正在等待管理员审核。</p>
+          <p style={{fontSize:14,marginTop:8,color:'var(--legacy-muted)'}}>你的牧者认证申请正在等待管理员审核。</p>
         </div>
       )}
 
       {!isPastor && certState !== 'pending' && (
         <div className="card">
           <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:4}}>申请牧者认证</h3>
-          <p style={{fontSize:13,color:'var(--muted)',marginBottom:16}}>
+          <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:16}}>
             提交以下信息，管理员审核通过后账号升级为牧者。
           </p>
           {[

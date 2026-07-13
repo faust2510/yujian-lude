@@ -48,7 +48,7 @@ export default function Register() {
             {loading ? '注册中…' : '创建账号'}
           </button>
         </form>
-        <p style={{textAlign:'center',marginTop:16,fontSize:13,color:'var(--muted)'}}>
+        <p style={{textAlign:'center',marginTop:16,fontSize:13,color:'var(--legacy-muted)'}}>
           已有账号？<Link to="/login" style={{color:'var(--brand)'}}>返回登录</Link>
         </p>
       </div>

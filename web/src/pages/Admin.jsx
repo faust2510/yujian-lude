@@ -32,7 +32,7 @@ function parseSettingValue(value) {
 }
 
 function Empty({ children }) {
-  return <div style={{color:'var(--muted)',fontSize:14}}>{children}</div>
+  return <div style={{color:'var(--legacy-muted)',fontSize:14}}>{children}</div>
 }
 
 function ErrorLine({ children }) {
@@ -101,7 +101,7 @@ function OverviewTab() {
           <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:10,marginBottom:18}}>
             {cards.map(([label, value]) => (
               <div key={label} style={{border:'1px solid var(--border)',borderRadius:8,padding:12}}>
-                <div style={{fontSize:12,color:'var(--muted)'}}>{label}</div>
+                <div style={{fontSize:12,color:'var(--legacy-muted)'}}>{label}</div>
                 <div style={{fontSize:24,fontWeight:700,marginTop:4}}>{value ?? 0}</div>
               </div>
             ))}
@@ -144,7 +144,7 @@ function SettingsTab() {
         <div key={s.key} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid var(--border)'}}>
           <div style={{flex:1}}>
             <div style={{fontSize:14}}>{s.label || s.key}</div>
-            <div style={{fontSize:12,color:'var(--muted)'}}>{s.key}</div>
+            <div style={{fontSize:12,color:'var(--legacy-muted)'}}>{s.key}</div>
           </div>
           <input defaultValue={settingValue(s.value)} onChange={e=>setEdited(p=>({...p,[s.key]:e.target.value}))}
             style={{width:160,border:'1px solid var(--border)',borderRadius:6,padding:'4px 8px',fontSize:14}} />
@@ -203,9 +203,9 @@ function EndorsementsTab() {
           <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start'}}>
             <div>
               <div style={{fontSize:14,fontFamily:'var(--font-serif)'}}>{e.name} · {e.kind === 'pastor' ? '牧者' : '引荐人'}</div>
-              <div style={{fontSize:13,color:'var(--muted)',margin:'4px 0'}}>申请人：{e.nickname || e.email}</div>
-              <div style={{fontSize:12,color:'var(--muted)'}}>教会：{e.church || '未填写'} · 联系：{e.contact}</div>
-              {e.note && <div style={{fontSize:13,color:'var(--muted)',marginTop:6}}>备注：{e.note}</div>}
+              <div style={{fontSize:13,color:'var(--legacy-muted)',margin:'4px 0'}}>申请人：{e.nickname || e.email}</div>
+              <div style={{fontSize:12,color:'var(--legacy-muted)'}}>教会：{e.church || '未填写'} · 联系：{e.contact}</div>
+              {e.note && <div style={{fontSize:13,color:'var(--legacy-muted)',marginTop:6}}>备注：{e.note}</div>}
             </div>
             <span className="badge badge-soft">{e.state}</span>
           </div>
@@ -275,7 +275,7 @@ function UsersTab() {
         <div key={u.id} style={{display:'grid',gridTemplateColumns:'minmax(180px,1fr) auto',gap:12,alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
           <div>
             <div style={{fontFamily:'var(--font-serif)'}}>{u.nickname || u.email}</div>
-            <div style={{color:'var(--muted)'}}>{u.email} · {u.city || '未知城市'} · 背书 {u.verified_endorsements}</div>
+            <div style={{color:'var(--legacy-muted)'}}>{u.email} · {u.city || '未知城市'} · 背书 {u.verified_endorsements}</div>
             <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
               <span className="badge badge-soft">{u.role}</span>
               <span className="badge badge-soft">{u.email_verified ? '邮箱已验证' : '邮箱未验证'}</span>
@@ -342,7 +342,7 @@ function ReportsTab() {
       {reports.map(report => (
         <div key={report.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:14,fontWeight:600}}>{report.reason} · {report.target_type}</div>
-          <div style={{fontSize:12,color:'var(--muted)',marginTop:4}}>举报人：{report.reporter_nickname} · {formatDate(report.created_at)}</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>举报人：{report.reporter_nickname} · {formatDate(report.created_at)}</div>
           {report.detail && <div style={{fontSize:13,marginTop:6}}>{report.detail}</div>}
           <div style={{display:'flex',gap:8,marginTop:10,flexWrap:'wrap'}}>
             {report.state === 'pending' && <ActionButton primary onClick={()=>review(report.id,'resolve')}>标记已处理</ActionButton>}
@@ -403,7 +403,7 @@ function ApplicationsTab() {
       {pastors.map(item => (
         <div key={item.id} style={{padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:14,fontWeight:600}}>{item.nickname || item.email} · {item.church_name}</div>
-          <div style={{fontSize:12,color:'var(--muted)'}}>{item.contact_email} · {item.state}</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)'}}>{item.contact_email} · {item.state}</div>
           {item.state === 'pending' && <div style={{display:'flex',gap:8,marginTop:8}}><ActionButton primary onClick={()=>reviewPastor(item.id,'approve')}>通过</ActionButton><ActionButton onClick={()=>reviewPastor(item.id,'reject')}>驳回</ActionButton></div>}
         </div>
       ))}
@@ -412,7 +412,7 @@ function ApplicationsTab() {
       {communityAdmins.map(item => (
         <div key={item.id} style={{padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:14,fontWeight:600}}>{item.nickname || item.email} · {item.group_name || '全站'}</div>
-          <div style={{fontSize:12,color:'var(--muted)'}}>{item.reason || '未填写理由'} · {item.state}</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)'}}>{item.reason || '未填写理由'} · {item.state}</div>
           {item.state === 'pending' && <div style={{display:'flex',gap:8,marginTop:8}}><ActionButton primary onClick={()=>reviewCommunity(item.id,'approve')}>通过</ActionButton><ActionButton onClick={()=>reviewCommunity(item.id,'reject')}>驳回</ActionButton></div>}
         </div>
       ))}
@@ -442,8 +442,8 @@ function AuditRow({ log }) {
   return (
     <div style={{padding:'8px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
       <div style={{fontWeight:600}}>{log.action} · {log.target_type}</div>
-      <div style={{color:'var(--muted)'}}>{log.actor_nickname || log.actor_email || '系统'} · {formatDate(log.created_at)}</div>
-      <div style={{color:'var(--muted)',wordBreak:'break-word'}}>{JSON.stringify(log.detail || {})}</div>
+      <div style={{color:'var(--legacy-muted)'}}>{log.actor_nickname || log.actor_email || '系统'} · {formatDate(log.created_at)}</div>
+      <div style={{color:'var(--legacy-muted)',wordBreak:'break-word'}}>{JSON.stringify(log.detail || {})}</div>
     </div>
   )
 }

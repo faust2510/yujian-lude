@@ -140,11 +140,11 @@ export default function Dashboard() {
 
       <div className="grid-2" style={{marginBottom:24}}>
         <div className="card">
-          <div style={{fontSize:12,color:'var(--muted)',marginBottom:4}}>累积积分</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)',marginBottom:4}}>累积积分</div>
           <div style={{fontSize:32,fontFamily:'var(--font-serif)',color:'var(--brand)'}}>
             {pointsLoading ? '…' : (pts?.earned ?? '—')}
           </div>
-          <div style={{fontSize:12,color:'var(--muted)',marginTop:4}}>100 分 = 1 天 VIP 体验</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>100 分 = 1 天 VIP 体验</div>
           {pointsError && (
             <div className="error-msg">
               {pointsError}
@@ -155,8 +155,8 @@ export default function Dashboard() {
           )}
         </div>
         <div className="card">
-          <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>每日签到</div>
-          <p style={{fontSize:13,marginBottom:12,color:'var(--muted)'}}>每天签到 +10 分，坚持打卡！</p>
+          <div style={{fontSize:12,color:'var(--legacy-muted)',marginBottom:8}}>每日签到</div>
+          <p style={{fontSize:13,marginBottom:12,color:'var(--legacy-muted)'}}>每天签到 +10 分，坚持打卡！</p>
           <div style={{fontSize:13,color:'var(--fg)',marginBottom:12}}>
             今日积分：<strong style={{color:'var(--brand)'}}>{pointsLoading ? '…' : (pts?.daily ?? 0)}</strong>
           </div>
@@ -168,7 +168,7 @@ export default function Dashboard() {
       </div>
 
       {qualificationLoading && (
-        <div className="card" style={{marginBottom:24,color:'var(--muted)',fontSize:14}}>
+        <div className="card" style={{marginBottom:24,color:'var(--legacy-muted)',fontSize:14}}>
           正在加载入池状态…
         </div>
       )}
@@ -186,7 +186,7 @@ export default function Dashboard() {
           <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start',marginBottom:14}}>
             <div>
               <h2 style={{fontFamily:'var(--font-serif)',fontSize:18,marginBottom:6}}>入池任务中心</h2>
-              <p style={{fontSize:13,color:'var(--muted)',margin:0}}>
+              <p style={{fontSize:13,color:'var(--legacy-muted)',margin:0}}>
                 {qualification.inPool ? '你已满足匹配池资格，可以开始匿名匹配。' : '按顺序完成这些任务，系统会自动更新入池状态。'}
               </p>
             </div>
@@ -201,11 +201,11 @@ export default function Dashboard() {
 
           {primaryNext && (
             <div style={{border:'1px solid var(--border)',borderRadius:8,padding:14,marginBottom:14,background:'var(--bg)'}}>
-              <div style={{fontSize:12,color:'var(--muted)',marginBottom:4}}>下一步</div>
+              <div style={{fontSize:12,color:'var(--legacy-muted)',marginBottom:4}}>下一步</div>
               <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
                 <div>
                   <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{primaryNext.label}</div>
-                  <div style={{fontSize:13,color:'var(--muted)',lineHeight:1.6}}>{primaryNext.desc}</div>
+                  <div style={{fontSize:13,color:'var(--legacy-muted)',lineHeight:1.6}}>{primaryNext.desc}</div>
                 </div>
                 <Link className="btn btn-primary" to={primaryNext.to} style={{textDecoration:'none',whiteSpace:'nowrap'}}>
                   {primaryNext.action}
@@ -231,7 +231,7 @@ export default function Dashboard() {
                       width:26,height:26,borderRadius:'50%',
                       display:'flex',alignItems:'center',justifyContent:'center',
                       background:done ? '#F0FAF4' : 'var(--bg)',
-                      color:done ? '#1A7A3C' : 'var(--muted)',
+                      color:done ? '#1A7A3C' : 'var(--legacy-muted)',
                       border:`1px solid ${done ? '#B8E0C8' : 'var(--border)'}`,
                       fontSize:13,fontWeight:700
                     }}>
@@ -239,7 +239,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <div style={{fontSize:14,color:done ? 'var(--brand)' : 'var(--fg)',fontWeight:700}}>{step.label}</div>
-                      <div style={{fontSize:12,color:'var(--muted)',marginTop:2,lineHeight:1.5}}>{step.desc}</div>
+                      <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:2,lineHeight:1.5}}>{step.desc}</div>
                     </div>
                     <span className={`badge ${done ? 'badge-green' : 'badge-yellow'}`}>{done ? '已完成' : '待完成'}</span>
                   </div>
@@ -271,7 +271,7 @@ export default function Dashboard() {
                 e.currentTarget.style.transform = ''
               }}>
               <div style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:6}}>{item.title}</div>
-              <div style={{fontSize:13,color:'var(--muted)',marginBottom:10}}>{item.desc}</div>
+              <div style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:10}}>{item.desc}</div>
               <span className="badge badge-rose">{item.badge}</span>
             </div>
           </Link>

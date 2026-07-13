@@ -44,7 +44,7 @@ export default function Vip() {
       {isVip && (
         <div className="card" style={{background:'#F0FAF4',border:'1px solid #B8E0C8',marginBottom:16}}>
           <span className="badge badge-green">VIP 生效中</span>
-          <span style={{marginLeft:10,fontSize:14,color:'var(--muted)'}}>
+          <span style={{marginLeft:10,fontSize:14,color:'var(--legacy-muted)'}}>
             到期：{user.vip_until && new Date(user.vip_until).toLocaleDateString('zh-CN')}
           </span>
         </div>
@@ -53,7 +53,7 @@ export default function Vip() {
       {/* 积分兑换区 */}
       <div className="card" style={{marginBottom:24}}>
         <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:8}}>积分兑换 VIP 体验</h3>
-        <p style={{fontSize:13,color:'var(--muted)',marginBottom:12}}>
+        <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:12}}>
           当前积分：<strong style={{color:'var(--brand)'}}>{earned}</strong> 分 · 兑换比例：100 分 / 天
         </p>
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
@@ -61,7 +61,7 @@ export default function Vip() {
           <input type="number" min={1} max={Math.floor(earned/100)||1} value={days}
             onChange={e => setDays(Math.max(1, parseInt(e.target.value)||1))}
             style={{width:72,border:'1px solid var(--border)',borderRadius:8,padding:'6px 10px',fontSize:14}} />
-          <span style={{fontSize:13,color:'var(--muted)'}}>需消耗 {cost} 分</span>
+          <span style={{fontSize:13,color:'var(--legacy-muted)'}}>需消耗 {cost} 分</span>
         </div>
         {msg && <div style={{fontSize:13,color: msg.includes('成功') ? '#17a34a' : 'var(--brand)',marginBottom:8}}>{msg}</div>}
         <button className="btn btn-primary" onClick={doRedeem} disabled={loading || earned < cost}>
@@ -77,19 +77,19 @@ export default function Vip() {
             <h3 style={{fontFamily:'var(--font-serif)',fontSize:18}}>{p.name}</h3>
             <div style={{margin:'12px 0'}}>
               <span style={{fontSize:28,fontFamily:'var(--font-serif)',color:'var(--brand)'}}>¥{p.price}</span>
-              <span style={{fontSize:14,color:'var(--muted)'}}> / {p.period}</span>
+              <span style={{fontSize:14,color:'var(--legacy-muted)'}}> / {p.period}</span>
             </div>
             <ul style={{listStyle:'none',padding:0,fontSize:14,color:'var(--fg)',textAlign:'left',margin:'0 auto',maxWidth:200}}>
               {(p.perks || []).map((perk,i) => (
                 <li key={i} style={{padding:'5px 0',borderBottom:'1px solid var(--border)'}}>✓ {perk}</li>
               ))}
             </ul>
-            <div style={{marginTop:12,fontSize:12,color:'var(--muted)'}}>付费渠道建设中</div>
+            <div style={{marginTop:12,fontSize:12,color:'var(--legacy-muted)'}}>付费渠道建设中</div>
           </div>
         ))}
       </div>
 
-      <div className="card" style={{marginTop:16,fontSize:13,color:'var(--muted)'}}>
+      <div className="card" style={{marginTop:16,fontSize:13,color:'var(--legacy-muted)'}}>
         提示：完成凯勒《婚姻的意义》精品课，可免费获得 14 天 VIP 体验。受装备的人不光排前面，还能尝到便利。
       </div>
     </>

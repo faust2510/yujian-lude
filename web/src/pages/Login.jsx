@@ -66,7 +66,7 @@ export default function Login() {
             {loading ? '登录中…' : '登录'}
           </button>
         </form>
-        <p style={{textAlign:'center',marginTop:16,fontSize:13,color:'var(--muted)'}}>
+        <p style={{textAlign:'center',marginTop:16,fontSize:13,color:'var(--legacy-muted)'}}>
           还没有账号？<Link to="/register" style={{color:'var(--brand)'}}>立即注册</Link>
         </p>
         <p style={{textAlign:'center',marginTop:8,fontSize:13}}>

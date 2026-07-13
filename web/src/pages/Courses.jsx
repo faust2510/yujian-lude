@@ -204,10 +204,10 @@ export default function Courses() {
       {msg && <div className="card" style={{fontSize:13,color:msg.includes('失败') || msg.includes('未通过') ? '#B42318' : '#17a34a',marginBottom:16}}>{msg}</div>}
 
       {loading && (
-        <div className="card" style={{color:'var(--muted)',fontSize:14}}>课程加载中…</div>
+        <div className="card" style={{color:'var(--legacy-muted)',fontSize:14}}>课程加载中…</div>
       )}
       {!loading && list.length === 0 && !error && (
-        <div className="card" style={{color:'var(--muted)',fontSize:14}}>
+        <div className="card" style={{color:'var(--legacy-muted)',fontSize:14}}>
           暂无课程。稍后刷新页面，或联系管理员确认课程配置。
         </div>
       )}
@@ -247,7 +247,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
         <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start'}}>
           <div>
             <h3 style={{fontFamily:'var(--font-serif)',fontSize:16}}>{course.title}</h3>
-            <p style={{fontSize:13,color:'var(--muted)',marginTop:4}}>{course.description}</p>
+            <p style={{fontSize:13,color:'var(--legacy-muted)',marginTop:4}}>{course.description}</p>
           </div>
           <span className={`badge ${progress?.state === 'completed' ? 'badge-green' : 'badge-yellow'}`} style={{whiteSpace:'nowrap',flex:'0 0 auto'}}>
             {statusText(progress, latestExam)}
@@ -256,7 +256,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
         <div style={{background:'var(--border)',borderRadius:4,height:6,marginTop:12,marginBottom:8}}>
           <div style={{background:'var(--brand)',height:6,borderRadius:4,width:`${pct}%`,transition:'width 0.3s'}} />
         </div>
-        <div style={{fontSize:12,color:'var(--muted)'}}>
+        <div style={{fontSize:12,color:'var(--legacy-muted)'}}>
           {done} / {units.length || 0} 单元已阅读（{pct}%）
         </div>
       </summary>
@@ -302,7 +302,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
           <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',marginBottom:10}}>
             <div>
               <div style={{fontWeight:700,fontSize:15}}>结课考试</div>
-              <div style={{fontSize:13,color:'var(--muted)',marginTop:4}}>
+              <div style={{fontSize:13,color:'var(--legacy-muted)',marginTop:4}}>
                 {examUnlocked ? '全部单元阅读完成后，用考试确认你真的理解了课程。' : '读完全部单元后解锁考试。'}
               </div>
             </div>
@@ -314,7 +314,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
           </div>
 
           {!examUnlocked && (
-            <div style={{fontSize:13,color:'var(--muted)'}}>还需阅读 {Math.max(0, units.length - done)} 个单元。</div>
+            <div style={{fontSize:13,color:'var(--legacy-muted)'}}>还需阅读 {Math.max(0, units.length - done)} 个单元。</div>
           )}
 
           {examUnlocked && !examState.questions && (
@@ -327,7 +327,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
 
           {examState.questions && (
             <div style={{display:'grid',gap:12}}>
-              <div style={{fontSize:13,color:'var(--muted)'}}>
+              <div style={{fontSize:13,color:'var(--legacy-muted)'}}>
                 已作答 {answered} / {examTotal} 题，通过线 {examState.passThreshold} 题
               </div>
               {examState.questions.map((q, i) => (
@@ -358,7 +358,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
           )}
         </div>
 
-        <div style={{fontSize:13,color:'var(--muted)'}}>
+        <div style={{fontSize:13,color:'var(--legacy-muted)'}}>
           {course.is_match_gate_course
             ? '入池门槛：读完全部单元并通过考试后满足恋爱必修课资格'
             : <>完成奖励：+{course.reward_points || 0} 积分{course.reward_vip_days > 0 && <span> + {course.reward_vip_days} 天 VIP 体验</span>}</>}

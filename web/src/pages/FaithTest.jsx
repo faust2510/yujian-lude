@@ -70,7 +70,7 @@ export default function FaithTest() {
       <h1 className="page-title">信仰基础测试</h1>
       <p className="page-sub">使徒信经 + 尼西亚信经基本范围，答对 15 题及以上通过</p>
 
-      {loading && <div className="card" style={{fontSize:14,color:'var(--muted)'}}>正在加载测试状态…</div>}
+      {loading && <div className="card" style={{fontSize:14,color:'var(--legacy-muted)'}}>正在加载测试状态…</div>}
 
       {error && (
         <div className="card" style={{marginBottom:16}}>
@@ -93,7 +93,7 @@ export default function FaithTest() {
           ) : status.attempted ? (
             <>
               <span className="badge badge-yellow">未通过</span>
-              <p style={{ marginTop: 12, fontSize: 14, color: 'var(--muted)' }}>
+              <p style={{ marginTop: 12, fontSize: 14, color: 'var(--legacy-muted)' }}>
                 上次得分 {latest?.score}/20。建议回到教会与牧者一起温习基要真理后重考。
               </p>
               <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={start} disabled={starting}>
@@ -140,7 +140,7 @@ export default function FaithTest() {
             {result.passed ? '通过' : '未通过'}
           </span>
           <p style={{ marginTop: 12, fontSize: 16 }}>得分：{result.score} / 20</p>
-          <p style={{ marginTop: 8, fontSize: 14, color: 'var(--muted)' }}>{result.message}</p>
+          <p style={{ marginTop: 8, fontSize: 14, color: 'var(--legacy-muted)' }}>{result.message}</p>
           {!result.passed && (
             <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={start} disabled={starting}>
               {starting ? '加载中…' : '重新测试'}

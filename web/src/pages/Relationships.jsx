@@ -83,14 +83,14 @@ export default function Relationships() {
       <h1 className="page-title">我的关系</h1>
       <p className="page-sub">互相表达意向后进入了解期；双方确认后，由牧者或管理员完成属灵审核。</p>
 
-      {loading && <div style={{color:'var(--muted)',padding:20,fontSize:14}}>加载中…</div>}
+      {loading && <div style={{color:'var(--legacy-muted)',padding:20,fontSize:14}}>加载中…</div>}
       {msg && <div className="success-msg" style={{marginBottom:12}}>{msg}</div>}
       {error && <div className="error-msg" style={{marginBottom:12}}>{error}</div>}
 
       {!loading && !data?.relationship && (
         <div className="card">
           <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:8}}>还没有进行中的关系</h3>
-          <p style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>可以从已经互相表达意向的私聊对象中，开启关系确认流程。</p>
+          <p style={{fontSize:14,color:'var(--legacy-muted)',marginBottom:16}}>可以从已经互相表达意向的私聊对象中，开启关系确认流程。</p>
           {activeChannels.length === 0 && <div className="muted-small">暂无互相匹配的私聊对象。</div>}
           <div className="relationship-channel-list">
             {activeChannels.map(channel => (
@@ -178,7 +178,7 @@ function RelationshipCard({ rel, user, busy, onConfirm, onApprove, onEnd }) {
 
 function Step({ ok, label }) {
   return (
-    <div style={{display:'flex',alignItems:'center',gap:8,color:ok?'#1A7A3C':'var(--muted)'}}>
+    <div style={{display:'flex',alignItems:'center',gap:8,color:ok?'#1A7A3C':'var(--legacy-muted)'}}>
       <span style={{width:18,height:18,borderRadius:'50%',display:'inline-flex',alignItems:'center',
         justifyContent:'center',fontSize:11,background:ok?'#1A7A3C':'var(--border)',color:'#fff'}}>
         {ok ? '✓' : ''}

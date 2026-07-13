@@ -82,7 +82,7 @@ export default function Match() {
         </button>
       </div>
 
-      {loading && <div style={{color:'var(--muted)',padding:20,fontSize:14}}>加载中…</div>}
+      {loading && <div style={{color:'var(--legacy-muted)',padding:20,fontSize:14}}>加载中…</div>}
 
       {!loading && error && (
         <div className="card" style={{padding:28,marginBottom:16,color:'#B42318'}}>
@@ -95,7 +95,7 @@ export default function Match() {
       {!loading && !error && lockedStatus && (
         <div className="card" style={{padding:28,marginBottom:16}}>
           <div style={{fontFamily:'var(--font-serif)',fontSize:20,marginBottom:8}}>还没有进入匹配池</div>
-          <p style={{color:'var(--muted)',fontSize:14,marginBottom:18,lineHeight:1.7}}>{lockedStatus.gate}</p>
+          <p style={{color:'var(--legacy-muted)',fontSize:14,marginBottom:18,lineHeight:1.7}}>{lockedStatus.gate}</p>
           <div className="grid-2" style={{marginBottom:16}}>
             {(lockedStatus.nextActions || []).map(action => (
               <button key={action.key} className="btn btn-outline" onClick={() => navigate(action.to)}>
@@ -103,14 +103,14 @@ export default function Match() {
               </button>
             ))}
           </div>
-          <div style={{fontSize:12,color:'var(--muted)'}}>这是为了让进入匹配池的人都经过基本资料、信仰与背书确认。</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)'}}>这是为了让进入匹配池的人都经过基本资料、信仰与背书确认。</div>
         </div>
       )}
 
       {!loading && !error && !lockedStatus && candidates.length === 0 && (
         <div className="card" style={{textAlign:'center',padding:40}}>
           <div style={{fontSize:24,marginBottom:8}}>暂无候选</div>
-          <div style={{color:'var(--muted)',fontSize:14}}>试试放宽筛选条件，或先完成课程提升曝光分</div>
+          <div style={{color:'var(--legacy-muted)',fontSize:14}}>试试放宽筛选条件，或先完成课程提升曝光分</div>
           <button className="btn btn-outline" style={{marginTop:16}} onClick={clearFilters}>
             清空筛选
           </button>
@@ -126,7 +126,7 @@ export default function Match() {
               {(c.nickname||'?')[0]}
             </div>
             <div style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:4}}>{c.nickname || '匿名用户'}</div>
-            <div style={{fontSize:13,color:'var(--muted)',marginBottom:8}}>
+            <div style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:8}}>
               {c.city && `${c.city} · `}
               {c.birth_year && `${new Date().getFullYear() - c.birth_year}岁 · `}
               {c.education}
@@ -141,7 +141,7 @@ export default function Match() {
                 互相心动 ♥ 去私聊
               </button>
             ) : msg[c.id] ? (
-              <div style={{fontSize:13,color:'var(--muted)',padding:'8px 0'}}>{msg[c.id]}</div>
+              <div style={{fontSize:13,color:'var(--legacy-muted)',padding:'8px 0'}}>{msg[c.id]}</div>
             ) : (
               <div style={{display:'flex',gap:8,marginTop:8}}>
                 <button className="btn btn-primary" style={{flex:1,fontSize:13}}

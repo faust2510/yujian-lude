@@ -108,7 +108,7 @@ export default function UserTimeline() {
   }
 
   if (!profile && userId !== currentUserId) {
-    return <div className="com-loading" style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>加载中…</div>
+    return <div className="com-loading" style={{ padding: 40, textAlign: 'center', color: 'var(--legacy-muted)' }}>加载中…</div>
   }
 
   if (userId === currentUserId) {
@@ -120,7 +120,7 @@ export default function UserTimeline() {
               ← 回到社群
             </button>
             <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 14, color: 'var(--muted)' }}>这是你的主页</span>
+            <span style={{ fontSize: 14, color: 'var(--legacy-muted)' }}>这是你的主页</span>
           </div>
           <div className="com-empty">这是你自己的页面，去社群板块查看活动吧</div>
         </div>

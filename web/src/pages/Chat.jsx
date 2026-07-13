@@ -86,12 +86,12 @@ export default function Chat() {
           fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 15, color: 'var(--fg)'
         }}>私信</div>
         {loadingChannels && (
-          <div style={{ padding: 24, color: 'var(--muted)', fontSize: 13 }}>对话加载中…</div>
+          <div style={{ padding: 24, color: 'var(--legacy-muted)', fontSize: 13 }}>对话加载中…</div>
         )}
         {!loadingChannels && channels.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>💬</div>
-            <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6 }}>
+            <p style={{ color: 'var(--legacy-muted)', fontSize: 13, lineHeight: 1.6 }}>
               暂无对话。<br />与候选人互相表达意向后，私信通道会自动开通。
             </p>
             <button className="btn btn-outline" style={{ marginTop: 12 }} onClick={loadChannels}>刷新</button>
@@ -108,12 +108,12 @@ export default function Chat() {
             onMouseLeave={e => { if (active?.id !== ch.id) e.currentTarget.style.background = 'var(--surface)' }}>
             <div style={{ fontWeight: 600, marginBottom: 4, fontSize: 14 }}>{ch.other_nickname || '对方'}</div>
             <div style={{
-              fontSize: 13, color: 'var(--muted)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
+              fontSize: 13, color: 'var(--legacy-muted)', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
             }}>
               {ch.last_msg || '暂无消息'}
             </div>
             {ch.last_at && (
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4, opacity: 0.6 }}>{timeAgo(ch.last_at)}</div>
+              <div style={{ fontSize: 11, color: 'var(--legacy-muted)', marginTop: 4, opacity: 0.6 }}>{timeAgo(ch.last_at)}</div>
             )}
           </div>
         ))}
@@ -128,7 +128,7 @@ export default function Chat() {
         {!active ? (
           <div style={{
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--muted)', gap: 8
+            color: 'var(--legacy-muted)', gap: 8
           }}>
             <div style={{ fontSize: 40, opacity: 0.2 }}>✉️</div>
             <span style={{ fontSize: 14 }}>选择一个对话开始聊天</span>
@@ -146,12 +146,12 @@ export default function Chat() {
               display: 'flex', flexDirection: 'column', gap: 12
             }}>
               {loadingMessages && (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', fontSize: 13 }}>
+                <div style={{ textAlign: 'center', padding: 40, color: 'var(--legacy-muted)', fontSize: 13 }}>
                   消息加载中…
                 </div>
               )}
               {!loadingMessages && messages.length === 0 && (
-                <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', fontSize: 13 }}>
+                <div style={{ textAlign: 'center', padding: 40, color: 'var(--legacy-muted)', fontSize: 13 }}>
                   发送第一条消息吧
                 </div>
               )}
@@ -174,7 +174,7 @@ export default function Chat() {
                     </div>
                     {m.created_at && (
                       <div style={{
-                        fontSize: 11, color: 'var(--muted)', marginTop: 4, opacity: 0.6,
+                        fontSize: 11, color: 'var(--legacy-muted)', marginTop: 4, opacity: 0.6,
                         padding: '0 4px'
                       }}>
                         {timeAgo(m.created_at)}

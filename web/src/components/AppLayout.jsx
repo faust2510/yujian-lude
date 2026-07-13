@@ -27,7 +27,7 @@ export default function AppLayout() {
         <NavLink to="/vip">套餐</NavLink>
         {user?.role === 'admin' && <NavLink to="/admin">管理台</NavLink>}
         <div style={{ marginTop: 'auto', padding: '16px 20px' }}>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--legacy-muted)', marginBottom: 8 }}>
             {user?.email}
           </div>
           <button className="btn btn-outline btn-block" onClick={handleLogout}>退出登录</button>

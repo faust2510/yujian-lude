@@ -123,12 +123,12 @@ export default function Profile() {
     <>
       <h1 className="page-title">完善资料</h1>
       <p className="page-sub">资料越完整，曝光分越高，越容易被匹配到</p>
-      {busy.initial && <div className="card" style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>正在加载你的资料…</div>}
+      {busy.initial && <div className="card" style={{fontSize:14,color:'var(--legacy-muted)',marginBottom:16}}>正在加载你的资料…</div>}
 
       <div className="card" style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
         <div>
           <h3 style={{fontSize:15,marginBottom:6}}>账户安全</h3>
-          <div style={{fontSize:13,color:'var(--muted)'}}>{user?.email} · {user?.email_verified ? '邮箱已验证' : '邮箱未验证'}</div>
+          <div style={{fontSize:13,color:'var(--legacy-muted)'}}>{user?.email} · {user?.email_verified ? '邮箱已验证' : '邮箱未验证'}</div>
           {verifyMsg && <div className={messageClass(verifyMsg)}>{verifyMsg}</div>}
           {verifyLink && <div className="success-msg"><a href={verifyLink}>调试验证链接</a></div>}
         </div>
@@ -166,7 +166,7 @@ export default function Profile() {
 
       <form className="card" onSubmit={saveFaith}>
         <h3 style={{fontSize:15,marginBottom:8}}>信仰档案</h3>
-        <p style={{fontSize:13,color:'var(--muted)',marginBottom:16}}>这是信任网络的根基，牧者背书会基于此。</p>
+        <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:16}}>这是信任网络的根基，牧者背书会基于此。</p>
         <div className="grid-2">
           <div className="field"><label>所属教会 / 堂会</label><input value={faith.church_name||''} onChange={setF('church_name')} /></div>
           <div className="field"><label>所在区会</label><input value={faith.presbytery||''} onChange={setF('presbytery')} placeholder="例如 北美中华联合区会" /></div>
@@ -185,14 +185,14 @@ export default function Profile() {
 
       <form className="card" onSubmit={addEndorsement}>
         <h3 style={{fontSize:15,marginBottom:8}}>牧者 / 引荐人背书</h3>
-        <p style={{fontSize:13,color:'var(--muted)',marginBottom:16}}>任选其一完成审核后，即满足入池背书要求。</p>
+        <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:16}}>任选其一完成审核后，即满足入池背书要求。</p>
         {endorsements.length > 0 && (
           <div style={{display:'grid',gap:10,marginBottom:16}}>
             {endorsements.map(item => (
               <div key={item.id} style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',border:'1px solid var(--border)',borderRadius:12,padding:12}}>
                 <div>
                   <div style={{fontSize:14,fontWeight:600}}>{item.name} · {item.kind === 'pastor' ? '牧者' : '引荐人'}</div>
-                  <div style={{fontSize:12,color:'var(--muted)'}}>{item.church || '未填写教会/关系说明'}</div>
+                  <div style={{fontSize:12,color:'var(--legacy-muted)'}}>{item.church || '未填写教会/关系说明'}</div>
                 </div>
                 <div style={{display:'flex',gap:8,alignItems:'center'}}>
                   <span className={`badge ${item.state === 'verified' ? 'badge-green' : item.state === 'rejected' ? 'badge-gray' : 'badge-yellow'}`}>

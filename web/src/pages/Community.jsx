@@ -870,7 +870,7 @@ export default function Community() {
                     {isAdmin && post.state !== 'featured' && (
                       <button className="com-action-btn" onClick={() => featurePost(post.id, 'feature')}>⭐</button>
                     )}
-                    <button className="com-action-btn" onClick={() => deletePost(post.id)} style={{ color: 'var(--muted)' }}>
+                    <button className="com-action-btn" onClick={() => deletePost(post.id)} style={{ color: 'var(--legacy-muted)' }}>
                       🗑️
                     </button>
                   </>
