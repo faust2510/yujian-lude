@@ -232,6 +232,24 @@ export function publicQuestions() {
   return QUESTIONS.map(({ id, topic, q, options }) => ({ id, topic, q, options }));
 }
 
+export function isValidAnswerSet(answers) {
+  if (!Array.isArray(answers) || answers.length !== QUESTIONS.length) return false;
+
+  const questionsById = new Map(QUESTIONS.map((question) => [question.id, question]));
+  const seenIds = new Set();
+
+  for (const item of answers) {
+    if (!item || typeof item !== 'object') return false;
+    const question = questionsById.get(item.id);
+    if (!question || seenIds.has(item.id) || !Object.hasOwn(question.options, item.a)) {
+      return false;
+    }
+    seenIds.add(item.id);
+  }
+
+  return seenIds.size === QUESTIONS.length;
+}
+
 // 服务端评分：answers = [{ id: 1, a: 'B' }, ...]
 export function grade(answers) {
   const key = new Map(QUESTIONS.map((x) => [x.id, x.answer]));
