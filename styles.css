@@ -5,11 +5,12 @@
   --muted: #5f6b66;
   --forest: #173f33;
   --forest-deep: #0d2c24;
-  --coral: #e66f59;
-  --coral-dark: #c8523f;
+  --coral: #c24d3b;
+  --coral-dark: #9f3528;
   --sun: #f1cd4f;
   --sky: #8bbccc;
   --line: #d8ddd8;
+  --focus: #0b6b57;
   --max-width: 1240px;
   --font-display: "Songti SC", "STSong", "Noto Serif CJK SC", Georgia, serif;
   --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
@@ -72,8 +73,9 @@ img {
 }
 
 :focus-visible {
-  outline: 3px solid var(--sun);
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
+  box-shadow: 0 0 0 5px var(--white);
 }
 
 .site-header {
@@ -689,12 +691,17 @@ img {
 }
 
 .reveal {
+  opacity: 1;
+  transform: none;
+}
+
+.js .reveal {
   opacity: 0;
   transform: translateY(24px);
   transition: opacity 560ms ease, transform 560ms ease;
 }
 
-.reveal.is-visible {
+.js .reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
@@ -716,6 +723,8 @@ img {
     justify-content: flex-start;
     gap: 0;
     padding: 36px 24px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     visibility: hidden;
     opacity: 0;
     background: var(--white);

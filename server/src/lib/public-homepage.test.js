@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'styles.css'), 'utf8');
+const js = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
 
 test('public homepage presents the brand and a real application journey', () => {
   assert.match(html, /<h1[^>]*>\s*遇见路得\s*<\/h1>/);
@@ -30,4 +31,21 @@ test('public homepage styles avoid prohibited patterns', () => {
   assert.doesNotMatch(css, /backdrop-filter/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /@media\s*\(max-width:\s*640px\)/);
+});
+
+test('public homepage keeps mobile navigation usable at edge viewports', () => {
+  assert.match(css, /overflow-y:\s*auto/);
+  assert.match(js, /matchMedia\(['"]\(min-width:\s*901px\)['"]\)/);
+  assert.match(js, /header-actions a/);
+  assert.match(js, /event\.key === ['"]Tab['"]/);
+  assert.match(js, /setTimeout/);
+  assert.match(js, /\.focus\(\)/);
+});
+
+test('public homepage progressively enhances motion and meets contrast tokens', () => {
+  assert.match(html, /<html[^>]*class="no-js"/);
+  assert.match(js, /classList\.replace\(['"]no-js['"], ['"]js['"]\)/);
+  assert.match(css, /\.js\s+\.reveal\s*\{/);
+  assert.match(css, /--coral:\s*#c24d3b/);
+  assert.match(css, /--focus:\s*#0b6b57/);
 });
