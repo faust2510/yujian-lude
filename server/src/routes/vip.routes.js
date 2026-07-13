@@ -7,6 +7,15 @@ import { getSetting } from '../settings.js';
 
 const router = Router();
 
+function validateVipDays(req, res, next) {
+  const days = req.body?.days ?? 1;
+  if (!Number.isInteger(days) || days < 1) {
+    return res.status(400).json({ error: '兑换天数必须是正整数' });
+  }
+  req.vipDays = days;
+  next();
+}
+
 // VIP 套餐信息（从 app_settings 读，管理员可改价）
 router.get('/vip/plans', async (_req, res) => {
   const basic = await getSetting('pricing.vip_basic');
@@ -21,8 +30,8 @@ router.get('/vip/plans', async (_req, res) => {
 });
 
 // 积分兑换 VIP 体验天数（100 分 / 天）
-router.post('/vip/redeem', requireAuth, async (req, res) => {
-  const days = Math.max(1, Math.floor(Number(req.body?.days ?? 1)));
+router.post('/vip/redeem', validateVipDays, requireAuth, async (req, res) => {
+  const days = req.vipDays;
   const cfg = await getSetting('redeem.vip_per_day'); // {points:100, days:1}
   const costPerDay = cfg?.points ?? 100;
   const totalCost = costPerDay * days;

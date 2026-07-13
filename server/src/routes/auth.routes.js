@@ -53,7 +53,9 @@ router.post('/register', async (req, res) => {
   const { password, nickname } = req.body || {};
   const email = normalizeEmailKey(req.body?.email);
   if (!email || !EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确' });
-  if (!password || password.length < 8) return res.status(400).json({ error: '密码至少 8 位' });
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: '密码至少 8 位' });
+  }
 
   const exists = await one('SELECT 1 FROM users WHERE email=$1', [email]);
   if (exists) return res.status(409).json({ error: '该邮箱已注册' });

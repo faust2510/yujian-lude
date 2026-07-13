@@ -10,6 +10,15 @@ import {
 
 const defaultDb = { query };
 
+function validateChapterIndex(req, res, next) {
+  const chapterIndex = Number(req.params.index);
+  if (!Number.isInteger(chapterIndex) || chapterIndex < 1) {
+    return res.status(400).json({ error: '章节序号必须是正整数' });
+  }
+  req.chapterIndex = chapterIndex;
+  next();
+}
+
 export function createTextbooksRouter({ db = defaultDb } = {}) {
   const router = Router();
 
@@ -24,20 +33,20 @@ export function createTextbooksRouter({ db = defaultDb } = {}) {
     return res.json(detail);
   });
 
-  router.get('/textbooks/:slug/chapters/:index', requireAuth, async (req, res) => {
+  router.get('/textbooks/:slug/chapters/:index', validateChapterIndex, requireAuth, async (req, res) => {
     const data = await getChapterForUser(db, {
       slug: req.params.slug,
-      chapterIndex: Number(req.params.index),
+      chapterIndex: req.chapterIndex,
       userId: req.user.id,
     });
     if (!data) return res.status(404).json({ error: '章节不存在' });
     return res.json(data);
   });
 
-  router.post('/textbooks/:slug/chapters/:index/read', requireAuth, async (req, res) => {
+  router.post('/textbooks/:slug/chapters/:index/read', validateChapterIndex, requireAuth, async (req, res) => {
     const out = await markChapterRead(db, {
       slug: req.params.slug,
-      chapterIndex: Number(req.params.index),
+      chapterIndex: req.chapterIndex,
       userId: req.user.id,
     });
     if (!out) return res.status(404).json({ error: '章节不存在' });
