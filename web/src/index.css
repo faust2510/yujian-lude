@@ -1195,7 +1195,7 @@ h1, h2, h3 { font-family: var(--font-serif); }
 
 .com-modal-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.4);
   display: flex; align-items: center; justify-content: center;
   animation: com-fade-in 0.15s;
 }
