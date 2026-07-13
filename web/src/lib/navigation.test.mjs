@@ -3,11 +3,13 @@ import test from 'node:test'
 
 import { MAIN_SECTIONS, resolvePrimarySection } from './navigation.js'
 
-test('MAIN_SECTIONS has the required keys in order', () => {
-  assert.deepEqual(
-    MAIN_SECTIONS.map((section) => section.key),
-    ['home', 'meet', 'grow', 'community'],
-  )
+test('MAIN_SECTIONS has the required navigation configuration', () => {
+  assert.deepEqual(MAIN_SECTIONS, [
+    { key: 'home', label: '首页', to: '/', match: ['/'] },
+    { key: 'meet', label: '认识', to: '/match', match: ['/match', '/chat', '/relationships'] },
+    { key: 'grow', label: '成长', to: '/courses', match: ['/courses', '/textbooks', '/ai', '/faith-test'] },
+    { key: 'community', label: '社区', to: '/community', match: ['/community'] },
+  ])
 })
 
 test('resolvePrimarySection maps paths to their primary sections', () => {
@@ -24,7 +26,7 @@ test('resolvePrimarySection maps paths to their primary sections', () => {
       '/faith-test',
       '/faith-test/result',
     ],
-    community: ['/community', '/community/users/1'],
+    community: ['/community', '/community/user/example'],
   }
 
   for (const [section, paths] of Object.entries(pathsBySection)) {
