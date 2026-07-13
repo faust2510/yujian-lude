@@ -14,3 +14,4 @@ coverage/
 .playwright-cli/
 .playwright-mcp/
 .od-skills/
+.worktrees/
