@@ -877,6 +877,12 @@ router.patch('/community/reports/:id', requireAuth, requireRole('admin'), async 
 // GET /community/groups/:id/events — 小组活动列表
 router.get('/community/groups/:id/events', requireAuth, async (req, res) => {
   const groupId = req.params.id;
+  const group = await one('SELECT id FROM community_groups WHERE id = $1', [groupId]);
+  if (!group) return res.status(404).json({ error: '小组不存在' });
+  const membership = await getMembership(req.user.id, groupId);
+  if (membership?.state !== 'approved') {
+    return res.status(403).json({ error: '仅小组成员可查看活动' });
+  }
   const { rows } = await query(
     `SELECT e.*,
             (SELECT COUNT(*)::int FROM community_event_rsvps WHERE event_id = e.id AND status = 'going') AS attendee_count,
@@ -909,8 +915,12 @@ router.post('/community/groups/:id/events', requireAuth, async (req, res) => {
 router.post('/community/events/:id/rsvp', requireAuth, async (req, res) => {
   const eventId = req.params.id;
   const { status = 'going' } = req.body;
-  const event = await one(`SELECT max_attendees FROM community_events WHERE id = $1`, [eventId]);
+  const event = await one(`SELECT group_id, max_attendees FROM community_events WHERE id = $1`, [eventId]);
   if (!event) return res.status(404).json({ error: '活动不存在' });
+  const membership = await getMembership(req.user.id, event.group_id);
+  if (membership?.state !== 'approved') {
+    return res.status(403).json({ error: '仅小组成员可报名活动' });
+  }
   if (event.max_attendees && status === 'going') {
     const count = await one(
       `SELECT COUNT(*)::int AS c FROM community_event_rsvps WHERE event_id = $1 AND status = 'going'`,

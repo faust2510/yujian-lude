@@ -15,6 +15,32 @@ const router = Router();
 router.post('/relationships/initiate', requireAuth, async (req, res) => {
   const { partner_id } = req.body;
   if (!partner_id) return res.status(400).json({ error: '缺少 partner_id' });
+  if (partner_id === req.user.id) return res.status(400).json({ error: '不能与自己发起关系' });
+
+  const target = await one('SELECT id FROM users WHERE id = $1', [partner_id]);
+  if (!target) return res.status(404).json({ error: '目标用户不存在' });
+
+  const matchedChannel = await one(
+    `SELECT 1
+       FROM chat_channels c
+      WHERE ((c.user_a = $1 AND c.user_b = $2) OR (c.user_a = $2 AND c.user_b = $1))
+        AND c.closed_at IS NULL
+        AND EXISTS (
+          SELECT 1 FROM matches m
+           WHERE m.user_id = $1 AND m.target_id = $2
+             AND m.status IN ('matched','under_review','approved')
+        )
+        AND EXISTS (
+          SELECT 1 FROM matches m
+           WHERE m.user_id = $2 AND m.target_id = $1
+             AND m.status IN ('matched','under_review','approved')
+        )
+      LIMIT 1`,
+    [req.user.id, partner_id]
+  );
+  if (!matchedChannel) {
+    return res.status(403).json({ error: '仅可与已互相匹配且存在聊天通道的用户发起关系' });
+  }
 
   const lightCourseId = await getSetting('match.light_course_id');
   const examPassed = await hasPassedRequiredCourseExam(one, {
