@@ -42,6 +42,60 @@ test('validates numeric object settings', () => {
     ok: false,
     error: 'points 必须是正数',
   });
+  assert.deepEqual(validateSettingUpdate('pricing.vip_basic', {
+    price: 29,
+    currency: 'CNY',
+    period: 'month',
+    name: '基础 VIP',
+    duration_days: 30,
+    available: true,
+    payment_instructions: '联系运营获取收款方式',
+  }).ok, true);
+  assert.equal(validateSettingUpdate('pricing.vip_basic', {
+    price: 29,
+    currency: 'CNY',
+    period: 'month',
+    name: '基础 VIP',
+    duration_days: 30,
+    available: 'yes',
+    payment_instructions: '联系运营获取收款方式',
+  }).ok, false);
+  assert.deepEqual(validateSettingUpdate('pricing.vip_basic', {
+    price: 29,
+    currency: 'CNY',
+    period: 'month',
+    name: '基础 VIP',
+    duration_days: 366,
+    available: true,
+    payment_instructions: '联系运营获取收款方式',
+  }), {
+    ok: false,
+    error: 'duration_days 必须是 1 至 365 的整数',
+  });
+  assert.deepEqual(validateSettingUpdate('pricing.vip_basic', {
+    price: 0.001,
+    currency: 'CNY',
+    period: 'month',
+    name: '基础 VIP',
+    duration_days: 30,
+    available: true,
+    payment_instructions: '联系运营获取收款方式',
+  }), {
+    ok: false,
+    error: 'price 必须是可精确换算为分的有效金额',
+  });
+  assert.deepEqual(validateSettingUpdate('pricing.vip_basic', {
+    price: 29,
+    currency: 'C',
+    period: 'month',
+    name: '基础 VIP',
+    duration_days: 30,
+    available: true,
+    payment_instructions: '联系运营获取收款方式',
+  }), {
+    ok: false,
+    error: 'currency 必须是 3 至 12 位英文字母',
+  });
 });
 
 test('validates match light course id as uuid string', () => {

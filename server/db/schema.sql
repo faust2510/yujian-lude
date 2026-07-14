@@ -32,6 +32,7 @@ CREATE TYPE endorsement_state AS ENUM ('pending', 'verified', 'rejected'); -- �
 CREATE TYPE match_status     AS ENUM ('suggested', 'intent_sent', 'matched', 'under_review', 'approved', 'declined');
 CREATE TYPE course_state     AS ENUM ('not_started', 'in_progress', 'pastor_review', 'completed');
 CREATE TYPE course_pastor_review_state AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE vip_subscription_state AS ENUM ('pending', 'approved', 'rejected', 'cancelled');
 CREATE TYPE points_pool      AS ENUM ('daily', 'earned');             -- 每日池(清零) / 赚取池(累积)
 CREATE TYPE ledger_direction AS ENUM ('credit', 'debit');            -- 进账 / 出账
 
@@ -331,6 +332,47 @@ CREATE TABLE admin_audit_logs (
 );
 CREATE INDEX idx_admin_audit_logs_created ON admin_audit_logs(created_at DESC);
 CREATE INDEX idx_admin_audit_logs_actor ON admin_audit_logs(actor_id, created_at DESC);
+
+-- 线下付款 VIP 申请：保存申请时的套餐快照，由管理员核款后发放权益。
+CREATE TABLE vip_subscription_requests (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    tier              TEXT NOT NULL CHECK (tier = 'basic'),
+    plan_snapshot     JSONB NOT NULL,
+    amount_minor      INTEGER NOT NULL CHECK (amount_minor > 0),
+    currency          TEXT NOT NULL CHECK (char_length(currency) BETWEEN 3 AND 12),
+    duration_days     SMALLINT NOT NULL CHECK (duration_days BETWEEN 1 AND 365),
+    payment_reference TEXT NOT NULL CHECK (char_length(payment_reference) BETWEEN 4 AND 32),
+    payment_confirmation_reference CITEXT,
+    applicant_note    TEXT,
+    state             vip_subscription_state NOT NULL DEFAULT 'pending',
+    reviewed_by       UUID REFERENCES users(id) ON DELETE RESTRICT,
+    reviewed_at       TIMESTAMPTZ,
+    review_note       TEXT,
+    activated_until   TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT vip_subscription_requests_confirmation_reference_check CHECK (
+      payment_confirmation_reference IS NULL
+      OR (
+        char_length(payment_confirmation_reference) BETWEEN 6 AND 100
+        AND payment_confirmation_reference::text ~ '^[A-Za-z0-9_-]+$'
+      )
+    ),
+    CONSTRAINT vip_subscription_requests_state_integrity_check CHECK (
+      (state = 'approved' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND activated_until IS NOT NULL AND payment_confirmation_reference IS NOT NULL)
+      OR (state = 'rejected' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL AND activated_until IS NULL AND payment_confirmation_reference IS NULL)
+      OR (state IN ('pending', 'cancelled') AND reviewed_by IS NULL AND reviewed_at IS NULL AND activated_until IS NULL AND payment_confirmation_reference IS NULL)
+    )
+);
+CREATE UNIQUE INDEX idx_vip_subscription_requests_one_pending
+    ON vip_subscription_requests(user_id) WHERE state = 'pending';
+CREATE INDEX idx_vip_subscription_requests_state
+    ON vip_subscription_requests(state, created_at DESC);
+CREATE INDEX idx_vip_subscription_requests_user
+    ON vip_subscription_requests(user_id, created_at DESC);
+CREATE UNIQUE INDEX idx_vip_subscription_requests_confirmation_reference
+    ON vip_subscription_requests(payment_confirmation_reference);
 
 -- ============================================================
 -- 11. sessions — 登录会话（session cookie）

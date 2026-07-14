@@ -13,8 +13,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_unit_attempts_user_unit_unique ON unit_att
 INSERT INTO app_settings (key, value, label) VALUES
 
 -- VIP 套餐定价（第一阶段纯软件便利，对标海外华人基督徒群体）
-('pricing.vip_basic',   '{"price": 29, "currency": "CNY", "period": "month", "name": "基础 VIP"}', '基础 VIP 月费'),
-('pricing.vip_pro',     '{"price": 59, "currency": "CNY", "period": "month", "name": "进阶 VIP"}', '进阶 VIP 月费'),
+('pricing.vip_basic',   '{"price": 29, "currency": "CNY", "period": "month", "name": "基础 VIP", "duration_days": 30, "available": true, "payment_instructions": "请联系平台运营获取收款方式，付款后填写流水尾号。"}', '基础 VIP 月费'),
+('pricing.vip_pro',     '{"price": 59, "currency": "CNY", "period": "month", "name": "进阶 VIP", "duration_days": 30, "available": false, "payment_instructions": "进阶套餐暂未开放。"}', '进阶 VIP 月费'),
 
 -- 积分奖励配置
 ('points.daily_checkin',      '{"amount": 10, "pool": "earned"}',   '每日签到累计积分'),

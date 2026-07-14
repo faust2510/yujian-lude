@@ -35,6 +35,19 @@ test('schema diagnosis checks relationship review provenance', () => {
   assert.match(source, /'pastor_b_approved_at'/);
 });
 
+test('schema diagnosis checks VIP subscription operations', () => {
+  assert.match(source, /\['vip_subscription_state', \['pending', 'approved', 'rejected', 'cancelled'\]\]/);
+  assert.match(source, /'vip_subscription_requests'/);
+  assert.match(source, /\['vip_subscription_requests', \['user_id', 'tier', 'plan_snapshot', 'amount_minor', 'currency', 'duration_days', 'payment_reference', 'payment_confirmation_reference', 'state', 'reviewed_by', 'activated_until'\]\]/);
+  assert.match(source, /\['vip_subscription_requests', \['user_id'\], "state = 'pending'"\]/);
+  assert.match(source, /\['vip_subscription_requests', \['payment_confirmation_reference'\]\]/);
+  assert.match(source, /pg_get_expr\(i\.indpred, i\.indrelid\)/);
+  assert.match(source, /i\.indisvalid = TRUE/);
+  assert.match(source, /i\.indisready = TRUE/);
+  assert.match(source, /\['relationships', \['user_a', 'user_b'\], "state <> 'ended'"\]/);
+  assert.match(source, /\['course_pastor_reviews', \['user_id', 'course_id'\], "state = 'pending'"\]/);
+});
+
 test('schema diagnosis checks textbook reading system tables and constraints', () => {
   for (const table of ['textbooks', 'textbook_chapters', 'textbook_reading_progress', 'course_unit_readings']) {
     assert.match(source, new RegExp(`'${table}'`));

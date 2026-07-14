@@ -8,8 +8,24 @@ const TTL_MS = 30_000; // 30 秒缓存，改设置后会主动失效
 
 // 锁定 plan v1 的兜底默认值（数据库缺失时使用）
 const DEFAULTS = {
-  'pricing.vip_basic': { price: 29, currency: 'CNY', period: 'month', name: '基础 VIP' },
-  'pricing.vip_pro': { price: 59, currency: 'CNY', period: 'month', name: '进阶 VIP' },
+  'pricing.vip_basic': {
+    price: 29,
+    currency: 'CNY',
+    period: 'month',
+    name: '基础 VIP',
+    duration_days: 30,
+    available: true,
+    payment_instructions: '请联系平台运营获取收款方式，付款后填写流水尾号。',
+  },
+  'pricing.vip_pro': {
+    price: 59,
+    currency: 'CNY',
+    period: 'month',
+    name: '进阶 VIP',
+    duration_days: 30,
+    available: false,
+    payment_instructions: '进阶套餐暂未开放。',
+  },
   'points.daily_checkin': { amount: 10, pool: 'earned' },
   'points.profile_complete': { amount: 50, pool: 'earned', once: true },
   'points.endorsement_done': { amount: 50, pool: 'earned', once: true },
@@ -54,7 +70,11 @@ function validateSettingObject(key, value, shape) {
   for (const [itemKey, shapeValue] of Object.entries(shape)) {
     if (!(itemKey in value)) return { ok: false, error: `缺少字段 ${itemKey}` };
     const item = value[itemKey];
-    if (['amount', 'value', 'price', 'points', 'days', 'daily_cap'].includes(itemKey)) {
+    if (itemKey === 'duration_days') {
+      if (!Number.isInteger(item) || item < 1 || item > 365) {
+        return { ok: false, error: 'duration_days 必须是 1 至 365 的整数' };
+      }
+    } else if (['amount', 'value', 'price', 'points', 'days', 'daily_cap'].includes(itemKey)) {
       if (!positiveNumber(item)) return { ok: false, error: `${itemKey} 必须是正数` };
     } else if (itemKey === 'pool') {
       if (!POOLS.has(item)) return { ok: false, error: 'pool 必须是 daily 或 earned' };
@@ -90,6 +110,20 @@ export function validateSettingUpdate(key, value) {
 
   const result = validateSettingObject(key, value, shape);
   if (!result.ok) return result;
+  if (key === 'pricing.vip_basic' || key === 'pricing.vip_pro') {
+    const amountMinor = Math.round(result.value.price * 100);
+    if (
+      !Number.isSafeInteger(amountMinor)
+      || amountMinor < 1
+      || amountMinor > 2_147_483_647
+      || Math.abs(result.value.price * 100 - amountMinor) > 1e-6
+    ) {
+      return { ok: false, error: 'price 必须是可精确换算为分的有效金额' };
+    }
+    if (!/^[A-Za-z]{3,12}$/.test(result.value.currency.trim())) {
+      return { ok: false, error: 'currency 必须是 3 至 12 位英文字母' };
+    }
+  }
   if (key === 'points.daily_checkin' && result.value.pool !== 'earned') {
     return { ok: false, error: '每日签到积分必须进入 earned 累积池' };
   }

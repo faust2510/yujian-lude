@@ -92,7 +92,7 @@ router.post('/login', async (req, res) => {
     return res.status(429).json({ error: '登录失败次数过多，请稍后再试' });
   }
   const u = await one(
-    'SELECT id, email, role, email_verified, password_hash, is_banned FROM users WHERE email=$1',
+    'SELECT id, email, role, email_verified, vip_until, password_hash, is_banned FROM users WHERE email=$1',
     [email]
   );
   if (!u || !(await verifyPassword(password, u.password_hash))) {
@@ -105,7 +105,16 @@ router.post('/login', async (req, res) => {
   if (u.is_banned) return res.status(403).json({ error: '账号已被封禁' });
   await clearFailedLogins(email, ip);
   await createSession(res, u.id);
-  res.json({ user: { id: u.id, email: u.email, role: u.role, email_verified: u.email_verified } });
+  res.json({
+    user: {
+      id: u.id,
+      email: u.email,
+      role: u.role,
+      email_verified: u.email_verified,
+      vip_until: u.vip_until,
+      is_vip: Boolean(u.vip_until && new Date(u.vip_until) > new Date()),
+    },
+  });
 });
 
 // 登出

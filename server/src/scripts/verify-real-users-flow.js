@@ -308,22 +308,54 @@ async function verifyAiConsultation(client) {
   assert(history.history?.length >= 2, `${client.label} AI history should include recent consultations`);
 }
 
+async function verifyVipSubscription(client, admin) {
+  const before = await client.get('/auth/me');
+  const created = await client.post('/vip/subscriptions', {
+    tier: 'basic',
+    payment_reference: 'REAL-6677',
+    applicant_note: '真实用户核款验收',
+  });
+  assert(created.subscription?.state === 'pending', 'real VIP subscription should start pending');
+  const queue = await admin.get('/admin/vip-subscriptions?state=pending');
+  assert(queue.subscriptions?.some((item) => item.id === created.subscription.id), 'admin should see real VIP subscription');
+  await admin.patch(`/admin/vip-subscriptions/${created.subscription.id}`, {
+    action: 'approve',
+    note: '真实验收确认到账',
+    payment_confirmation_reference: `REAL-${created.subscription.id}`,
+  });
+  const after = await client.get('/auth/me');
+  assert(after.user?.is_vip === true, 'approved real VIP subscription should activate VIP');
+  assert(after.user?.role !== 'vip', 'real VIP entitlement should not rewrite account role');
+  assert(new Date(after.user.vip_until) > new Date(before.user.vip_until || 0), 'real VIP approval should extend vip_until');
+  const relogin = new ApiClient(`${client.label}-vip-relogin`);
+  const reloggedUser = await relogin.post('/auth/login', {
+    email: client.user.email,
+    password: 'Passw0rd!2026',
+  });
+  assert(reloggedUser.user?.is_vip === true, 'VIP should be present in the immediate login response');
+  assert(new Date(reloggedUser.user?.vip_until) > new Date(), 'login response should include the active VIP expiry');
+  const audit = await admin.get('/admin/audit-logs');
+  assert(audit.auditLogs?.some((item) => item.action === 'vip.subscription_review'), 'VIP review should be audited');
+}
+
 async function verifyRelationshipConfirmation(alice, bob, reviewerA, reviewerB, outsider) {
   const initiated = await alice.post('/relationships/initiate', { partner_id: bob.user.id });
   assert(initiated.relationship?.id, 'relationship initiate should return relationship');
   const relationshipId = initiated.relationship.id;
+  const aliceSide = initiated.relationship.user_a === alice.user.id ? 'user_a' : 'user_b';
+  const bobSide = aliceSide === 'user_a' ? 'user_b' : 'user_a';
 
   const first = await alice.post(`/relationships/${relationshipId}/request-confirmation`, {});
   assert(first.relationship?.state === 'relationship_requested', `expected relationship_requested, got ${first.relationship?.state}`);
   const second = await bob.post(`/relationships/${relationshipId}/request-confirmation`, {});
   assert(second.relationship?.state === 'mutual_confirmed', `expected mutual_confirmed, got ${second.relationship?.state}`);
-  await expectStatus(outsider, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' }, 403);
+  await expectStatus(outsider, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: aliceSide }, 403);
   const pending = await reviewerA.get('/relationship-reviews');
-  assert(pending.reviews?.some((review) => review.relationship_id === relationshipId && review.side === 'user_a'), 'assigned referrer should see the relationship review');
-  const aSide = await reviewerA.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' });
+  assert(pending.reviews?.some((review) => review.relationship_id === relationshipId && review.side === aliceSide), 'assigned referrer should see the relationship review');
+  const aSide = await reviewerA.post(`/relationships/${relationshipId}/pastor-approve`, { side: aliceSide });
   assert(aSide.relationship?.state === 'pastoral_review', `expected pastoral_review, got ${aSide.relationship?.state}`);
-  await expectStatus(reviewerA, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' }, 409);
-  const bSide = await reviewerB.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' });
+  await expectStatus(reviewerA, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: bobSide }, 409);
+  const bSide = await reviewerB.post(`/relationships/${relationshipId}/pastor-approve`, { side: bobSide });
   assert(bSide.relationship?.state === 'confirmed', `expected confirmed, got ${bSide.relationship?.state}`);
   const mine = await alice.get('/relationships/mine');
   assert(mine.relationship?.state === 'confirmed', 'confirmed relationship should appear in mine');
@@ -567,9 +599,12 @@ async function verifyAdminOps(admin, users, communityResult) {
   const bannedSession = await partial.get('/auth/me');
   assert(bannedSession.user === null, 'banning a user should revoke their active session');
   await admin.post(`/admin/users/${partial.user.id}/ban`, { ban: false });
-  await admin.post(`/admin/users/${partial.user.id}/role`, { role: 'vip' });
-  const vipSearch = await admin.get(`/admin/users?q=${encodeURIComponent(partial.user.email)}&role=vip`);
-  assert(vipSearch.users?.some((item) => item.id === partial.user.id && item.role === 'vip'), 'admin should update user role');
+  await expectStatus(admin, 'POST', `/admin/users/${partial.user.id}/role`, { role: 'vip' }, 400);
+  const unchangedUserSearch = await admin.get(`/admin/users?q=${encodeURIComponent(partial.user.email)}`);
+  assert(
+    unchangedUserSearch.users?.some((item) => item.id === partial.user.id && item.role !== 'vip'),
+    'admin should not convert VIP entitlement into an account role'
+  );
 
   await bob.post('/community/reports', {
     target_type: 'post',
@@ -639,6 +674,8 @@ async function run() {
 
   console.log('[verify-real-users] checking deep marriage course...');
   await completeDeepMarriageCourse(users[0], referrer, endorsementIds[0], users[1]);
+  console.log('[verify-real-users] checking VIP subscription operations...');
+  await verifyVipSubscription(users[0], admin);
 
   console.log('[verify-real-users] checking account security...');
   await verifyAccountSecurity(stamp);

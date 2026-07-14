@@ -22,6 +22,7 @@ const requiredEnums = [
   ['notif_kind', ['like', 'comment', 'reply', 'follow', 'group_join', 'post_approved', 'post_featured', 'event_new', 'report_resolved']],
   ['relationship_state', ['chatting', 'exam_required', 'relationship_requested', 'mutual_confirmed', 'pastoral_review', 'confirmed', 'ended']],
   ['course_pastor_review_state', ['pending', 'approved', 'rejected']],
+  ['vip_subscription_state', ['pending', 'approved', 'rejected', 'cancelled']],
 ];
 
 const requiredTables = [
@@ -46,6 +47,7 @@ const requiredTables = [
   'chat_messages',
   'app_settings',
   'admin_audit_logs',
+  'vip_subscription_requests',
   'sessions',
   'login_attempts',
   'faith_tests',
@@ -71,6 +73,7 @@ const requiredColumns = [
   ['schema_migrations', ['version', 'name', 'checksum', 'applied_at']],
   ['users', ['email', 'password_hash', 'role', 'last_checkin_on']],
   ['admin_audit_logs', ['actor_id', 'action', 'target_type', 'target_id', 'detail']],
+  ['vip_subscription_requests', ['user_id', 'tier', 'plan_snapshot', 'amount_minor', 'currency', 'duration_days', 'payment_reference', 'payment_confirmation_reference', 'state', 'reviewed_by', 'activated_until']],
   ['login_attempts', ['email', 'ip', 'failed_count', 'locked_until', 'last_failed_at']],
   ['password_reset_tokens', ['user_id', 'token_hash', 'expires_at', 'used_at']],
   ['pastor_certifications', ['user_id', 'church_name', 'contact_email', 'state', 'reviewed_by', 'reviewed_at']],
@@ -116,7 +119,9 @@ const requiredColumns = [
 
 const requiredUniqueIndexes = [
   ['matches', ['user_id', 'target_id']],
-  ['relationships', ['user_a', 'user_b']],
+  ['relationships', ['user_a', 'user_b'], "state <> 'ended'"],
+  ['vip_subscription_requests', ['user_id'], "state = 'pending'"],
+  ['vip_subscription_requests', ['payment_confirmation_reference']],
   ['login_attempts', ['email', 'ip']],
   ['chat_channels', ['user_a', 'user_b']],
   ['unit_attempts', ['user_id', 'unit_id']],
@@ -124,7 +129,7 @@ const requiredUniqueIndexes = [
   ['textbook_chapters', ['textbook_id', 'chapter_index']],
   ['textbook_reading_progress', ['user_id', 'chapter_id']],
   ['course_unit_readings', ['course_unit_id', 'chapter_id']],
-  ['course_pastor_reviews', ['user_id', 'course_id']],
+  ['course_pastor_reviews', ['user_id', 'course_id'], "state = 'pending'"],
   ['community_follows', ['follower_id', 'followee_id']],
   ['community_memberships', ['user_id', 'group_id']],
   ['community_bookmarks', ['user_id', 'post_id']],
@@ -137,6 +142,8 @@ const requiredSettings = [
   'match.require_light_course',
   'match.light_course_id',
   'points.daily_checkin',
+  'pricing.vip_basic',
+  'pricing.vip_pro',
 ];
 
 const requiredCourses = [
@@ -186,9 +193,17 @@ async function tableColumns(tableName) {
   return new Set(rows.map((row) => row.column_name));
 }
 
-async function hasUniqueIndex(tableName, expectedColumns) {
+function normalizeIndexPredicate(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/::[a-z0-9_"]+/g, '')
+    .replace(/[()\s]/g, '');
+}
+
+async function hasUniqueIndex(tableName, expectedColumns, expectedPredicate) {
   const { rows } = await pool.query(
-    `SELECT array_agg(a.attname ORDER BY keys.ord)::text[] AS columns
+    `SELECT array_agg(a.attname ORDER BY keys.ord)::text[] AS columns,
+            pg_get_expr(i.indpred, i.indrelid) AS predicate
        FROM pg_index i
        JOIN pg_class tbl ON tbl.oid = i.indrelid
        JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
@@ -197,10 +212,17 @@ async function hasUniqueIndex(tableName, expectedColumns) {
       WHERE ns.nspname = 'public'
         AND tbl.relname = $1
         AND i.indisunique = TRUE
-      GROUP BY i.indexrelid`,
+        AND i.indisvalid = TRUE
+        AND i.indisready = TRUE
+      GROUP BY i.indexrelid, pg_get_expr(i.indpred, i.indrelid)`,
     [tableName]
   );
-  return rows.some((row) => sameColumns(row.columns, expectedColumns));
+  return rows.some((row) => (
+    sameColumns(row.columns, expectedColumns)
+    && (
+      normalizeIndexPredicate(row.predicate) === normalizeIndexPredicate(expectedPredicate)
+    )
+  ));
 }
 
 async function settingExists(key) {
@@ -255,9 +277,9 @@ async function run() {
     }
   }
 
-  for (const [tableName, columns] of requiredUniqueIndexes) {
+  for (const [tableName, columns, predicate] of requiredUniqueIndexes) {
     if (!tableMap.get(tableName)) continue;
-    if (!(await hasUniqueIndex(tableName, columns))) {
+    if (!(await hasUniqueIndex(tableName, columns, predicate))) {
       missing.push(`unique ${tableName}(${columns.join(', ')})`);
     }
   }

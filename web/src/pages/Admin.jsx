@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { admin } from '../api/client'
+import { formatCurrencyAmount } from '../lib/currency'
 
 const tabs = [
   ['overview', '概览'],
   ['endorsements', '背书'],
+  ['vip-subscriptions', 'VIP申请'],
   ['users', '用户'],
   ['reports', '举报'],
   ['applications', '认证/申请'],
@@ -64,6 +66,7 @@ export default function Admin() {
 
       {tab === 'overview' && <OverviewTab />}
       {tab === 'endorsements' && <EndorsementsTab />}
+      {tab === 'vip-subscriptions' && <VipSubscriptionsTab />}
       {tab === 'users' && <UsersTab />}
       {tab === 'reports' && <ReportsTab />}
       {tab === 'applications' && <ApplicationsTab />}
@@ -84,6 +87,7 @@ function OverviewTab() {
   const cards = stats ? [
     ['用户', stats.users],
     ['VIP', stats.vip],
+    ['待核款 VIP', stats.pendingVipSubscriptions],
     ['待审背书', stats.pendingEndorsements],
     ['待处理举报', stats.pendingReports],
     ['牧者认证', stats.pendingPastorCertifications],
@@ -111,6 +115,96 @@ function OverviewTab() {
           {(stats.auditLogs || []).slice(0, 8).map(log => <AuditRow key={log.id} log={log} />)}
         </>
       )}
+    </div>
+  )
+}
+
+function VipSubscriptionsTab() {
+  const [state, setState] = useState('pending')
+  const [items, setItems] = useState([])
+  const [notes, setNotes] = useState({})
+  const [confirmationRefs, setConfirmationRefs] = useState({})
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+
+  const load = useCallback(async (nextState = state) => {
+    try {
+      setError('')
+      const response = await admin.vipSubscriptions(nextState)
+      setItems(response.data.subscriptions || [])
+    } catch (err) {
+      setError(getErrorMessage(err, 'VIP 申请加载失败'))
+    }
+  }, [state])
+
+  useEffect(() => { load(state) }, [load, state])
+
+  const review = async (item, action) => {
+    const note = (notes[item.id] || '').trim()
+    const confirmationRef = (confirmationRefs[item.id] || '').trim()
+    if (action === 'reject' && !note) {
+      setError('驳回申请时必须填写原因')
+      return
+    }
+    if (action === 'approve' && confirmationRef.length < 6) {
+      setError('批准时必须填写至少 6 位完整核款凭据')
+      return
+    }
+    try {
+      setBusy(item.id)
+      setError('')
+      await admin.reviewVipSubscription(item.id, action, note, confirmationRef)
+      await load()
+    } catch (err) {
+      setError(getErrorMessage(err, 'VIP 申请审核失败'))
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',marginBottom:12}}>
+        <h3 style={{fontFamily:'var(--font-serif)',fontSize:15}}>VIP 核款申请</h3>
+        <select value={state} onChange={event => setState(event.target.value)}>
+          <option value="pending">待核款</option>
+          <option value="approved">已通过</option>
+          <option value="rejected">已驳回</option>
+          <option value="cancelled">已取消</option>
+        </select>
+      </div>
+      <ErrorLine>{error}</ErrorLine>
+      {items.length === 0 && <Empty>暂无 VIP 申请</Empty>}
+      {items.map(item => (
+        <div key={item.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
+          <div style={{fontSize:14,fontWeight:600}}>{item.nickname || item.email} · {item.plan_snapshot?.name || '基础 VIP'}</div>
+          <div style={{fontSize:13,color:'var(--legacy-muted)',marginTop:4}}>
+            {formatCurrencyAmount(item.amount_minor / 100, item.currency)} · {item.duration_days} 天 · 流水尾号 {item.payment_reference}
+          </div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>提交：{formatDate(item.created_at)} · 状态：{item.state}</div>
+          {item.applicant_note && <div style={{fontSize:13,marginTop:6}}>申请备注：{item.applicant_note}</div>}
+          {item.state === 'pending' && (
+            <>
+              <input value={confirmationRefs[item.id] || ''}
+                onChange={event => setConfirmationRefs(current => ({...current,[item.id]:event.target.value}))}
+                placeholder="完整核款凭据（批准时必填且不可重复）"
+                maxLength={100}
+                style={{width:'100%',marginTop:10}} />
+              <textarea rows={2} maxLength={1000} value={notes[item.id] || ''}
+                onChange={event => setNotes(current => ({...current,[item.id]:event.target.value}))}
+                placeholder="审核备注；驳回时必须填写原因"
+                style={{width:'100%',marginTop:10}} />
+              <div style={{display:'flex',gap:8,marginTop:8}}>
+                <ActionButton primary disabled={busy === item.id} onClick={() => review(item, 'approve')}>确认到账并开通</ActionButton>
+                <ActionButton disabled={busy === item.id} onClick={() => review(item, 'reject')}>驳回</ActionButton>
+              </div>
+            </>
+          )}
+          {item.payment_confirmation_reference && <div style={{fontSize:13,marginTop:6}}>核款凭据：{item.payment_confirmation_reference}</div>}
+          {item.review_note && <div style={{fontSize:13,marginTop:6}}>审核备注：{item.review_note}</div>}
+          {item.activated_until && <div style={{fontSize:13,marginTop:6}}>权益到期：{formatDate(item.activated_until)}</div>}
+        </div>
+      ))}
     </div>
   )
 }
@@ -259,7 +353,7 @@ function UsersTab() {
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:8,marginBottom:12}}>
         <input placeholder="邮箱/昵称" value={filters.q} onChange={e=>setFilters(p=>({...p,q:e.target.value}))} />
         <select value={filters.role} onChange={e=>setFilters(p=>({...p,role:e.target.value}))}>
-          <option value="">全部角色</option><option value="free">free</option><option value="vip">vip</option><option value="pastor">pastor</option><option value="admin">admin</option>
+          <option value="">全部角色</option><option value="free">free</option><option value="pastor">pastor</option><option value="admin">admin</option>
         </select>
         <select value={filters.banned} onChange={e=>setFilters(p=>({...p,banned:e.target.value}))}>
           <option value="">封禁状态</option><option value="true">已封禁</option><option value="false">未封禁</option>
@@ -284,7 +378,7 @@ function UsersTab() {
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
             <select value={u.role} onChange={e=>updateUser(()=>admin.updateRole(u.id, e.target.value))}>
-              <option value="free">free</option><option value="vip">vip</option><option value="pastor">pastor</option><option value="admin">admin</option>
+              <option value="free">free</option><option value="pastor">pastor</option><option value="admin">admin</option>
             </select>
             <ActionButton onClick={()=>updateUser(()=>admin.banUser(u.id, !u.is_banned))}>{u.is_banned ? '解封' : '封禁'}</ActionButton>
           </div>

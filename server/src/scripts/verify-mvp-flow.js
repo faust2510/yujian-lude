@@ -239,6 +239,72 @@ async function verifyAiConsultation(client) {
   assert(history.history?.length >= 2, 'AI history should include recent consultations');
 }
 
+async function verifyVipSubscription(client, adminA, adminB) {
+  const before = await client.get('/auth/me');
+  const created = await client.post('/vip/subscriptions', {
+    tier: 'basic',
+    payment_reference: 'MVP-7788',
+    applicant_note: 'MVP 核款闭环验收',
+  });
+  assert(created.subscription?.state === 'pending', 'VIP subscription should start pending');
+  assert(created.subscription?.amount_minor === 2900, 'VIP subscription should keep the price snapshot');
+  await expectStatus(client, 'POST', '/vip/subscriptions', {
+    tier: 'basic',
+    payment_reference: 'MVP-8899',
+  }, 409);
+
+  const pending = await adminA.get('/admin/vip-subscriptions?state=pending');
+  assert(pending.subscriptions?.some((item) => item.id === created.subscription.id), 'admin should see pending VIP subscription');
+  const confirmationReference = `MVP-${created.subscription.id}`;
+  const attempts = await Promise.allSettled([
+    adminA.patch(`/admin/vip-subscriptions/${created.subscription.id}`, {
+      action: 'approve',
+      note: '管理员 A 确认到账',
+      payment_confirmation_reference: confirmationReference,
+    }),
+    adminB.patch(`/admin/vip-subscriptions/${created.subscription.id}`, {
+      action: 'approve',
+      note: '管理员 B 确认到账',
+      payment_confirmation_reference: confirmationReference,
+    }),
+  ]);
+  assert(attempts.filter((item) => item.status === 'fulfilled').length === 1, 'concurrent VIP approval should succeed exactly once');
+  const rejected = attempts.find((item) => item.status === 'rejected');
+  assert(rejected?.reason?.status === 409, `duplicate VIP approval should return 409, got ${rejected?.reason?.status}`);
+
+  const after = await client.get('/auth/me');
+  assert(after.user?.is_vip === true, 'approved VIP subscription should activate VIP');
+  assert(after.user?.role !== 'vip', 'VIP entitlement should not rewrite the account role');
+  assert(new Date(after.user.vip_until) > new Date(before.user.vip_until || 0), 'approved subscription should extend vip_until');
+
+  const history = await client.get('/vip/subscriptions');
+  assert(history.subscriptions?.some((item) => item.id === created.subscription.id && item.state === 'approved'), 'user should see approved VIP history');
+  const next = await client.post('/vip/subscriptions', {
+    tier: 'basic',
+    payment_reference: 'MVP-9900',
+  });
+  await expectStatus(adminA, 'PATCH', `/admin/vip-subscriptions/${next.subscription.id}`, {
+    action: 'approve',
+    payment_confirmation_reference: confirmationReference,
+  }, 409);
+  const cancelled = await client.delete(`/vip/subscriptions/${next.subscription.id}`);
+  assert(cancelled.subscription?.state === 'cancelled', 'user should cancel a pending VIP subscription');
+
+  const rejectedRequest = await client.post('/vip/subscriptions', {
+    tier: 'basic',
+    payment_reference: 'MVP-9901',
+  });
+  await expectStatus(adminA, 'PATCH', `/admin/vip-subscriptions/${rejectedRequest.subscription.id}`, {
+    action: 'reject',
+    note: '',
+  }, 400);
+  const rejectedRequestResult = await adminA.patch(
+    `/admin/vip-subscriptions/${rejectedRequest.subscription.id}`,
+    { action: 'reject', note: '未查到对应款项' },
+  );
+  assert(rejectedRequestResult.subscription?.state === 'rejected', 'admin should reject with a reason');
+}
+
 async function verifyRelationshipConfirmation({ alice, bob, reviewerA, reviewerB, outsider, bobId }) {
   const initiated = await alice.post('/relationships/initiate', { partner_id: bobId });
   assert(initiated.relationship?.id, 'relationship initiate should return relationship');
@@ -301,6 +367,8 @@ async function run() {
 
   console.log('[verify-mvp] checking deep marriage course...');
   await completeDeepMarriageCourse(users[0], admin, endorsementIds[0]);
+  console.log('[verify-mvp] checking VIP subscription operations...');
+  await verifyVipSubscription(users[0], admin, secondAdmin);
 
   console.log('[verify-mvp] checking candidates and mutual match...');
   const candidates = await users[0].get('/match/candidates');

@@ -132,12 +132,13 @@ export async function recomputeExposure(db, userId) {
 
 // 发 VIP 天数（在现有 vip_until 基础上叠加；已过期则从现在起算）
 export async function grantVipDays(db, userId, days) {
-  await db.query(
+  const { rows } = await db.query(
     `UPDATE users SET vip_until =
        GREATEST(COALESCE(vip_until, now()), now()) + ($2 || ' days')::interval,
-       role = CASE WHEN role IN ('admin','pastor') THEN role ELSE 'vip' END,
        updated_at = now()
-     WHERE id=$1`,
+     WHERE id=$1
+     RETURNING vip_until`,
     [userId, String(days)]
   );
+  return rows[0]?.vip_until ?? null;
 }

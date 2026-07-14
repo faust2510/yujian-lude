@@ -1,7 +1,12 @@
 const ADMIN_ROLES = new Set(['free', 'vip', 'pastor', 'admin']);
+const ASSIGNABLE_ADMIN_ROLES = new Set(['free', 'pastor', 'admin']);
 
 export function isAllowedAdminRole(role) {
   return ADMIN_ROLES.has(role);
+}
+
+export function isAssignableAdminRole(role) {
+  return ASSIGNABLE_ADMIN_ROLES.has(role);
 }
 
 export function normalizeReportAction(action) {

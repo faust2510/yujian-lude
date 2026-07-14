@@ -154,10 +154,9 @@ export const pastorCert = {
 export const vip = {
   plans: () => api.get('/vip/plans'),
   redeem: (days) => api.post('/vip/redeem', { days }),
-  subscribe: (_planId) => {
-    void _planId
-    return Promise.reject(new Error('payment not yet implemented'))
-  },
+  subscriptions: () => api.get('/vip/subscriptions'),
+  subscribe: (data) => api.post('/vip/subscriptions', data),
+  cancelSubscription: (id) => api.delete(`/vip/subscriptions/${id}`),
 }
 
 export const admin = {
@@ -171,6 +170,13 @@ export const admin = {
   endorsements: (state = 'pending') => api.get('/admin/endorsements', { params: { state } }),
   reviewEndorsement: (id, decision = 'verified') =>
     api.post(`/admin/endorsements/${id}/review`, { decision }),
+  vipSubscriptions: (state = 'pending') => api.get('/admin/vip-subscriptions', { params: { state } }),
+  reviewVipSubscription: (id, action, note = '', paymentConfirmationReference = '') =>
+    api.patch(`/admin/vip-subscriptions/${id}`, {
+      action,
+      note,
+      payment_confirmation_reference: paymentConfirmationReference,
+    }),
   reports: (state = 'pending') => api.get('/community/reports', { params: { state } }),
   reviewReport: (id, action) => api.patch(`/community/reports/${id}`, { action }),
   removePost: (id, reason) => api.delete(`/community/posts/${id}`, { data: { reason } }),

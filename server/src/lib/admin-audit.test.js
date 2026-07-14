@@ -17,6 +17,15 @@ test('allows every user role supported by the schema', () => {
   assert.equal(isAllowedAdminRole('owner'), false);
 });
 
+test('VIP is an entitlement, not an assignable account role', async () => {
+  const module = await import('./admin-audit.js');
+  assert.equal(typeof module.isAssignableAdminRole, 'function');
+  assert.equal(module.isAssignableAdminRole('free'), true);
+  assert.equal(module.isAssignableAdminRole('pastor'), true);
+  assert.equal(module.isAssignableAdminRole('admin'), true);
+  assert.equal(module.isAssignableAdminRole('vip'), false);
+});
+
 test('normalizes report actions explicitly', () => {
   assert.equal(normalizeReportAction('resolve'), 'resolved');
   assert.equal(normalizeReportAction('dismiss'), 'dismissed');

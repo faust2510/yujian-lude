@@ -3,9 +3,10 @@ import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { loadSettings, setSetting, settingsToAdminRows, validateSettingUpdate } from '../settings.js';
-import { recomputeExposure } from '../lib/rewards.js';
+import { grantVipDays, recomputeExposure } from '../lib/rewards.js';
 import { buildEndorsementReviewPatch, validateEndorsementDecision } from '../lib/endorsement-review.js';
-import { isAllowedAdminRole, validateAdminActorStatus, validateAdminUserAction, writeAdminAudit } from '../lib/admin-audit.js';
+import { isAllowedAdminRole, isAssignableAdminRole, validateAdminActorStatus, validateAdminUserAction, writeAdminAudit } from '../lib/admin-audit.js';
+import { normalizeVipSubscriptionReview } from '../lib/vip-subscription.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
@@ -133,7 +134,7 @@ router.post('/users/:id/ban', async (req, res) => {
 
 router.post('/users/:id/role', async (req, res) => {
   const role = req.body?.role;
-  if (!isAllowedAdminRole(role)) return res.status(400).json({ error: '非法角色' });
+  if (!isAssignableAdminRole(role)) return res.status(400).json({ error: '非法角色；VIP 权益请通过订阅审核或奖励发放' });
   try {
     await tx(async (db) => {
       await db.query('SELECT pg_advisory_xact_lock($1)', [ADMIN_USER_OP_LOCK_KEY]);
@@ -173,6 +174,105 @@ router.post('/users/:id/role', async (req, res) => {
     return sendRouteError(res, err);
   }
   res.json({ ok: true, role });
+});
+
+router.get('/vip-subscriptions', async (req, res) => {
+  const state = String(req.query.state || 'pending');
+  if (!['pending', 'approved', 'rejected', 'cancelled'].includes(state)) {
+    return res.status(400).json({ error: '申请状态不正确' });
+  }
+  const { rows } = await query(
+    `SELECT r.*, u.email, p.nickname,
+            reviewer.email AS reviewer_email, reviewer_profile.nickname AS reviewer_nickname
+       FROM vip_subscription_requests r
+       JOIN users u ON u.id = r.user_id
+       LEFT JOIN profiles p ON p.user_id = r.user_id
+       LEFT JOIN users reviewer ON reviewer.id = r.reviewed_by
+       LEFT JOIN profiles reviewer_profile ON reviewer_profile.user_id = r.reviewed_by
+      WHERE r.state = $1
+      ORDER BY r.created_at ASC
+      LIMIT 100`,
+    [state]
+  );
+  res.json({ subscriptions: rows });
+});
+
+router.patch('/vip-subscriptions/:id', async (req, res) => {
+  const normalized = normalizeVipSubscriptionReview({
+    action: req.body?.action,
+    note: req.body?.note,
+    paymentConfirmationReference: req.body?.payment_confirmation_reference,
+  });
+  if (!normalized.ok) return res.status(400).json({ error: normalized.error });
+
+  try {
+    const out = await tx(async (db) => {
+      await db.query('SELECT pg_advisory_xact_lock($1)', [ADMIN_USER_OP_LOCK_KEY]);
+      const actor = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      const actorError = validateAdminActorStatus(actor.rows[0]);
+      if (actorError) throw routeError(403, actorError);
+
+      const requestResult = await db.query(
+        `SELECT * FROM vip_subscription_requests WHERE id = $1 FOR UPDATE`,
+        [req.params.id]
+      );
+      const subscription = requestResult.rows[0];
+      if (!subscription) throw routeError(404, 'VIP 申请不存在');
+      if (subscription.user_id === req.user.id) throw routeError(403, '不能审核自己的 VIP 申请');
+      if (subscription.state !== 'pending') throw routeError(409, 'VIP 申请状态已变化，请刷新后重试');
+
+      let activatedUntil = null;
+      if (normalized.value.state === 'approved') {
+        activatedUntil = await grantVipDays(db, subscription.user_id, subscription.duration_days);
+        if (!activatedUntil) throw routeError(404, '申请用户不存在');
+      }
+
+      const updated = await db.query(
+        `UPDATE vip_subscription_requests
+            SET state = $2::vip_subscription_state,
+                reviewed_by = $3,
+                reviewed_at = now(),
+                review_note = $4,
+                activated_until = $5,
+                payment_confirmation_reference = $6,
+                updated_at = now()
+          WHERE id = $1
+          RETURNING *`,
+        [
+          subscription.id,
+          normalized.value.state,
+          req.user.id,
+          normalized.value.reviewNote,
+          activatedUntil,
+          normalized.value.paymentConfirmationReference,
+        ]
+      );
+      await writeAdminAudit(db, {
+        actorId: req.user.id,
+        action: 'vip.subscription_review',
+        targetType: 'vip_subscription',
+        targetId: subscription.id,
+        detail: {
+          state: normalized.value.state,
+          user_id: subscription.user_id,
+          amount_minor: subscription.amount_minor,
+          currency: subscription.currency,
+          duration_days: subscription.duration_days,
+          activated_until: activatedUntil,
+        },
+      });
+      return updated.rows[0];
+    });
+    res.json({ ok: true, subscription: out });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: '该核款凭据已用于其他申请，请重新核对' });
+    }
+    return sendRouteError(res, err);
+  }
 });
 
 // ---- 背书审核（MVP 人工抽查：管理员改 state）----
@@ -247,6 +347,7 @@ router.get('/stats', async (_req, res) => {
   const reports = await one(`SELECT count(*)::int AS n FROM community_reports WHERE state='pending'`);
   const pastorCerts = await one(`SELECT count(*)::int AS n FROM pastor_certifications WHERE state='pending'`);
   const communityAdmins = await one(`SELECT count(*)::int AS n FROM community_admin_applications WHERE state='pending'`);
+  const vipSubscriptions = await one(`SELECT count(*)::int AS n FROM vip_subscription_requests WHERE state='pending'`);
   const { rows: auditLogs } = await query(
     `SELECT a.id, a.actor_id, a.action, a.target_type, a.target_id, a.detail, a.created_at,
             u.email AS actor_email, p.nickname AS actor_nickname
@@ -264,6 +365,7 @@ router.get('/stats', async (_req, res) => {
     pendingReports: reports.n,
     pendingPastorCertifications: pastorCerts.n,
     pendingCommunityAdminApplications: communityAdmins.n,
+    pendingVipSubscriptions: vipSubscriptions.n,
     auditLogs,
   });
 });
