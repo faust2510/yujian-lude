@@ -23,36 +23,41 @@ import Vip from './pages/Vip'
 import Pastor from './pages/Pastor'
 import Admin from './pages/Admin'
 import Chat from './pages/Chat'
+import { Toaster } from './components/ui/sonner'
+import { TooltipProvider } from './components/ui/tooltip'
 import './index.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter basename="/app">
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/verify-email" element={<VerifyEmail />} />
-          <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/faith-test" element={<FaithTest />} />
-            <Route path="/courses" element={<Courses />} />
-            <Route path="/textbooks" element={<Textbooks />} />
-            <Route path="/textbooks/:slug" element={<Textbooks />} />
-            <Route path="/textbooks/:slug/chapters/:index" element={<TextbookReader />} />
-            <Route path="/match" element={<Match />} />
-            <Route path="/ai" element={<AiConsult />} />
-            <Route path="/relationships" element={<Relationships />} />
-            <Route path="/community" element={<Community />} />
-            <Route path="/community/user/:userId" element={<UserTimeline />} />
-            <Route path="/vip" element={<Vip />} />
-            <Route path="/pastor" element={<Pastor />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/admin" element={<ProtectedRoute role="admin"><Admin /></ProtectedRoute>} />
-          </Route>
-        </Routes>
+        <TooltipProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/faith-test" element={<FaithTest />} />
+              <Route path="/courses" element={<Courses />} />
+              <Route path="/textbooks" element={<Textbooks />} />
+              <Route path="/textbooks/:slug" element={<Textbooks />} />
+              <Route path="/textbooks/:slug/chapters/:index" element={<TextbookReader />} />
+              <Route path="/match" element={<Match />} />
+              <Route path="/ai" element={<AiConsult />} />
+              <Route path="/relationships" element={<Relationships />} />
+              <Route path="/community" element={<Community />} />
+              <Route path="/community/user/:userId" element={<UserTimeline />} />
+              <Route path="/vip" element={<Vip />} />
+              <Route path="/pastor" element={<Pastor />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/admin" element={<ProtectedRoute role="admin"><Admin /></ProtectedRoute>} />
+            </Route>
+          </Routes>
+          <Toaster />
+        </TooltipProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

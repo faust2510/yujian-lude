@@ -1,41 +1,34 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useAuth } from '../contexts/AuthContext'
+import AppSidebar from './app/AppSidebar'
+import MobileHeader from './app/MobileHeader'
+import MobileNavigation from './app/MobileNavigation'
+import { SidebarInset, SidebarProvider } from './ui/sidebar'
 
 export default function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/login')
+    try {
+      await logout()
+      navigate('/login', { replace: true })
+    } catch {
+      toast.error('退出失败，请检查网络后重试')
+    }
   }
 
   return (
-    <div className="app-shell">
-      <nav className="sidebar">
-        <div className="sidebar-logo">遇见路得</div>
-        <NavLink to="/" end>个人中心</NavLink>
-        <NavLink to="/profile">完善资料</NavLink>
-        <NavLink to="/faith-test">信仰测试</NavLink>
-        <NavLink to="/courses">课程</NavLink>
-        <NavLink to="/textbooks">教材</NavLink>
-        <NavLink to="/match">匹配</NavLink>
-        <NavLink to="/ai">AI 咨询</NavLink>
-        <NavLink to="/relationships">关系</NavLink>
-        <NavLink to="/chat">私信</NavLink>
-        <NavLink to="/community">社群</NavLink>
-        <NavLink to="/vip">套餐</NavLink>
-        {user?.role === 'admin' && <NavLink to="/admin">管理台</NavLink>}
-        <div style={{ marginTop: 'auto', padding: '16px 20px' }}>
-          <div style={{ fontSize: 12, color: 'var(--legacy-muted)', marginBottom: 8 }}>
-            {user?.email}
-          </div>
-          <button className="btn btn-outline btn-block" onClick={handleLogout}>退出登录</button>
+    <SidebarProvider className="app-shell">
+      <AppSidebar user={user} onLogout={handleLogout} />
+      <SidebarInset className="app-frame">
+        <MobileHeader user={user} onLogout={handleLogout} />
+        <div className="app-main">
+          <Outlet />
         </div>
-      </nav>
-      <main className="main-content">
-        <Outlet />
-      </main>
-    </div>
+        <MobileNavigation />
+      </SidebarInset>
+    </SidebarProvider>
   )
 }

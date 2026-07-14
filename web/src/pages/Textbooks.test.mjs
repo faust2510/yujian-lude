@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const clientSource = readFileSync(path.join(__dirname, '..', 'api', 'client.js'), 'utf8')
 const mainSource = readFileSync(path.join(__dirname, '..', 'main.jsx'), 'utf8')
-const layoutSource = readFileSync(path.join(__dirname, '..', 'components', 'AppLayout.jsx'), 'utf8')
+const navigationSource = readFileSync(path.join(__dirname, '..', 'lib', 'navigation.js'), 'utf8')
 const cssSource = readFileSync(path.join(__dirname, '..', 'index.css'), 'utf8')
 
 test('textbook API client exposes list detail chapter and markRead calls', () => {
@@ -24,8 +24,8 @@ test('textbook routes are protected under the app basename', () => {
   assert.match(mainSource, /path="\/textbooks"/)
   assert.match(mainSource, /path="\/textbooks\/:slug"/)
   assert.match(mainSource, /path="\/textbooks\/:slug\/chapters\/:index"/)
-  assert.match(layoutSource, /to="\/textbooks"/)
-  assert.match(layoutSource, />教材</)
+  assert.match(navigationSource, /key: 'grow'/)
+  assert.match(navigationSource, /match: \['\/courses', '\/textbooks', '\/ai'\]/)
 })
 
 test('textbook pages and reader styles are present and mobile safe', () => {
