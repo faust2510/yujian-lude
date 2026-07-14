@@ -10,8 +10,9 @@ import {
   requireAuth,
   verifyPassword,
 } from '../auth.js';
-import { canExposeDevTokens } from '../config.js';
+import { canExposeDevTokens, config } from '../config.js';
 import { awardPoints, recomputeExposure } from '../lib/rewards.js';
+import { accountMail } from '../lib/mailer.js';
 import {
   createPublicToken,
   hashToken,
@@ -120,16 +121,26 @@ router.get('/me', (req, res) => {
   res.json({ user: { id, email, role, email_verified, vip_until, is_vip } });
 });
 
-// 发送邮箱验证 token（MVP 直接返回 token；生产应发邮件）
 router.post('/send-verify', requireAuth, async (req, res) => {
   if (req.user.email_verified) return res.json({ ok: true, already: true });
+  if (!config.mail.enabled && !canExposeDevTokens) {
+    return res.status(503).json({ error: '邮件服务未配置，请联系管理员' });
+  }
   const token = crypto.randomBytes(24).toString('hex');
   const expires = new Date(Date.now() + 24 * 3600_000);
   await query(
     'INSERT INTO email_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
     [req.user.id, token, expires]
   );
-  // TODO 生产环境：发邮件含链接 /api/auth/verify?token=...
+  if (config.mail.enabled) {
+    try {
+      await accountMail.sendVerificationEmail({ to: req.user.email, token });
+    } catch (error) {
+      await query('DELETE FROM email_tokens WHERE user_id = $1 AND token = $2', [req.user.id, token]);
+      console.error('[mail] 验证邮件发送失败：', error.message);
+      return res.status(502).json({ error: '验证邮件发送失败，请稍后重试' });
+    }
+  }
   // 开发期：仅显式开启 EXPOSE_DEV_TOKENS=true 时返回 token，方便本地点链接验证
   const devToken = canExposeDevTokens ? token : undefined;
   res.json({ ok: true, ...(devToken ? { devToken } : {}) });
@@ -155,6 +166,9 @@ router.get('/verify', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   const email = normalizeEmailKey(req.body?.email);
   if (!email || !EMAIL_RE.test(email)) return res.json({ ok: true });
+  if (!config.mail.enabled && !canExposeDevTokens) {
+    return res.status(503).json({ error: '邮件服务未配置，请联系管理员' });
+  }
   const u = await one('SELECT id FROM users WHERE email = $1 AND is_banned = FALSE', [email]);
   if (!u) return res.json({ ok: true });
 
@@ -175,6 +189,19 @@ router.post('/forgot-password', async (req, res) => {
      VALUES ($1, $2, $3)`,
     [u.id, tokenHash, expires]
   );
+
+  if (config.mail.enabled) {
+    try {
+      await accountMail.sendPasswordResetEmail({ to: email, token });
+    } catch (error) {
+      await query(
+        'DELETE FROM password_reset_tokens WHERE user_id = $1 AND token_hash = $2 AND used_at IS NULL',
+        [u.id, tokenHash]
+      );
+      console.error('[mail] 密码重置邮件发送失败：', error.message);
+      return res.status(502).json({ error: '重置邮件发送失败，请稍后重试' });
+    }
+  }
 
   res.json({ ok: true, ...(canExposeDevTokens ? { devToken: token } : {}) });
 });

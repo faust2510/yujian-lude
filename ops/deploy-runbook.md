@@ -55,6 +55,8 @@ npm run build --prefix web
 npm run migrate:up --prefix server
 ```
 
+重启前确认服务器 `.env` 已包含生产邮件配置：`PUBLIC_APP_URL` 必须为 HTTPS，`SMTP_HOST`、`SMTP_PORT`、`SMTP_FROM` 必填；SMTP 需要认证时同时填写 `SMTP_USER` 与 `SMTP_PASS`。配置缺失时服务会拒绝以 production 模式启动。
+
 重启服务。按服务器实际进程管理器选择一种：
 
 ```bash

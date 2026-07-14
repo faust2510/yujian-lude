@@ -24,7 +24,9 @@ npm install --prefix web
 cp server/.env.example server/.env
 ```
 
-至少确认 `server/.env` 中的 `DATABASE_URL`、`PORT`、`SESSION_SECRET`。生产环境建议设置 `NODE_ENV=production`，如果走 HTTPS 且需要 secure cookie，再设置 `COOKIE_SECURE=true`。只有本地调试需要直接看邮箱/重置 token 时才设置 `EXPOSE_DEV_TOKENS=true`。真实 `.env` 不要提交到 git。
+至少确认 `server/.env` 中的 `DATABASE_URL`、`PORT`、`SESSION_SECRET`。生产环境必须设置 `NODE_ENV=production`、`COOKIE_SECURE=true`、HTTPS 的 `PUBLIC_APP_URL`，并配置 `SMTP_HOST`、`SMTP_PORT`、`SMTP_FROM`；需要 SMTP 登录时同时设置 `SMTP_USER` 与 `SMTP_PASS`。只有本地调试需要直接看邮箱/重置 token 时才设置 `EXPOSE_DEV_TOKENS=true`。真实 `.env` 不要提交到 git。
+
+邮箱验证与密码重置均通过 SMTP 投递。生产环境缺少公开地址或 SMTP 配置时，服务会拒绝启动；开发环境未配置 SMTP 且未开启 `EXPOSE_DEV_TOKENS` 时，相关接口会明确返回“邮件服务未配置”，不会再伪报发送成功。
 
 准备本地 PostgreSQL fresh 数据库并初始化：
 
@@ -156,6 +158,7 @@ npm run build --prefix web
 | `/api/health` 正常但登录或匹配失败 | 健康检查只证明服务进程响应；继续看 `/api/ready`，并跑 `verify:mvp` 或 `verify:release`。 |
 | `/app/login` 刷新 404 | 确认后端挂载了最新 `web-dist`，并重新执行 `npm run build --prefix web`。 |
 | 登录刷新后丢失 | 检查 `SESSION_SECRET` 是否稳定、cookie 设置是否与 HTTP/HTTPS 环境一致。 |
+| 验证或重置邮件无法发送 | 检查 `PUBLIC_APP_URL`、`SMTP_HOST`、`SMTP_PORT`、`SMTP_SECURE`、`SMTP_FROM`；使用认证时必须同时配置 `SMTP_USER` 和 `SMTP_PASS`。 |
 | `Migration 0001 checksum changed` | 已应用迁移文件被改动；不要直接编辑旧迁移，新增下一号迁移。 |
 
 ## 部署边界

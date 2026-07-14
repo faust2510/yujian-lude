@@ -12,6 +12,8 @@ test('builds development config with existing defaults', () => {
   assert.equal(config.nodeEnv, 'development');
   assert.equal(config.cookieSecure, false);
   assert.equal(config.exposeDevTokens, false);
+  assert.equal(config.publicAppUrl, 'http://localhost:5173');
+  assert.equal(config.mail.enabled, false);
 });
 
 test('production rejects implicit development database url', () => {
@@ -63,6 +65,22 @@ test('production requires secure cookies and disables dev tokens', () => {
   })), /EXPOSE_DEV_TOKENS/);
 });
 
+test('production requires a public app URL and SMTP delivery settings', () => {
+  const config = buildConfig({
+    NODE_ENV: 'production',
+    DATABASE_URL: 'postgres://prod.example/yujian_lude',
+    SESSION_SECRET: 'x'.repeat(32),
+    COOKIE_SECURE: 'true',
+  });
+
+  assert.throws(() => validateConfig(config), /PUBLIC_APP_URL/);
+  assert.throws(() => validateConfig({
+    ...config,
+    publicAppUrl: 'https://meet.example.com',
+    publicAppUrlExplicit: true,
+  }), /SMTP_HOST/);
+});
+
 test('production accepts explicit safe settings', () => {
   const config = buildConfig({
     NODE_ENV: 'production',
@@ -70,7 +88,15 @@ test('production accepts explicit safe settings', () => {
     SESSION_SECRET: 'x'.repeat(32),
     COOKIE_SECURE: 'true',
     EXPOSE_DEV_TOKENS: 'false',
+    PUBLIC_APP_URL: 'https://meet.example.com',
+    SMTP_HOST: 'smtp.example.com',
+    SMTP_PORT: '465',
+    SMTP_SECURE: 'true',
+    SMTP_USER: 'mailer',
+    SMTP_PASS: 'secret',
+    SMTP_FROM: '遇见路得 <no-reply@example.com>',
   });
 
   assert.doesNotThrow(() => validateConfig(config));
+  assert.equal(config.mail.enabled, true);
 });

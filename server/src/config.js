@@ -12,6 +12,8 @@ export const DEV_SESSION_SECRET = 'dev-insecure-secret';
 export const EXAMPLE_SESSION_SECRET = 'change-this-to-a-long-random-string';
 
 export function buildConfig(env = process.env) {
+  const smtpHost = String(env.SMTP_HOST || '').trim();
+  const smtpFrom = String(env.SMTP_FROM || '').trim();
   return {
     databaseUrl: env.DATABASE_URL || DEV_DATABASE_URL,
     databaseUrlExplicit: !!env.DATABASE_URL,
@@ -22,6 +24,17 @@ export function buildConfig(env = process.env) {
     nodeEnv: env.NODE_ENV || 'development',
     cookieSecure: String(env.COOKIE_SECURE || 'false') === 'true',
     exposeDevTokens: String(env.EXPOSE_DEV_TOKENS || 'false') === 'true',
+    publicAppUrl: String(env.PUBLIC_APP_URL || 'http://localhost:5173').replace(/\/$/, ''),
+    publicAppUrlExplicit: !!env.PUBLIC_APP_URL,
+    mail: {
+      enabled: Boolean(smtpHost && smtpFrom),
+      host: smtpHost,
+      port: Number(env.SMTP_PORT || 587),
+      secure: String(env.SMTP_SECURE || 'false') === 'true',
+      user: String(env.SMTP_USER || '').trim(),
+      pass: String(env.SMTP_PASS || ''),
+      from: smtpFrom,
+    },
   };
 }
 
@@ -45,6 +58,21 @@ export function validateConfig(value) {
     if (value.exposeDevTokens) {
       errors.push('EXPOSE_DEV_TOKENS must be false for production');
     }
+    if (!value.publicAppUrlExplicit || !String(value.publicAppUrl || '').startsWith('https://')) {
+      errors.push('PUBLIC_APP_URL must be an explicit https URL for production');
+    }
+    if (!value.mail?.host) {
+      errors.push('SMTP_HOST must be set for production');
+    }
+    if (!value.mail?.from) {
+      errors.push('SMTP_FROM must be set for production');
+    }
+  }
+  if (!Number.isInteger(value.mail?.port) || value.mail.port < 1 || value.mail.port > 65535) {
+    errors.push('SMTP_PORT must be an integer between 1 and 65535');
+  }
+  if (Boolean(value.mail?.user) !== Boolean(value.mail?.pass)) {
+    errors.push('SMTP_USER and SMTP_PASS must be set together');
   }
   if (errors.length) {
     throw new Error(`Invalid server configuration: ${errors.join('; ')}`);
