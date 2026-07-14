@@ -16,6 +16,7 @@ export default function Profile() {
     church_name:'', presbytery:'', region:'', denomination:'',
     coworker:'', baptism_date:'', faith_years:'', testimony:''
   })
+  const [exposure, setExposure] = useState(null)
   const [msg, setMsg] = useState('')
   const [faithMsg, setFaithMsg] = useState('')
   const [endorsements, setEndorsements] = useState([])
@@ -32,6 +33,7 @@ export default function Profile() {
       if (r.data.profile) setForm(p => ({...p, ...r.data.profile}))
       if (r.data.faith) setFaith(p => ({...p, ...r.data.faith}))
       setEndorsements(r.data.endorsements || [])
+      setExposure(r.data.exposure ?? null)
     }).catch(() => {
       setMsg('资料加载失败，请刷新重试')
     }).finally(() => setBusy(p => ({...p, initial: false})))
@@ -80,6 +82,7 @@ export default function Profile() {
     try {
       const r = await profile.save(form)
       const completion = Number(r.data?.completion)
+      setExposure(r.data?.exposure ?? null)
       setMsg(Number.isFinite(completion) ? `资料已保存，完整度 ${completion}%` : '资料已保存，曝光分已更新')
     }
     catch (err) { setMsg(err.response?.data?.error || '保存失败，请检查资料后重试') }
@@ -89,7 +92,11 @@ export default function Profile() {
     e.preventDefault()
     setBusy(p => ({...p, faith: true}))
     setFaithMsg('')
-    try { await profile.saveFaith(faith); setFaithMsg('信仰档案已保存') }
+    try {
+      const r = await profile.saveFaith(faith)
+      setExposure(r.data?.exposure ?? null)
+      setFaithMsg('信仰档案已保存')
+    }
     catch (err) { setFaithMsg(err.response?.data?.error || '保存失败，请检查信仰档案后重试') }
     finally { setBusy(p => ({...p, faith: false})) }
   }
@@ -123,6 +130,11 @@ export default function Profile() {
     <>
       <h1 className="page-title">完善资料</h1>
       <p className="page-sub">资料越完整，曝光分越高，越容易被匹配到</p>
+      {exposure !== null && (
+        <p style={{fontSize:13,color:'var(--legacy-muted)',marginTop:-12,marginBottom:16}}>
+          当前曝光分：<strong style={{color:'var(--brand)'}}>{exposure}</strong>
+        </p>
+      )}
       {busy.initial && <div className="card" style={{fontSize:14,color:'var(--legacy-muted)',marginBottom:16}}>正在加载你的资料…</div>}
 
       <div className="card" style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>

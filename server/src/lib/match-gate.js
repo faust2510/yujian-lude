@@ -18,7 +18,10 @@ export async function getMatchGateSettings() {
 export async function getMatchQualification(userId) {
   const gate = await getMatchGateSettings();
   const profile = await one('SELECT completion, privacy_ok FROM profiles WHERE user_id=$1', [userId]);
-  const faith = await one('SELECT church_name, testimony FROM faith_profiles WHERE user_id=$1', [userId]);
+  const faith = await one(
+    'SELECT church_name, presbytery, baptism_date, faith_years, testimony FROM faith_profiles WHERE user_id=$1',
+    [userId]
+  );
   const testRow = await one(
     `SELECT passed FROM faith_tests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
     [userId]

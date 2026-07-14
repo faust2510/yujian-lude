@@ -5,6 +5,24 @@ export class ProfileInputError extends Error {
   }
 }
 
+export function calculateProfileCompletion(profile = {}) {
+  const values = [
+    profile.nickname,
+    profile.city,
+    profile.birth_year,
+    profile.education,
+    profile.goal,
+    profile.preference,
+    profile.intro,
+    profile.privacy_ok === true ? true : null,
+  ];
+  const filled = values.filter((value) => {
+    if (typeof value === 'string') return value.trim().length > 0;
+    return value !== null && value !== undefined && value !== false;
+  }).length;
+  return Math.round((filled / values.length) * 100);
+}
+
 function isValidDateParts(year, month, day) {
   const value = new Date(Date.UTC(year, month - 1, day));
   return (

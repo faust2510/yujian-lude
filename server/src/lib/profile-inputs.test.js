@@ -1,7 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normalizeBaptismDate, normalizeFaithYears } from './profile-inputs.js';
+import {
+  calculateProfileCompletion,
+  normalizeBaptismDate,
+  normalizeFaithYears,
+} from './profile-inputs.js';
+
+const completeProfile = {
+  nickname: '路得',
+  city: '上海',
+  birth_year: 1994,
+  education: '本科',
+  goal: 'serious',
+  preference: '愿意共同成长',
+  intro: '认真预备婚姻',
+  privacy_ok: true,
+};
+
+test('profile reaches 100 percent only after privacy consent', () => {
+  assert.equal(calculateProfileCompletion(completeProfile), 100);
+  assert.equal(calculateProfileCompletion({ ...completeProfile, privacy_ok: false }), 88);
+});
+
+test('profile completion ignores blank text values', () => {
+  assert.equal(calculateProfileCompletion({ ...completeProfile, intro: '   ' }), 88);
+});
 
 test('normalizes flexible baptism dates before database writes', () => {
   assert.equal(normalizeBaptismDate('2021'), '2021-01-01');

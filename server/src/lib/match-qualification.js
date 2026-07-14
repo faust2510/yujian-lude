@@ -15,7 +15,13 @@ function isProfileComplete(profile) {
 }
 
 function isFaithProfileComplete(faith) {
-  return !!faith && hasText(faith.church_name) && hasText(faith.testimony);
+  const faithYears = Number(faith?.faith_years);
+  return !!faith &&
+    hasText(faith.church_name) &&
+    hasText(faith.presbytery) &&
+    hasText(faith.baptism_date) &&
+    Number.isInteger(faithYears) && faithYears >= 0 &&
+    hasText(faith.testimony);
 }
 
 function hasVerifiedEndorsement(endorsements = []) {

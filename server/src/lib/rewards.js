@@ -75,16 +75,16 @@ export async function recomputeExposure(db, userId) {
   // 资料完整度得分（满分 50，每项非空 +5）
   const { rows: pr } = await db.query(
     `SELECT
-      (CASE WHEN p.nickname      IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN p.intro         IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN p.city          IS NOT NULL THEN 5 ELSE 0 END +
+      (CASE WHEN NULLIF(BTRIM(p.nickname), '') IS NOT NULL THEN 5 ELSE 0 END +
+       CASE WHEN NULLIF(BTRIM(p.city), '') IS NOT NULL THEN 5 ELSE 0 END +
        CASE WHEN p.birth_year    IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN p.education     IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN fp.church_name  IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN fp.presbytery   IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN fp.coworker     IS NOT NULL THEN 5 ELSE 0 END +
+       CASE WHEN NULLIF(BTRIM(p.education), '') IS NOT NULL THEN 5 ELSE 0 END +
+       CASE WHEN NULLIF(BTRIM(p.goal), '') IS NOT NULL THEN 5 ELSE 0 END +
+       CASE WHEN NULLIF(BTRIM(fp.church_name), '') IS NOT NULL THEN 5 ELSE 0 END +
+       CASE WHEN NULLIF(BTRIM(fp.presbytery), '') IS NOT NULL THEN 5 ELSE 0 END +
        CASE WHEN fp.baptism_date IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN fp.faith_years  IS NOT NULL THEN 5 ELSE 0 END) AS profile_score
+       CASE WHEN fp.faith_years  IS NOT NULL THEN 5 ELSE 0 END +
+       CASE WHEN NULLIF(BTRIM(fp.testimony), '') IS NOT NULL THEN 5 ELSE 0 END) AS profile_score
      FROM profiles p
      LEFT JOIN faith_profiles fp ON fp.user_id = p.user_id
      WHERE p.user_id = $1`,
