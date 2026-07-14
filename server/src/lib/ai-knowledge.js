@@ -87,7 +87,7 @@ export function buildAiAnswer(question) {
   if (!retrieved.hit) {
     return {
       answer:
-        '我现在只能回答婚恋预备、边界沟通、信仰档案、课程学习和关系确认相关问题。这个问题暂时没有匹配到平台知识库，建议你带着具体处境去找牧者或成熟引荐人面谈。',
+        '我现在只能回答婚恋预备、边界沟通、信仰档案、课程学习和关系确认相关问题。这个问题暂时没有匹配到平台知识库，建议你带着具体处境去找牧者或引荐人面谈。',
       outOfScope: true,
       sources: [],
     };

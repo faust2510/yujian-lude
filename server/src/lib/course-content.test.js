@@ -22,6 +22,7 @@ function unitRows(sql, courseId) {
 
 test('seed data keeps both marriage courses substantial', () => {
   const seed = readProjectFile('db/seed.sql');
+  assert.doesNotMatch(seed, /成熟引荐人/);
   const kellerRows = unitRows(seed, '11111111-1111-1111-1111-111111111111');
   const datingRows = unitRows(seed, '22222222-2222-2222-2222-222222222222');
 
@@ -45,4 +46,25 @@ test('latest course-content migration updates existing deployments', () => {
   assert.match(migration, /unit_index,\s*title,\s*material,\s*is_pastor_node/);
   assert.match(migration, /ON CONFLICT \(course_id, unit_index\)/);
   assert.match(migration, /学习目标/);
+});
+
+test('course pastor review schema is available to fresh and upgraded databases', () => {
+  const schema = readProjectFile('db/schema.sql');
+  const migration = readProjectFile('db/migrations/0010_course_pastor_reviews.sql');
+  const hardeningMigration = readProjectFile('db/migrations/0011_harden_course_pastor_reviews.sql');
+
+  for (const source of [schema, migration]) {
+    assert.match(source, /course_pastor_reviews/);
+    assert.match(source, /reviewed_by/);
+  }
+
+  for (const source of [schema, hardeningMigration]) {
+    assert.match(source, /endorser_user_id/);
+    assert.match(source, /endorsement_id/);
+    assert.match(source, /assigned_reviewer_id/);
+  }
+  assert.match(schema, /WHERE state = 'pending'/);
+  assert.match(hardeningMigration, /DROP CONSTRAINT IF EXISTS course_pastor_reviews_user_id_course_id_key/);
+  assert.match(hardeningMigration, /WHERE state = 'pending'/);
+  assert.match(hardeningMigration, /points\.course_complete/);
 });

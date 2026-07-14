@@ -21,6 +21,7 @@ const requiredEnums = [
   ['membership_state', ['approved', 'pending', 'rejected', 'kicked']],
   ['notif_kind', ['like', 'comment', 'reply', 'follow', 'group_join', 'post_approved', 'post_featured', 'event_new', 'report_resolved']],
   ['relationship_state', ['chatting', 'exam_required', 'relationship_requested', 'mutual_confirmed', 'pastoral_review', 'confirmed', 'ended']],
+  ['course_pastor_review_state', ['pending', 'approved', 'rejected']],
 ];
 
 const requiredTables = [
@@ -33,6 +34,7 @@ const requiredTables = [
   'courses',
   'course_units',
   'course_progress',
+  'course_pastor_reviews',
   'unit_attempts',
   'course_exam_attempts',
   'textbooks',
@@ -74,8 +76,9 @@ const requiredColumns = [
   ['pastor_certifications', ['user_id', 'church_name', 'contact_email', 'state', 'reviewed_by', 'reviewed_at']],
   ['profiles', ['user_id', 'completion', 'privacy_ok']],
   ['faith_profiles', ['user_id', 'church_name', 'testimony']],
-  ['endorsements', ['user_id', 'kind', 'state', 'verified_at']],
+  ['endorsements', ['user_id', 'endorser_user_id', 'kind', 'state', 'verified_at']],
   ['course_exam_attempts', ['user_id', 'course_id', 'score', 'passed', 'answers']],
+  ['course_pastor_reviews', ['user_id', 'course_id', 'endorsement_id', 'assigned_reviewer_id', 'state', 'reviewed_by', 'reviewed_at']],
   ['textbooks', ['slug', 'title', 'visibility', 'source_filename', 'license_note']],
   ['textbook_chapters', ['textbook_id', 'chapter_index', 'title', 'body_html', 'body_text', 'word_count']],
   ['textbook_reading_progress', ['user_id', 'chapter_id', 'completed', 'completed_at', 'last_read_at']],
@@ -115,6 +118,7 @@ const requiredUniqueIndexes = [
   ['textbook_chapters', ['textbook_id', 'chapter_index']],
   ['textbook_reading_progress', ['user_id', 'chapter_id']],
   ['course_unit_readings', ['course_unit_id', 'chapter_id']],
+  ['course_pastor_reviews', ['user_id', 'course_id']],
   ['community_follows', ['follower_id', 'followee_id']],
   ['community_memberships', ['user_id', 'group_id']],
   ['community_bookmarks', ['user_id', 'post_id']],

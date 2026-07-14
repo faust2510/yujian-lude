@@ -44,6 +44,7 @@ class ApiClient {
   get(path) { return this.request('GET', path); }
   post(path, body) { return this.request('POST', path, body); }
   put(path, body) { return this.request('PUT', path, body); }
+  patch(path, body) { return this.request('PATCH', path, body); }
   delete(path, body) { return this.request('DELETE', path, body); }
 }
 
@@ -161,6 +162,16 @@ async function completeCourse(client, {
     assert(unit.material?.includes('学习目标'), `${label} unit ${unit.unit_index} missing learning objective`);
     assert(unit.material?.includes('反思题'), `${label} unit ${unit.unit_index} missing reflection question`);
     assert(unit.material?.includes('讨论题'), `${label} unit ${unit.unit_index} missing discussion question`);
+    for (const reading of unit.readings?.filter((item) => item.required) || []) {
+      const chapter = await client.get(
+        `/textbooks/${reading.textbook_slug}/chapters/${reading.chapter_index}`,
+      );
+      assert(chapter.chapter?.body_html, `${label} required textbook chapter should be readable`);
+      await client.post(
+        `/textbooks/${reading.textbook_slug}/chapters/${reading.chapter_index}/read`,
+        {},
+      );
+    }
     await client.post(`/courses/${course.slug}/units/${unit.unit_index}/submit`, {
       readConfirmed: true,
     });
@@ -189,7 +200,7 @@ async function completeLightCourse(client) {
   });
 }
 
-async function completeDeepMarriageCourse(client) {
+async function completeDeepMarriageCourse(client, reviewer, endorsementId) {
   await completeCourse(client, {
     slug: 'keller-meaning-of-marriage',
     label: 'deep marriage course',
@@ -199,6 +210,18 @@ async function completeDeepMarriageCourse(client) {
     expectedState: 'pastor_review',
     isMatchGateCourse: false,
   });
+  const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+    endorsement_id: endorsementId,
+    note: '请核对结课考试与课程反思记录。',
+  });
+  assert(request.pastorReview?.id, 'deep marriage course should create a pastor review request');
+  const pending = await reviewer.get('/course-pastor-reviews');
+  assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the request');
+  const reviewed = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, { action: 'approve' });
+  assert(reviewed.courseState === 'completed', `pastor approval should complete course, got ${reviewed.courseState}`);
+  const detail = await client.get('/courses/keller-meaning-of-marriage');
+  assert(detail.progress?.state === 'completed', 'deep marriage course should be completed after pastor approval');
+  assert(detail.progress?.pastor_review?.state === 'approved', 'course detail should expose approved pastor review');
 }
 
 async function assertInPool(client, label) {
@@ -241,6 +264,7 @@ async function onboard(client, admin, index) {
   await reviewEndorsement(admin, endorsementId);
   await completeLightCourse(client);
   await assertInPool(client, `user ${index}`);
+  return endorsementId;
 }
 
 async function run() {
@@ -261,12 +285,13 @@ async function run() {
   await verifyAiConsultation(users[0]);
 
   console.log('[verify-mvp] completing pool gates...');
+  const endorsementIds = [];
   for (const [idx, client] of users.entries()) {
-    await onboard(client, admin, idx + 1);
+    endorsementIds[idx] = await onboard(client, admin, idx + 1);
   }
 
   console.log('[verify-mvp] checking deep marriage course...');
-  await completeDeepMarriageCourse(users[0]);
+  await completeDeepMarriageCourse(users[0], admin, endorsementIds[0]);
 
   console.log('[verify-mvp] checking candidates and mutual match...');
   const candidates = await users[0].get('/match/candidates');

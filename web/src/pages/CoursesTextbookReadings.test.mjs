@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const source = readFileSync(path.join(__dirname, 'Courses.jsx'), 'utf8')
+const pastorSource = readFileSync(path.join(__dirname, 'Pastor.jsx'), 'utf8')
+const clientSource = readFileSync(path.join(__dirname, '..', 'api', 'client.js'), 'utf8')
+const userMenuSource = readFileSync(path.join(__dirname, '..', 'components', 'app', 'UserMenu.jsx'), 'utf8')
 const cssSource = readFileSync(path.join(__dirname, '..', 'index.css'), 'utf8')
 
 test('course units render required textbook readings before allowing read confirmation', () => {
@@ -16,4 +19,20 @@ test('course units render required textbook readings before allowing read confir
   assert.match(source, /\/textbooks\/\$\{reading\.textbook_slug\}\/chapters\/\$\{reading\.chapter_index\}/)
   assert.match(cssSource, /\.course-unit-readings/)
   assert.match(cssSource, /\.course-reading-link/)
+})
+
+test('deep courses expose an endorsement-scoped review workflow', () => {
+  assert.match(clientSource, /requestPastorReview/)
+  assert.match(clientSource, /coursePastorReviews/)
+  assert.match(clientSource, /endorsement_id/)
+  assert.match(source, /选择牧者或引荐人/)
+  assert.match(source, /申请说明/)
+  assert.match(source, /申请引荐确认/)
+  assert.match(source, /pastor_review/)
+  assert.match(pastorSource, /课程引荐确认待办/)
+  assert.match(pastorSource, /退回原因/)
+  assert.match(pastorSource, /exam_score/)
+  assert.match(pastorSource, /确认通过/)
+  assert.match(userMenuSource, /to="\/pastor"/)
+  assert.match(userMenuSource, /引荐工作台/)
 })

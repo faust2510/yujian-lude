@@ -193,13 +193,33 @@ router.get('/endorsements', async (req, res) => {
 router.post('/endorsements/:id/review', async (req, res) => {
   const decision = req.body?.decision; // 'verified' | 'rejected'
   if (!validateEndorsementDecision(decision)) return res.status(400).json({ error: '非法决定' });
-  const en = await one('SELECT user_id FROM endorsements WHERE id = $1', [req.params.id]);
+  const en = await one(
+    'SELECT user_id, kind, contact FROM endorsements WHERE id = $1',
+    [req.params.id]
+  );
   if (!en) return res.status(404).json({ error: '背书不存在' });
   const patch = buildEndorsementReviewPatch({ decision, reviewerId: req.user.id });
   await tx(async (db) => {
+    let endorserUserId = null;
+    if (decision === 'verified') {
+      const linked = await db.query(
+        `SELECT u.id
+           FROM users u
+          WHERE LOWER(BTRIM(u.email)) = LOWER(BTRIM($1))
+            AND u.id <> $2
+            AND u.email_verified = TRUE
+            AND u.is_banned = FALSE
+            AND ($3 = 'referrer' OR u.role = 'pastor')
+          LIMIT 1`,
+        [en.contact, en.user_id, en.kind]
+      );
+      endorserUserId = linked.rows[0]?.id ?? null;
+    }
     await db.query(
-      `UPDATE endorsements SET state = $2, verified_at = $3, verified_by = $4 WHERE id = $1`,
-      [req.params.id, patch.state, patch.verifiedAt, patch.verifiedBy]
+      `UPDATE endorsements
+          SET state = $2, verified_at = $3, verified_by = $4, endorser_user_id = $5
+        WHERE id = $1`,
+      [req.params.id, patch.state, patch.verifiedAt, patch.verifiedBy, endorserUserId]
     );
     // 通过后重算曝光（背书 bonus 生效，进匹配池）
     if (decision === 'verified') await recomputeExposure(db, en.user_id);
@@ -208,7 +228,11 @@ router.post('/endorsements/:id/review', async (req, res) => {
       action: 'endorsement.review',
       targetType: 'endorsement',
       targetId: req.params.id,
-      detail: { decision, user_id: en.user_id },
+      detail: {
+        decision,
+        user_id: en.user_id,
+        endorser_user_id: endorserUserId,
+      },
     });
   });
   res.json({ ok: true, decision });

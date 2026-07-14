@@ -1,5 +1,6 @@
 import {
   BadgeCheckIcon,
+  ChurchIcon,
   ClipboardCheckIcon,
   LogOutIcon,
   ShieldCheckIcon,
@@ -57,6 +58,12 @@ export default function UserMenu({ user, onLogout, showIdentity = false }) {
               </DropdownMenuItem>
             )
           })}
+          <DropdownMenuItem asChild>
+            <NavLink to="/pastor">
+              <ChurchIcon />
+              {user?.role === 'pastor' ? '牧者工作台' : '引荐工作台'}
+            </NavLink>
+          </DropdownMenuItem>
           {user?.role === 'admin' && (
             <DropdownMenuItem asChild>
               <NavLink to="/admin">

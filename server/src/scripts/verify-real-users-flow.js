@@ -79,6 +79,10 @@ async function makeAdmin(userId) {
   await pool.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [userId]);
 }
 
+async function markEmailVerified(userId) {
+  await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [userId]);
+}
+
 async function createPasswordResetToken(userId) {
   const token = createPublicToken();
   await pool.query(
@@ -120,11 +124,11 @@ async function passFaithTest(client) {
   assert(result.passed, `${client.label} faith test expected passed, got ${result.score}/${result.total}`);
 }
 
-async function submitEndorsement(client, index) {
+async function submitEndorsement(client, index, override = {}) {
   const data = await client.post('/me/endorsements', {
-    kind: 'pastor',
-    name: `实战牧者 ${index}`,
-    contact: `real-pastor-${index}@example.test`,
+    kind: override.kind || 'pastor',
+    name: override.name || `实战牧者 ${index}`,
+    contact: override.contact || `real-pastor-${index}@example.test`,
     church: `实战长老教会 ${index}`,
     note: '真实用户流程验收背书。',
   });
@@ -164,6 +168,16 @@ async function completeCourse(client, {
     assert(unit.material?.includes('学习目标'), `${client.label} ${label} unit ${unit.unit_index} missing learning objective`);
     assert(unit.material?.includes('反思题'), `${client.label} ${label} unit ${unit.unit_index} missing reflection question`);
     assert(unit.material?.includes('讨论题'), `${client.label} ${label} unit ${unit.unit_index} missing discussion question`);
+    for (const reading of unit.readings?.filter((item) => item.required) || []) {
+      const chapter = await client.get(
+        `/textbooks/${reading.textbook_slug}/chapters/${reading.chapter_index}`,
+      );
+      assert(chapter.chapter?.body_html, `${client.label} ${label} required textbook chapter should be readable`);
+      await client.post(
+        `/textbooks/${reading.textbook_slug}/chapters/${reading.chapter_index}/read`,
+        {},
+      );
+    }
     await client.post(`/courses/${course.slug}/units/${unit.unit_index}/submit`, {
       readConfirmed: true,
     });
@@ -192,7 +206,8 @@ async function completeLightCourse(client) {
   });
 }
 
-async function completeDeepMarriageCourse(client) {
+async function completeDeepMarriageCourse(client, reviewer, endorsementId, outsider) {
+  const pointsBefore = await client.get('/me/points');
   await completeCourse(client, {
     slug: 'keller-meaning-of-marriage',
     label: 'deep marriage course',
@@ -202,16 +217,85 @@ async function completeDeepMarriageCourse(client) {
     expectedState: 'pastor_review',
     isMatchGateCourse: false,
   });
+  const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+    endorsement_id: endorsementId,
+    note: '请核对结课考试与课程反思记录。',
+  });
+  assert(request.pastorReview?.id, `${client.label} should create a pastor review request`);
+  const pending = await reviewer.get('/course-pastor-reviews');
+  assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the request');
+  const outsiderPending = await outsider.get('/course-pastor-reviews');
+  assert(!outsiderPending.reviews?.some((item) => item.id === request.pastorReview.id), 'unassigned users must not see the review');
+  await expectStatus(outsider, 'PATCH', `/course-pastor-reviews/${request.pastorReview.id}`, {
+    action: 'approve',
+  }, 404);
+  await expectStatus(reviewer, 'PATCH', `/course-pastor-reviews/${request.pastorReview.id}`, {
+    action: 'reject',
+  }, 400);
+  const rejected = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, {
+    action: 'reject',
+    note: '请补充第十单元的冲突反思记录。',
+  });
+  assert(rejected.state === 'rejected', 'reviewer should be able to reject with a reason');
+  const afterReject = await client.get('/courses/keller-meaning-of-marriage');
+  assert(afterReject.progress?.pastor_review?.review_note?.includes('冲突反思'), 'student should see the rejection reason');
+
+  const reapplied = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+    endorsement_id: endorsementId,
+    note: '已补充第十单元反思，请再次确认。',
+  });
+  assert(reapplied.pastorReview?.id && reapplied.pastorReview.id !== request.pastorReview.id, 'reapplication should create a new review row');
+
+  const approvalAttempts = await Promise.allSettled(
+    Array.from({ length: 5 }, () => reviewer.patch(
+      `/course-pastor-reviews/${reapplied.pastorReview.id}`,
+      { action: 'approve', note: '课程记录与考试均已核对。' },
+    )),
+  );
+  const approvals = approvalAttempts.filter(result => result.status === 'fulfilled');
+  const conflicts = approvalAttempts.filter(result => result.status === 'rejected' && result.reason?.status === 409);
+  assert(approvals.length === 1, `concurrent approval expected one success, got ${approvals.length}`);
+  assert(conflicts.length === 4, `concurrent approval expected four conflicts, got ${conflicts.length}`);
+  const reviewed = approvals[0].value;
+  assert(reviewed.courseState === 'completed', `pastor approval should complete course, got ${reviewed.courseState}`);
+  const detail = await client.get('/courses/keller-meaning-of-marriage');
+  assert(detail.progress?.state === 'completed', `${client.label} deep course should complete after pastor approval`);
+  assert(detail.progress?.pastor_review?.state === 'approved', `${client.label} course detail should expose approved review`);
+  const pointsAfter = await client.get('/me/points');
+  assert(pointsAfter.earned === pointsBefore.earned + 300, `deep course should grant exactly 300 points once, got ${pointsAfter.earned - pointsBefore.earned}`);
+  const accountAfter = await client.get('/auth/me');
+  const vipDaysRemaining = (new Date(accountAfter.user?.vip_until).getTime() - Date.now()) / 86_400_000;
+  assert(vipDaysRemaining > 13 && vipDaysRemaining < 15, `deep course should grant about 14 VIP days once, got ${vipDaysRemaining.toFixed(2)}`);
+  const rewardRows = await pool.query(
+    `SELECT count(*)::int AS n
+       FROM points_ledger ledger
+       JOIN courses course ON course.id = ledger.ref_id
+      WHERE ledger.user_id = $1
+        AND ledger.reason = 'points.course_complete'
+        AND course.slug = 'keller-meaning-of-marriage'`,
+    [client.user.id]
+  );
+  assert(rewardRows.rows[0].n === 1, `deep course reward ledger expected one row, got ${rewardRows.rows[0].n}`);
+  const history = await pool.query(
+    `SELECT state FROM course_pastor_reviews review
+       JOIN courses course ON course.id = review.course_id
+      WHERE review.user_id = $1 AND course.slug = 'keller-meaning-of-marriage'
+      ORDER BY review.created_at`,
+    [client.user.id]
+  );
+  assert(history.rows.some(row => row.state === 'rejected'), 'review history should retain the rejected request');
+  assert(history.rows.some(row => row.state === 'approved'), 'review history should retain the approved request');
 }
 
-async function onboard(client, admin, index) {
+async function onboard(client, admin, index, endorsementOverride = {}) {
   await completeProfile(client, index);
   await passFaithTest(client);
-  const endorsementId = await submitEndorsement(client, index);
+  const endorsementId = await submitEndorsement(client, index, endorsementOverride);
   await reviewEndorsement(admin, endorsementId);
   await completeLightCourse(client);
   const status = await client.get('/match/status');
   assert(status.inPool, `${client.label} should be in pool: ${JSON.stringify(status.missing)}`);
+  return endorsementId;
 }
 
 async function verifyAiConsultation(client) {
@@ -517,14 +601,27 @@ async function verifyAdminOps(admin, users, communityResult) {
 async function run() {
   const stamp = Date.now();
   const admin = new ApiClient('admin');
+  const referrer = new ApiClient('referrer');
   const users = ['alice', 'bob', 'cara', 'dan', 'partial'].map((label) => new ApiClient(label));
 
   console.log('[verify-real-users] registering users...');
   const adminUser = await register(admin, `real.admin.${stamp}@example.test`, '实战管理员');
   await makeAdmin(adminUser.id);
+  const referrerUser = await register(referrer, `real.referrer.${stamp}@example.test`, '实战引荐人');
+  await markEmailVerified(referrerUser.id);
+  const endorsementIds = [];
   for (const [index, client] of users.entries()) {
     await register(client, `real.${client.label}.${stamp}@example.test`, `实战${client.label}`);
-    if (index < 4) await onboard(client, admin, index + 1);
+    if (index < 4) {
+      endorsementIds[index] = await onboard(
+        client,
+        admin,
+        index + 1,
+        index === 0
+          ? { kind: 'referrer', name: '实战引荐人', contact: referrerUser.email }
+          : {},
+      );
+    }
   }
 
   console.log('[verify-real-users] checking daily checkin...');
@@ -533,7 +630,7 @@ async function run() {
   await verifyAiConsultation(users[0]);
 
   console.log('[verify-real-users] checking deep marriage course...');
-  await completeDeepMarriageCourse(users[0]);
+  await completeDeepMarriageCourse(users[0], referrer, endorsementIds[0], users[1]);
 
   console.log('[verify-real-users] checking account security...');
   await verifyAccountSecurity(stamp);

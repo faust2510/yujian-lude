@@ -19,6 +19,8 @@ const tempDbName = `yujian_lude_release_${Date.now()}_${crypto.randomBytes(3).to
 const releasePort = Number(process.env.RELEASE_VERIFY_PORT || 8092);
 
 let serverProcess = null;
+let smtpServer = null;
+const smtpMessages = [];
 let tempDatabaseCreated = false;
 let cleanupStarted = false;
 let exiting = false;
@@ -118,6 +120,70 @@ async function findPort(startPort) {
   throw new Error(`No available port found from ${startPort} to ${startPort + 49}`);
 }
 
+function handleSmtpConnection(socket) {
+  let buffer = '';
+  let acceptingData = false;
+  socket.setEncoding('utf8');
+  socket.write('220 release.example.test ESMTP\r\n');
+
+  socket.on('data', (chunk) => {
+    buffer += chunk;
+    while (buffer.length) {
+      if (acceptingData) {
+        const end = buffer.indexOf('\r\n.\r\n');
+        if (end < 0) return;
+        smtpMessages.push(buffer.slice(0, end));
+        buffer = buffer.slice(end + 5);
+        acceptingData = false;
+        socket.write('250 2.0.0 queued\r\n');
+        continue;
+      }
+
+      const lineEnd = buffer.indexOf('\r\n');
+      if (lineEnd < 0) return;
+      const line = buffer.slice(0, lineEnd);
+      buffer = buffer.slice(lineEnd + 2);
+      const command = line.split(' ', 1)[0].toUpperCase();
+
+      if (command === 'EHLO' || command === 'HELO') {
+        socket.write('250-release.example.test\r\n250 PIPELINING\r\n');
+      } else if (command === 'DATA') {
+        acceptingData = true;
+        socket.write('354 End data with <CR><LF>.<CR><LF>\r\n');
+      } else if (command === 'QUIT') {
+        socket.end('221 2.0.0 bye\r\n');
+      } else if (['MAIL', 'RCPT', 'RSET', 'NOOP'].includes(command)) {
+        socket.write('250 2.0.0 ok\r\n');
+      } else {
+        socket.write('250 2.0.0 ok\r\n');
+      }
+    }
+  });
+}
+
+async function startSmtpSink() {
+  smtpMessages.length = 0;
+  smtpServer = net.createServer(handleSmtpConnection);
+  await new Promise((resolve, reject) => {
+    const onError = (error) => reject(error);
+    smtpServer.once('error', onError);
+    smtpServer.listen(0, '127.0.0.1', () => {
+      smtpServer.off('error', onError);
+      resolve();
+    });
+  });
+  return smtpServer.address().port;
+}
+
+async function stopSmtpSink() {
+  if (!smtpServer) return;
+  const current = smtpServer;
+  smtpServer = null;
+  await new Promise((resolve, reject) => {
+    current.close((error) => error ? reject(error) : resolve());
+  });
+}
+
 function delay(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -172,7 +238,7 @@ async function smokeRoutes(baseUrl, apiBase) {
   await smokeRoute(`${baseUrl}/app/login`);
 }
 
-async function startServer(tempDatabaseUrl, port) {
+async function startServer(tempDatabaseUrl, port, smtpPort) {
   console.log(`\n[verify:release] 启动后端临时服务：http://localhost:${port}`);
   serverProcess = spawn('npm', ['start', '--prefix', 'server'], {
     cwd: projectRoot,
@@ -183,6 +249,10 @@ async function startServer(tempDatabaseUrl, port) {
       COOKIE_SECURE: 'true',
       NODE_ENV: 'production',
       EXPOSE_DEV_TOKENS: 'false',
+      PUBLIC_APP_URL: 'https://release.example.test/app',
+      SMTP_HOST: '127.0.0.1',
+      SMTP_PORT: String(smtpPort),
+      SMTP_FROM: '遇见路得发布验收 <no-reply@release.example.test>',
     }),
     stdio: 'inherit',
   });
@@ -208,6 +278,7 @@ async function cleanup() {
   if (cleanupStarted) return;
   cleanupStarted = true;
   await stopServer();
+  await stopSmtpSink();
   await dropTempDatabase();
 }
 
@@ -267,7 +338,8 @@ async function run() {
     env: { DATABASE_URL: tempDatabaseUrl },
   });
 
-  await startServer(tempDatabaseUrl, port);
+  const smtpPort = await startSmtpSink();
+  await startServer(tempDatabaseUrl, port, smtpPort);
   await smokeRoutes(baseUrl, apiBase);
 
   await runCommand('MVP 闭环验收', 'npm', ['run', 'verify:mvp', '--prefix', 'server'], {
@@ -276,6 +348,9 @@ async function run() {
   await runCommand('真实多用户回归验收', 'npm', ['run', 'verify:real-users', '--prefix', 'server'], {
     env: { DATABASE_URL: tempDatabaseUrl, API_BASE: apiBase, EXPECT_NO_DEV_TOKENS: 'true' },
   });
+  if (smtpMessages.length < 1) {
+    throw new Error('production mail verification did not deliver to the local SMTP sink');
+  }
 
   console.log('\n[verify:release] PASS：上线前体检完成。');
 }

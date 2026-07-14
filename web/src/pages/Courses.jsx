@@ -6,6 +6,11 @@ const LETTERS = ['A', 'B', 'C', 'D']
 
 function statusText(progress, latestExam) {
   if (progress?.state === 'completed') return '已完成'
+  if (progress?.state === 'pastor_review') {
+    if (progress?.pastor_review?.state === 'pending') return '等待引荐确认'
+    if (progress?.pastor_review?.state === 'rejected') return '需重新申请引荐确认'
+    return '待申请引荐确认'
+  }
   if (latestExam?.passed) return '考试已通过'
   if (latestExam && !latestExam.passed) return '考试未通过'
   if (progress?.units_done > 0) return '学习中'
@@ -75,6 +80,7 @@ export default function Courses() {
   const [submitting, setSubmitting] = useState({})
   const [msg, setMsg] = useState('')
   const [examState, setExamState] = useState({})
+  const [reviewForms, setReviewForms] = useState({})
 
   const loadCourses = async () => {
     setLoading(true)
@@ -177,7 +183,11 @@ export default function Courses() {
         ...prev,
         [courseSlug]: { ...(prev[courseSlug] || {}), submitting: false, result: r.data, error: '' },
       }))
-      setMsg(r.data.passed ? '结课考试已通过，课程进度已更新' : '本次考试未通过，可以复习后重试')
+      setMsg(r.data.passed
+        ? r.data.state === 'pastor_review'
+          ? '结课考试已通过，请继续申请引荐确认'
+          : '结课考试已通过，课程进度已更新'
+        : '本次考试未通过，可以复习后重试')
     } catch (err) {
       setExamState(prev => ({
         ...prev,
@@ -187,6 +197,28 @@ export default function Courses() {
           error: err.response?.data?.error || '考试提交失败，请稍后重试',
         },
       }))
+    }
+  }
+
+  const updateReviewForm = (courseSlug, patch) => {
+    setReviewForms(prev => ({
+      ...prev,
+      [courseSlug]: { ...(prev[courseSlug] || {}), ...patch },
+    }))
+  }
+
+  const requestPastorReview = async (courseSlug, endorsementId, note) => {
+    const key = `${courseSlug}-pastor-review`
+    setSubmitting(p => ({...p, [key]: true}))
+    setMsg('')
+    try {
+      const r = await courses.requestPastorReview(courseSlug, endorsementId, note)
+      await refreshCourse(courseSlug)
+      setMsg(r.data.already ? '引荐确认申请已在处理中' : '已提交引荐确认申请')
+    } catch (err) {
+      setMsg(err.response?.data?.error || '引荐确认申请失败，请重试')
+    } finally {
+      setSubmitting(p => ({...p, [key]: false}))
     }
   }
 
@@ -219,21 +251,27 @@ export default function Courses() {
           detail={progress[c.slug]}
           submitting={submitting}
           examState={examState[c.slug] || {}}
+          reviewForm={reviewForms[c.slug] || {}}
           onMarkRead={markRead}
           onLoadExam={loadExam}
           onSetExamAnswer={setExamAnswer}
           onSubmitExam={submitExam}
+          onUpdateReviewForm={updateReviewForm}
+          onRequestPastorReview={requestPastorReview}
         />
       ))}
     </>
   )
 }
 
-function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoadExam, onSetExamAnswer, onSubmitExam }) {
+function CoursePanel({ course, detail, submitting, examState, reviewForm, onMarkRead, onLoadExam, onSetExamAnswer, onSubmitExam, onUpdateReviewForm, onRequestPastorReview }) {
   const attemptsByUnit = useMemo(() => new Map((detail?.attempts || []).map(item => [item.unit_index, item])), [detail])
   const units = detail?.units || []
   const progress = detail?.progress
   const latestExam = progress?.latest_exam
+  const pastorReview = progress?.pastor_review
+  const reviewOptions = detail?.review_options || []
+  const selectedEndorsementId = reviewForm.endorsementId || pastorReview?.endorsement_id || ''
   const done = progress?.units_done || 0
   const total = units.length || 1
   const pct = Math.round((done / total) * 100)
@@ -276,7 +314,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
                   <span style={{fontSize:14,fontWeight:600,color:read ? '#1A7A3C' : 'var(--fg)'}}>
                     {read ? '✓ ' : ''}{u.unit_index}. {u.title}
                   </span>
-                  {u.is_pastor_node && <span className="badge badge-yellow" style={{whiteSpace:'nowrap',flex:'0 0 auto'}}>牧者节点</span>}
+                  {u.is_pastor_node && <span className="badge badge-yellow" style={{whiteSpace:'nowrap',flex:'0 0 auto'}}>需牧者确认</span>}
                 </div>
                 <div className="course-unit-tags">
                   <span>学习目标</span>
@@ -357,6 +395,76 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
             </div>
           )}
         </div>
+
+        {progress?.state === 'pastor_review' && (
+          <div style={{border:'1px solid var(--border)',borderRadius:8,padding:14,background:'var(--bg)'}}>
+            <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>引荐确认</div>
+            <p style={{fontSize:13,color:'var(--legacy-muted)',lineHeight:1.6,marginBottom:12}}>
+              你的结课考试已经通过。请选择一位已审核的牧者或引荐人确认课程关键节点；若对方尚未绑定平台账号，将由管理员核验。
+            </p>
+            {pastorReview?.state === 'pending' ? (
+              <div>
+                <span className="badge badge-yellow">确认申请处理中</span>
+                {pastorReview.endorsement_name && (
+                  <p style={{fontSize:13,color:'var(--legacy-muted)',marginTop:8}}>
+                    已选择：{pastorReview.endorsement_name}（{pastorReview.endorsement_kind === 'pastor' ? '牧者' : '引荐人'}）
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{display:'grid',gap:10}}>
+                {reviewOptions.length > 0 ? (
+                  <>
+                    <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>
+                      选择牧者或引荐人
+                      <select
+                        value={selectedEndorsementId}
+                        onChange={event => onUpdateReviewForm(course.slug, { endorsementId: event.target.value })}
+                        style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:'9px 10px',background:'var(--surface)',font: 'inherit'}}
+                      >
+                        <option value="">请选择</option>
+                        {reviewOptions.map(option => (
+                          <option key={option.endorsement_id} value={option.endorsement_id}>
+                            {option.name} · {option.kind === 'pastor' ? '牧者' : '引荐人'}{option.is_linked ? ' · 已绑定账号' : ' · 管理员核验'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{display:'grid',gap:6,fontSize:13,fontWeight:600}}>
+                      申请说明（选填）
+                      <textarea
+                        rows={3}
+                        maxLength={1000}
+                        value={reviewForm.note || ''}
+                        onChange={event => onUpdateReviewForm(course.slug, { note: event.target.value })}
+                        placeholder="例如：已完成全部阅读和反思记录，请协助确认。"
+                        style={{width:'100%',border:'1px solid var(--border)',borderRadius:8,padding:10,fontFamily:'inherit',fontSize:14,resize:'vertical'}}
+                      />
+                    </label>
+                    <button
+                      className="btn btn-primary"
+                      disabled={!selectedEndorsementId || !!submitting[`${course.slug}-pastor-review`]}
+                      onClick={() => onRequestPastorReview(course.slug, selectedEndorsementId, reviewForm.note || '')}
+                    >
+                      {submitting[`${course.slug}-pastor-review`] ? '提交中…' : pastorReview?.state === 'rejected' ? '重新申请引荐确认' : '申请引荐确认'}
+                    </button>
+                  </>
+                ) : (
+                  <div className="error-msg">
+                    暂无已通过审核的背书，请先在<Link to="/profile">个人资料</Link>中提交牧者或引荐人。
+                  </div>
+                )}
+              </div>
+            )}
+            {pastorReview?.state === 'rejected' && pastorReview.review_note && (
+              <div className="error-msg">确认人反馈：{pastorReview.review_note}</div>
+            )}
+          </div>
+        )}
+
+        {progress?.state === 'completed' && pastorReview?.state === 'approved' && (
+          <div className="success-msg">引荐确认已通过，课程已正式完成。</div>
+        )}
 
         <div style={{fontSize:13,color:'var(--legacy-muted)'}}>
           {course.is_match_gate_course

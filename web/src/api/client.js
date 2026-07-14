@@ -39,6 +39,13 @@ export const courses = {
     api.post(`/courses/${slug}/units/${index}/submit`, data),
   exam: (slug) => api.get(`/courses/${slug}/exam`),
   submitExam: (slug, answers) => api.post(`/courses/${slug}/exam/submit`, { answers }),
+  requestPastorReview: (slug, endorsementId, note = '') =>
+    api.post(`/courses/${slug}/pastor-review`, { endorsement_id: endorsementId, note }),
+}
+
+export const coursePastorReviews = {
+  list: (state = 'pending') => api.get('/course-pastor-reviews', { params: { state } }),
+  review: (id, action, note = '') => api.patch(`/course-pastor-reviews/${id}`, { action, note }),
 }
 
 export const textbooks = {

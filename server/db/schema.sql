@@ -31,6 +31,7 @@ CREATE TYPE endorsement_kind AS ENUM ('pastor', 'referrer');          -- 牧者 
 CREATE TYPE endorsement_state AS ENUM ('pending', 'verified', 'rejected'); -- 待背书/已背书/驳回
 CREATE TYPE match_status     AS ENUM ('suggested', 'intent_sent', 'matched', 'under_review', 'approved', 'declined');
 CREATE TYPE course_state     AS ENUM ('not_started', 'in_progress', 'pastor_review', 'completed');
+CREATE TYPE course_pastor_review_state AS ENUM ('pending', 'approved', 'rejected');
 CREATE TYPE points_pool      AS ENUM ('daily', 'earned');             -- 每日池(清零) / 赚取池(累积)
 CREATE TYPE ledger_direction AS ENUM ('credit', 'debit');            -- 进账 / 出账
 
@@ -91,6 +92,7 @@ CREATE TABLE faith_profiles (
 CREATE TABLE endorsements (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    endorser_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     kind            endorsement_kind NOT NULL,           -- pastor / referrer
     name            TEXT NOT NULL,                       -- 牧者/引荐人姓名
     contact         TEXT NOT NULL,                       -- 联系方式（邮箱/电话）
@@ -104,6 +106,7 @@ CREATE TABLE endorsements (
 );
 CREATE INDEX idx_endorsements_user ON endorsements(user_id);
 CREATE INDEX idx_endorsements_state ON endorsements(state);
+CREATE INDEX idx_endorsements_endorser ON endorsements(endorser_user_id, state);
 
 -- ============================================================
 -- 5. courses / course_units / course_progress — 婚姻课程（曝光主货币）
@@ -143,6 +146,26 @@ CREATE TABLE course_progress (
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (user_id, course_id)
 );
+
+CREATE TABLE course_pastor_reviews (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    course_id      UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    endorsement_id UUID REFERENCES endorsements(id) ON DELETE SET NULL,
+    assigned_reviewer_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    state          course_pastor_review_state NOT NULL DEFAULT 'pending',
+    requested_note TEXT,
+    review_note    TEXT,
+    reviewed_by    UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at    TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_course_pastor_reviews_state ON course_pastor_reviews(state, created_at);
+CREATE INDEX idx_course_pastor_reviews_reviewer ON course_pastor_reviews(reviewed_by, reviewed_at DESC);
+CREATE INDEX idx_course_pastor_reviews_assigned ON course_pastor_reviews(assigned_reviewer_id, state, created_at);
+CREATE UNIQUE INDEX idx_course_pastor_reviews_one_pending
+    ON course_pastor_reviews(user_id, course_id) WHERE state = 'pending';
 
 -- 单元级答题记录（AI 出题问答判定）
 CREATE TABLE unit_attempts (
@@ -234,6 +257,9 @@ CREATE TABLE points_ledger (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_points_ledger_user ON points_ledger(user_id, created_at DESC);
+CREATE UNIQUE INDEX idx_points_course_completion_once
+    ON points_ledger(user_id, reason, ref_id)
+    WHERE direction = 'credit' AND reason = 'points.course_complete' AND ref_id IS NOT NULL;
 
 -- 用户当前积分余额（缓存表，避免每次聚合）
 CREATE TABLE points_balance (

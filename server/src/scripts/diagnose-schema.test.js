@@ -20,6 +20,12 @@ test('schema diagnosis checks course exam attempts used by relationship gates', 
   assert.match(source, /\['course_exam_attempts', \['user_id', 'course_id', 'score', 'passed', 'answers'\]\]/);
 });
 
+test('schema diagnosis checks course pastor review workflow', () => {
+  assert.match(source, /'course_pastor_reviews'/);
+  assert.match(source, /\['course_pastor_reviews', \['user_id', 'course_id', 'endorsement_id', 'assigned_reviewer_id', 'state', 'reviewed_by', 'reviewed_at'\]\]/);
+  assert.match(source, /\['endorsements', \['user_id', 'endorser_user_id', 'kind', 'state', 'verified_at'\]\]/);
+});
+
 test('schema diagnosis checks textbook reading system tables and constraints', () => {
   for (const table of ['textbooks', 'textbook_chapters', 'textbook_reading_progress', 'course_unit_readings']) {
     assert.match(source, new RegExp(`'${table}'`));

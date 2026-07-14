@@ -9,6 +9,13 @@ export async function awardPoints(db, userId, settingKey, { refId = null, force 
   if (!cfg || !cfg.amount) return { awarded: false, amount: 0, pool: null };
   const pool = cfg.pool || 'earned';
 
+  // Serialize the same user's same reward reason inside the surrounding transaction.
+  // The ledger's course-specific unique index remains the final database guard.
+  await db.query(
+    'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+    [String(userId), settingKey]
+  );
+
   // once 任务：同 reason 已发过就不再发
   if (cfg.once && !force) {
     const { rows } = await db.query(
@@ -28,11 +35,14 @@ export async function awardPoints(db, userId, settingKey, { refId = null, force 
     if (rows[0].n >= cfg.daily_cap) return { awarded: false, amount: 0, pool };
   }
 
-  await db.query(
+  const inserted = await db.query(
     `INSERT INTO points_ledger (user_id, pool, direction, amount, reason, ref_id)
-     VALUES ($1, $2, 'credit', $3, $4, $5)`,
+     VALUES ($1, $2, 'credit', $3, $4, $5)
+     ON CONFLICT DO NOTHING
+     RETURNING id`,
     [userId, pool, cfg.amount, settingKey, refId]
   );
+  if (!inserted.rows.length) return { awarded: false, amount: 0, pool };
 
   // earned 池写入余额缓存
   if (pool === 'earned') {
@@ -92,14 +102,14 @@ export async function recomputeExposure(db, userId) {
   );
   const profileScore = pr[0]?.profile_score ?? 0;
 
-  // 是否有 verified pastor 背书
+  // 牧者或引荐人任一 verified 背书均产生同等信任加成。
   const { rows: er } = await db.query(
     `SELECT COUNT(*)::int AS n FROM endorsements
-      WHERE user_id=$1 AND kind='pastor' AND state='verified'`,
+      WHERE user_id=$1 AND kind IN ('pastor', 'referrer') AND state='verified'`,
     [userId]
   );
-  const hasPastor = er[0].n > 0;
-  const bonus = hasPastor ? bonusPer : 0;
+  const hasEndorsement = er[0].n > 0;
+  const bonus = hasEndorsement ? bonusPer : 0;
 
   // 只有深度装备课发放徽章后，才进入曝光倍数；轻量入池课不等同于凯勒装备课。
   const { rows: cr } = await db.query(

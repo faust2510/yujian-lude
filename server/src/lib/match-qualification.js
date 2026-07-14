@@ -10,6 +10,11 @@ function hasText(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function hasDate(value) {
+  if (hasText(value)) return true;
+  return value instanceof Date && Number.isFinite(value.getTime());
+}
+
 function isProfileComplete(profile) {
   return !!profile?.privacy_ok && Number(profile?.completion ?? 0) >= 100;
 }
@@ -19,7 +24,7 @@ function isFaithProfileComplete(faith) {
   return !!faith &&
     hasText(faith.church_name) &&
     hasText(faith.presbytery) &&
-    hasText(faith.baptism_date) &&
+    hasDate(faith.baptism_date) &&
     Number.isInteger(faithYears) && faithYears >= 0 &&
     hasText(faith.testimony);
 }

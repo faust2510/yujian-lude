@@ -18,7 +18,9 @@ router.get('/me/profile', requireAuth, async (req, res) => {
   const profile = await one('SELECT * FROM profiles WHERE user_id=$1', [uid]);
   const faith = await one('SELECT * FROM faith_profiles WHERE user_id=$1', [uid]);
   const { rows: endorsements } = await query(
-    'SELECT id, kind, name, church, state, created_at FROM endorsements WHERE user_id=$1 ORDER BY created_at',
+    `SELECT id, kind, name, contact, church, state, created_at,
+            (endorser_user_id IS NOT NULL) AS linked
+       FROM endorsements WHERE user_id=$1 ORDER BY created_at`,
     [uid]
   );
   const { rows: badges } = await query(
