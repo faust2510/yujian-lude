@@ -618,16 +618,30 @@ async function verifyAdminOps(admin, users, communityResult) {
   await admin.patch(`/community/reports/${report.id}`, { action: 'resolve' });
   await expectStatus(admin, 'PATCH', `/community/reports/${report.id}`, { action: 'invalid' }, 400);
 
-  await dan.post('/pastor-cert/apply', {
+  const pastorApplication = {
     church_name: '运营验收教会',
     denomination: '长老会',
+    ordination_info: '2018 年由区会按立，现负责家庭与婚姻事工',
     contact_email: `ops-pastor-${Date.now()}@example.test`,
     statement: '运营后台牧者认证验收',
-  });
+  };
+  await dan.post('/pastor-cert/apply', pastorApplication);
+  await expectStatus(dan, 'POST', '/pastor-cert/apply', pastorApplication, 409);
+  await expectStatus(admin, 'PATCH', '/pastor-cert/applications/not-a-uuid', { action: 'approve' }, 400);
   const pastorApps = await admin.get('/pastor-cert/applications');
   const pastorApp = pastorApps.applications?.find((item) => item.user_id === dan.user.id && item.state === 'pending');
   assert(pastorApp, 'admin should see pending pastor certification');
+  assert(
+    pastorApp.supporting_docs?.ordination_info === pastorApplication.ordination_info,
+    'admin should see pastor ordination information'
+  );
+  assert(
+    pastorApp.supporting_docs?.statement === pastorApplication.statement,
+    'admin should see pastor ministry statement'
+  );
   await admin.patch(`/pastor-cert/applications/${pastorApp.id}`, { action: 'approve' });
+  const pastorAccount = await dan.get('/auth/me');
+  assert(pastorAccount.user?.role === 'pastor', 'approved pastor certification should grant pastor role');
 
   await bob.post('/community/admin-apply', { reason: '愿意协助维护社群秩序' });
   const adminApps = await admin.get('/community/admin-applications');

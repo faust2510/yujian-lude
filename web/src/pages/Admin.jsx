@@ -498,6 +498,8 @@ function ApplicationsTab() {
         <div key={item.id} style={{padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
           <div style={{fontSize:14,fontWeight:600}}>{item.nickname || item.email} · {item.church_name}</div>
           <div style={{fontSize:12,color:'var(--legacy-muted)'}}>{item.contact_email} · {item.state}</div>
+          <div style={{fontSize:13,marginTop:6}}>按立信息：{item.supporting_docs?.ordination_info || '未填写'}</div>
+          <div style={{fontSize:13,marginTop:6}}>事奉说明：{item.supporting_docs?.statement || '未填写'}</div>
           {item.state === 'pending' && <div style={{display:'flex',gap:8,marginTop:8}}><ActionButton primary onClick={()=>reviewPastor(item.id,'approve')}>通过</ActionButton><ActionButton onClick={()=>reviewPastor(item.id,'reject')}>驳回</ActionButton></div>}
         </div>
       ))}

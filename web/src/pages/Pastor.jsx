@@ -83,6 +83,7 @@ export default function Pastor() {
       await pastorCert.apply({
         church_name: form.church_name,
         denomination: form.presbytery,
+        ordination_info: form.ordination_info,
         contact_email: form.contact,
         statement: form.statement,
       })

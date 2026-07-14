@@ -569,6 +569,8 @@ CREATE TABLE pastor_certifications (
     reviewed_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX idx_pastor_certifications_one_pending
+    ON pastor_certifications(user_id) WHERE state = 'pending';
 
 -- ============================================================
 -- 21. community_likes — 帖子点赞

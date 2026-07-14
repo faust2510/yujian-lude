@@ -120,6 +120,7 @@ const requiredColumns = [
 const requiredUniqueIndexes = [
   ['matches', ['user_id', 'target_id']],
   ['relationships', ['user_a', 'user_b'], "state <> 'ended'"],
+  ['pastor_certifications', ['user_id'], "state = 'pending'"],
   ['vip_subscription_requests', ['user_id'], "state = 'pending'"],
   ['vip_subscription_requests', ['payment_confirmation_reference']],
   ['login_attempts', ['email', 'ip']],
@@ -200,25 +201,33 @@ function normalizeIndexPredicate(value) {
     .replace(/[()\s]/g, '');
 }
 
-async function hasUniqueIndex(tableName, expectedColumns, expectedPredicate) {
-  const { rows } = await pool.query(
-    `SELECT array_agg(a.attname ORDER BY keys.ord)::text[] AS columns,
-            pg_get_expr(i.indpred, i.indrelid) AS predicate
+export async function hasUniqueIndex(queryable, tableName, expectedColumns, expectedPredicate, schemaName = 'public') {
+  const { rows } = await queryable.query(
+    `SELECT ARRAY(
+              SELECT a.attname
+                FROM unnest(i.indkey) WITH ORDINALITY AS keys(attnum, ord)
+                JOIN pg_attribute a
+                  ON a.attrelid = tbl.oid
+                 AND a.attnum = keys.attnum
+               WHERE keys.ord <= i.indnkeyatts
+               ORDER BY keys.ord
+            )::text[] AS columns,
+            pg_get_expr(i.indpred, i.indrelid) AS predicate,
+            i.indexprs IS NOT NULL AS has_expressions
        FROM pg_index i
        JOIN pg_class tbl ON tbl.oid = i.indrelid
        JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
-       JOIN unnest(i.indkey) WITH ORDINALITY AS keys(attnum, ord) ON TRUE
-       JOIN pg_attribute a ON a.attrelid = tbl.oid AND a.attnum = keys.attnum
-      WHERE ns.nspname = 'public'
-        AND tbl.relname = $1
+      WHERE ns.nspname = $1
+        AND tbl.relname = $2
         AND i.indisunique = TRUE
         AND i.indisvalid = TRUE
         AND i.indisready = TRUE
-      GROUP BY i.indexrelid, pg_get_expr(i.indpred, i.indrelid)`,
-    [tableName]
+        AND i.indexprs IS NULL`,
+    [schemaName, tableName]
   );
   return rows.some((row) => (
-    sameColumns(row.columns, expectedColumns)
+    row.has_expressions !== true
+    && sameColumns(row.columns, expectedColumns)
     && (
       normalizeIndexPredicate(row.predicate) === normalizeIndexPredicate(expectedPredicate)
     )
@@ -279,7 +288,7 @@ async function run() {
 
   for (const [tableName, columns, predicate] of requiredUniqueIndexes) {
     if (!tableMap.get(tableName)) continue;
-    if (!(await hasUniqueIndex(tableName, columns, predicate))) {
+    if (!(await hasUniqueIndex(pool, tableName, columns, predicate))) {
       missing.push(`unique ${tableName}(${columns.join(', ')})`);
     }
   }
@@ -312,11 +321,15 @@ async function run() {
   console.log('[diagnose:schema] PASS：当前数据库结构和关键 seed 数据满足上线前验收要求。');
 }
 
-run()
-  .catch((err) => {
-    console.error('[diagnose:schema] FAIL：', err.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await pool.end();
-  });
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (isMain) {
+  run()
+    .catch((err) => {
+      console.error('[diagnose:schema] FAIL：', err.message);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await pool.end();
+    });
+}
