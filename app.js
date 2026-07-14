@@ -6,6 +6,7 @@ const nav = document.querySelector('#site-nav');
 const navToggle = document.querySelector('.nav-toggle');
 const year = document.querySelector('[data-year]');
 const desktopMedia = window.matchMedia('(min-width: 901px)');
+const orientationMedia = window.matchMedia('(orientation: portrait)');
 
 function headerFocusableItems() {
   const menuItems = nav ? [...nav.querySelectorAll('a')] : [];
@@ -59,11 +60,17 @@ desktopMedia.addEventListener('change', (event) => {
   if (event.matches) setMenu(false);
 });
 
+orientationMedia.addEventListener('change', () => {
+  setMenu(false);
+});
+
 window.addEventListener('scroll', () => {
   header?.classList.toggle('is-scrolled', window.scrollY > 12);
 }, { passive: true });
 
 const revealItems = document.querySelectorAll('.reveal');
+const relationshipLines = document.querySelectorAll('.relationship-line');
+const animatedItems = [...revealItems, ...relationshipLines];
 
 if ('IntersectionObserver' in window) {
   const observer = new IntersectionObserver((entries) => {
@@ -74,9 +81,9 @@ if ('IntersectionObserver' in window) {
     });
   }, { threshold: 0.12 });
 
-  revealItems.forEach((item) => observer.observe(item));
+  animatedItems.forEach((item) => observer.observe(item));
 } else {
-  revealItems.forEach((item) => item.classList.add('is-visible'));
+  animatedItems.forEach((item) => item.classList.add('is-visible'));
 }
 
 if (year) year.textContent = String(new Date().getFullYear());
