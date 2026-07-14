@@ -132,6 +132,8 @@ export default function Dashboard() {
         desc: nextStep?.desc || serverStep?.desc || '完成这个步骤后，系统会继续提示下一项入池任务。',
       }
     : null
+  const checkinAmount = pts?.checkinAmount
+  const vipRedemption = pts?.vipRedemption
 
   return (
     <>
@@ -144,7 +146,9 @@ export default function Dashboard() {
           <div style={{fontSize:32,fontFamily:'var(--font-serif)',color:'var(--brand)'}}>
             {pointsLoading ? '…' : (pts?.earned ?? '—')}
           </div>
-          <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>100 分 = 1 天 VIP 体验</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>
+            {vipRedemption ? `${vipRedemption.points} 分 = ${vipRedemption.days} 天 VIP 体验` : 'VIP 兑换比例加载中…'}
+          </div>
           {pointsError && (
             <div className="error-msg">
               {pointsError}
@@ -156,12 +160,14 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <div style={{fontSize:12,color:'var(--legacy-muted)',marginBottom:8}}>每日签到</div>
-          <p style={{fontSize:13,marginBottom:12,color:'var(--legacy-muted)'}}>每天签到 +10 分，坚持打卡！</p>
+          <p style={{fontSize:13,marginBottom:12,color:'var(--legacy-muted)'}}>
+            {checkinAmount ? `每天签到 +${checkinAmount} 分，坚持打卡！` : '每天签到，坚持打卡！'}
+          </p>
           <div style={{fontSize:13,color:'var(--fg)',marginBottom:12}}>
             今日积分：<strong style={{color:'var(--brand)'}}>{pointsLoading ? '…' : (pts?.daily ?? 0)}</strong>
           </div>
           <button className="btn btn-primary" onClick={doCheckin} disabled={checkedIn || checkinBusy}>
-            {checkinBusy ? '签到中…' : checkedIn ? '✓ 已签到' : '签到 +10'}
+            {checkinBusy ? '签到中…' : checkedIn ? '✓ 已签到' : checkinAmount ? `签到 +${checkinAmount}` : '签到'}
           </button>
           {msg && <div className={msgType === 'error' ? 'error-msg' : 'success-msg'}>{msg}</div>}
         </div>

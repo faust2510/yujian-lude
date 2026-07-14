@@ -7,6 +7,17 @@ import { getSetting } from '../settings.js';
 
 const router = Router();
 
+async function getPointsMeta() {
+  const [checkin, vipRedemption] = await Promise.all([
+    getSetting('points.daily_checkin'),
+    getSetting('redeem.vip_per_day'),
+  ]);
+  return {
+    checkinAmount: checkin?.amount ?? 10,
+    vipRedemption: vipRedemption ?? { points: 100, days: 1 },
+  };
+}
+
 async function getPointsSummary(db, userId) {
   const { rows } = await db.query(
     `SELECT
@@ -39,7 +50,11 @@ async function getPointsSummary(db, userId) {
 
 // 当前积分余额 + 今日是否已签到
 router.get('/me/points', requireAuth, async (req, res) => {
-  res.json(await getPointsSummary({ query }, req.user.id));
+  const [summary, meta] = await Promise.all([
+    getPointsSummary({ query }, req.user.id),
+    getPointsMeta(),
+  ]);
+  res.json({ ...summary, ...meta });
 });
 
 // 积分流水（最近 50 条）
@@ -73,11 +88,13 @@ router.post('/me/checkin', requireAuth, async (req, res) => {
     return { already: false, amount: cfg?.amount ?? 10, summary };
   });
   if (result.already) return res.status(409).json({ error: '今天已经签到过了' });
+  const meta = await getPointsMeta();
   res.json({
     ok: true,
     amount: result.amount,
     message: `签到成功，+${result.amount} 今日积分！`,
     ...result.summary,
+    ...meta,
   });
 });
 
