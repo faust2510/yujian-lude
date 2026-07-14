@@ -136,8 +136,12 @@ export const relationships = {
   initiate: (partnerId) => api.post('/relationships/initiate', { partner_id: partnerId }),
   examConfirm: (id) => api.post(`/relationships/${id}/exam-confirm`),
   requestConfirmation: (id) => api.post(`/relationships/${id}/request-confirmation`),
-  pastorApprove: (id, side) => api.post(`/relationships/${id}/pastor-approve`, { side }),
   end: (id, reason) => api.delete(`/relationships/${id}`, { data: { reason } }),
+}
+
+export const relationshipReviews = {
+  list: () => api.get('/relationship-reviews'),
+  approve: (id, side) => api.post(`/relationships/${id}/pastor-approve`, { side }),
 }
 
 export const pastorCert = {

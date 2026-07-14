@@ -13,7 +13,7 @@ function run(command, args) {
     child.stdout.on('data', (chunk) => { stdout += chunk; });
     child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('error', reject);
-    child.on('exit', (code) => {
+    child.on('close', (code) => {
       if (code === 0) resolve(stdout);
       else reject(new Error(stderr.trim() || `${command} exited ${code}`));
     });

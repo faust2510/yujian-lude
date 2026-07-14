@@ -239,7 +239,7 @@ async function verifyAiConsultation(client) {
   assert(history.history?.length >= 2, 'AI history should include recent consultations');
 }
 
-async function verifyRelationshipConfirmation({ alice, bob, reviewer, outsider, bobId }) {
+async function verifyRelationshipConfirmation({ alice, bob, reviewerA, reviewerB, outsider, bobId }) {
   const initiated = await alice.post('/relationships/initiate', { partner_id: bobId });
   assert(initiated.relationship?.id, 'relationship initiate should return relationship');
   const relationshipId = initiated.relationship.id;
@@ -249,12 +249,18 @@ async function verifyRelationshipConfirmation({ alice, bob, reviewer, outsider, 
   const second = await bob.post(`/relationships/${relationshipId}/request-confirmation`, {});
   assert(second.relationship?.state === 'mutual_confirmed', `expected mutual_confirmed, got ${second.relationship?.state}`);
   await expectStatus(outsider, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' }, 403);
-  const aSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' });
+  const aSide = await reviewerA.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' });
   assert(aSide.relationship?.state === 'pastoral_review', `expected pastoral_review, got ${aSide.relationship?.state}`);
-  const bSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' });
+  await expectStatus(reviewerA, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' }, 409);
+  const bSide = await reviewerB.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' });
   assert(bSide.relationship?.state === 'confirmed', `expected confirmed, got ${bSide.relationship?.state}`);
   const mine = await alice.get('/relationships/mine');
   assert(mine.relationship?.state === 'confirmed', 'confirmed relationship should appear in mine');
+
+  await alice.delete(`/relationships/${relationshipId}`, { reason: '验收关系重启' });
+  const restarted = await alice.post('/relationships/initiate', { partner_id: bobId });
+  assert(restarted.relationship?.id !== relationshipId, 'restarted relationship should preserve the ended history');
+  assert(restarted.relationship?.state === 'chatting', `restarted relationship should begin in chatting, got ${restarted.relationship?.state}`);
 }
 
 async function onboard(client, admin, index) {
@@ -270,11 +276,14 @@ async function onboard(client, admin, index) {
 async function run() {
   const stamp = Date.now();
   const admin = new ApiClient('admin');
+  const secondAdmin = new ApiClient('admin2');
   const users = [1, 2, 3].map((index) => new ApiClient(`user${index}`));
 
   console.log('[verify-mvp] registering users...');
   const adminUser = await register(admin, `admin.${stamp}@example.test`, '测试管理员');
   await makeAdmin(adminUser.id);
+  const secondAdminUser = await register(secondAdmin, `admin2.${stamp}@example.test`, '测试管理员二号');
+  await makeAdmin(secondAdminUser.id);
   for (const [idx, client] of users.entries()) {
     await register(client, `user${idx + 1}.${stamp}@example.test`, `路得测试${idx + 1}`);
   }
@@ -324,7 +333,8 @@ async function run() {
   await verifyRelationshipConfirmation({
     alice: users[0],
     bob: users[1],
-    reviewer: admin,
+    reviewerA: admin,
+    reviewerB: secondAdmin,
     outsider: users[2],
     bobId: user2Id,
   });

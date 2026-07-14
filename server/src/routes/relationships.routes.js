@@ -1,10 +1,9 @@
 import { Router } from 'express';
 import { query, one } from '../db.js';
-import { requireAuth, requireRole } from '../auth.js';
+import { requireAuth } from '../auth.js';
 import { hasPassedRequiredCourseExam } from '../lib/relationship-eligibility.js';
 import { getSetting } from '../settings.js';
 import {
-  approveRelationshipPastorSide,
   confirmRelationshipParticipant,
   endRelationship,
   RELATIONSHIP_STATES,
@@ -50,19 +49,31 @@ router.post('/relationships/initiate', requireAuth, async (req, res) => {
   if (!examPassed) return res.status(403).json({ error: '需先通过恋爱必修课考试' });
 
   const [user_a, user_b] = [req.user.id, partner_id].sort();
-  const existing = await one('SELECT * FROM relationships WHERE user_a = $1 AND user_b = $2', [user_a, user_b]);
-  if (existing?.state === RELATIONSHIP_STATES.ENDED) {
-    return res.status(409).json({ error: '此前关系已结束，暂不支持自动重新发起' });
-  }
+  const existing = await one(
+    `SELECT * FROM relationships
+      WHERE user_a = $1 AND user_b = $2 AND state <> 'ended'
+      ORDER BY created_at DESC LIMIT 1`,
+    [user_a, user_b]
+  );
   if (existing) return res.json({ ok: true, relationship: existing });
 
   try {
     const row = await one(
       `INSERT INTO relationships (user_a, user_b) VALUES ($1, $2)
+       ON CONFLICT (user_a, user_b) WHERE state <> 'ended' DO NOTHING
        RETURNING *`,
       [user_a, user_b]
     );
-    res.json({ ok: true, relationship: row });
+    if (row) return res.json({ ok: true, relationship: row });
+
+    const concurrent = await one(
+      `SELECT * FROM relationships
+        WHERE user_a = $1 AND user_b = $2 AND state <> 'ended'
+        ORDER BY created_at DESC LIMIT 1`,
+      [user_a, user_b]
+    );
+    if (concurrent) return res.json({ ok: true, relationship: concurrent });
+    return res.status(409).json({ error: '关系发起状态已变化，请重试' });
   } catch (e) {
     if (e.code === '23505') return res.status(409).json({ error: '关系已存在' });
     throw e;
@@ -128,7 +139,68 @@ router.post('/relationships/:id/request-confirmation', requireAuth, handleRelati
 // Backward-compatible alias for the older frontend button.
 router.post('/relationships/:id/exam-confirm', requireAuth, handleRelationshipConfirmationRequest);
 
-router.post('/relationships/:id/pastor-approve', requireAuth, requireRole('pastor', 'admin'), async (req, res) => {
+router.get('/relationship-reviews', requireAuth, async (req, res) => {
+  const isAdmin = req.user.role === 'admin';
+  const { rows } = await query(
+    `WITH pending_sides AS (
+       SELECT r.id AS relationship_id, 'user_a'::text AS side,
+              r.user_a AS subject_id, r.user_b AS partner_id, r.created_at
+         FROM relationships r
+        WHERE r.state IN ('mutual_confirmed', 'pastoral_review')
+          AND r.user_a_confirmed = TRUE
+          AND r.user_b_confirmed = TRUE
+          AND r.pastor_a_approved = FALSE
+          AND r.user_a <> $1
+          AND r.user_b <> $1
+          AND r.pastor_b_approved_by IS DISTINCT FROM $1
+       UNION ALL
+       SELECT r.id AS relationship_id, 'user_b'::text AS side,
+              r.user_b AS subject_id, r.user_a AS partner_id, r.created_at
+         FROM relationships r
+        WHERE r.state IN ('mutual_confirmed', 'pastoral_review')
+          AND r.user_a_confirmed = TRUE
+          AND r.user_b_confirmed = TRUE
+          AND r.pastor_b_approved = FALSE
+          AND r.user_a <> $1
+          AND r.user_b <> $1
+          AND r.pastor_a_approved_by IS DISTINCT FROM $1
+     )
+     SELECT DISTINCT ON (pending.relationship_id, pending.side)
+            pending.relationship_id, pending.side, pending.subject_id, pending.partner_id,
+            pending.created_at, subject_profile.nickname AS subject_nickname,
+            partner_profile.nickname AS partner_nickname,
+            e.id AS endorsement_id, e.kind AS endorsement_kind,
+            e.name AS endorsement_name, e.church AS endorsement_church
+       FROM pending_sides pending
+       JOIN endorsements e
+         ON e.user_id = pending.subject_id AND e.state = 'verified'
+       LEFT JOIN users reviewer ON reviewer.id = e.endorser_user_id
+       LEFT JOIN profiles subject_profile ON subject_profile.user_id = pending.subject_id
+       LEFT JOIN profiles partner_profile ON partner_profile.user_id = pending.partner_id
+      WHERE $2::boolean
+         OR (
+           e.endorser_user_id = $1
+           AND reviewer.email_verified = TRUE
+           AND reviewer.is_banned = FALSE
+           AND (
+             e.kind = 'referrer'
+             OR (
+               reviewer.role = 'pastor'
+               AND EXISTS (
+                 SELECT 1 FROM pastor_certifications cert
+                  WHERE cert.user_id = reviewer.id AND cert.state = 'approved'
+               )
+             )
+           )
+         )
+      ORDER BY pending.relationship_id, pending.side,
+               (e.endorser_user_id = $1) DESC, e.verified_at DESC NULLS LAST, e.created_at DESC`,
+    [req.user.id, isAdmin]
+  );
+  res.json({ reviews: rows });
+});
+
+router.post('/relationships/:id/pastor-approve', requireAuth, async (req, res) => {
   const side = req.body?.side;
   const rel = await one(
     `SELECT * FROM relationships WHERE id = $1 AND state NOT IN ('confirmed','ended')`,
@@ -137,18 +209,119 @@ router.post('/relationships/:id/pastor-approve', requireAuth, requireRole('pasto
   if (!rel) return res.status(404).json({ error: '关系不存在' });
   if (!['user_a', 'user_b'].includes(side)) return res.status(400).json({ error: 'side 必须是 user_a 或 user_b' });
   if (!rel.user_a_confirmed || !rel.user_b_confirmed) return res.status(409).json({ error: '需双方先确认关系意向' });
+  if (rel.user_a === req.user.id || rel.user_b === req.user.id) {
+    return res.status(403).json({ error: '关系参与者不能审核自己的关系' });
+  }
 
-  const next = approveRelationshipPastorSide(rel, side);
-  const updated = await one(
-    `UPDATE relationships
-        SET state = $2::relationship_state,
-            pastor_a_approved = $3,
-            pastor_b_approved = $4,
-            confirmed_at = $5
-      WHERE id = $1
-      RETURNING *`,
-    [rel.id, next.state, next.pastor_a_approved, next.pastor_b_approved, next.confirmed_at ?? rel.confirmed_at]
+  const isSideA = side === 'user_a';
+  const sideUserId = isSideA ? rel.user_a : rel.user_b;
+  const sideApproved = isSideA ? rel.pastor_a_approved : rel.pastor_b_approved;
+  const otherReviewerId = isSideA ? rel.pastor_b_approved_by : rel.pastor_a_approved_by;
+  if (sideApproved) return res.status(409).json({ error: '该侧已经完成审核' });
+  if (otherReviewerId === req.user.id) {
+    return res.status(409).json({ error: '双方审核必须由不同人员完成' });
+  }
+
+  const isAdmin = req.user.role === 'admin';
+  const endorsement = await one(
+    `SELECT e.id, e.user_id, e.endorser_user_id, e.kind, e.state
+       FROM endorsements e
+       LEFT JOIN users reviewer ON reviewer.id = e.endorser_user_id
+      WHERE e.user_id = $1
+        AND e.state = 'verified'
+        AND (
+          $2::boolean
+          OR (
+            e.endorser_user_id = $3
+            AND reviewer.email_verified = TRUE
+            AND reviewer.is_banned = FALSE
+            AND (
+              e.kind = 'referrer'
+              OR (
+                reviewer.role = 'pastor'
+                AND EXISTS (
+                  SELECT 1 FROM pastor_certifications cert
+                   WHERE cert.user_id = reviewer.id AND cert.state = 'approved'
+                )
+              )
+            )
+          )
+        )
+      ORDER BY (e.endorser_user_id = $3) DESC, e.verified_at DESC NULLS LAST, e.created_at DESC
+      LIMIT 1`,
+    [sideUserId, isAdmin, req.user.id]
   );
+  if (!endorsement) {
+    return res.status(403).json({ error: '你不是该侧已验证的牧者或引荐人' });
+  }
+
+  const updated = await one(
+    `WITH updated AS (
+       UPDATE relationships
+          SET pastor_a_approved = pastor_a_approved OR $2::text = 'user_a',
+              pastor_b_approved = pastor_b_approved OR $2::text = 'user_b',
+              pastor_a_approved_by = CASE
+                WHEN $2::text = 'user_a' THEN COALESCE(pastor_a_approved_by, $3)
+                ELSE pastor_a_approved_by
+              END,
+              pastor_b_approved_by = CASE
+                WHEN $2::text = 'user_b' THEN COALESCE(pastor_b_approved_by, $3)
+                ELSE pastor_b_approved_by
+              END,
+              pastor_a_endorsement_id = CASE
+                WHEN $2::text = 'user_a' THEN COALESCE(pastor_a_endorsement_id, $4)
+                ELSE pastor_a_endorsement_id
+              END,
+              pastor_b_endorsement_id = CASE
+                WHEN $2::text = 'user_b' THEN COALESCE(pastor_b_endorsement_id, $4)
+                ELSE pastor_b_endorsement_id
+              END,
+              pastor_a_approved_at = CASE
+                WHEN $2::text = 'user_a' THEN COALESCE(pastor_a_approved_at, now())
+                ELSE pastor_a_approved_at
+              END,
+              pastor_b_approved_at = CASE
+                WHEN $2::text = 'user_b' THEN COALESCE(pastor_b_approved_at, now())
+                ELSE pastor_b_approved_at
+              END,
+              state = CASE
+                WHEN (pastor_a_approved OR $2::text = 'user_a')
+                 AND (pastor_b_approved OR $2::text = 'user_b')
+                THEN 'confirmed'::relationship_state
+                ELSE 'pastoral_review'::relationship_state
+              END,
+              confirmed_at = CASE
+                WHEN (pastor_a_approved OR $2::text = 'user_a')
+                 AND (pastor_b_approved OR $2::text = 'user_b')
+                THEN COALESCE(confirmed_at, now())
+                ELSE confirmed_at
+              END
+        WHERE id = $1
+          AND state NOT IN ('confirmed', 'ended')
+          AND user_a_confirmed = TRUE
+          AND user_b_confirmed = TRUE
+          AND CASE
+            WHEN $2::text = 'user_a' THEN pastor_a_approved = FALSE AND pastor_b_approved_by IS DISTINCT FROM $3
+            ELSE pastor_b_approved = FALSE AND pastor_a_approved_by IS DISTINCT FROM $3
+          END
+          AND EXISTS (
+            SELECT 1 FROM endorsements eligible
+             WHERE eligible.id = $4
+               AND eligible.user_id = CASE WHEN $2::text = 'user_a' THEN relationships.user_a ELSE relationships.user_b END
+               AND eligible.state = 'verified'
+               AND ($5::boolean OR eligible.endorser_user_id = $3)
+          )
+        RETURNING *
+     ), audited AS (
+       INSERT INTO admin_audit_logs (actor_id, action, target_type, target_id, detail)
+       SELECT $3, 'relationship.pastor_review', 'relationship', id,
+              jsonb_build_object('side', $2::text, 'endorsement_id', $4)
+         FROM updated
+     )
+     SELECT * FROM updated`,
+    [rel.id, side, req.user.id, endorsement.id, isAdmin]
+  );
+  if (!updated) return res.status(409).json({ error: '关系审核状态已变化，请刷新后重试' });
   res.json({ ok: true, relationship: updated });
 });
 

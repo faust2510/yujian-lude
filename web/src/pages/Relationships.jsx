@@ -65,12 +65,6 @@ export default function Relationships() {
     '你的确认已提交'
   )
 
-  const approveSide = (id, side) => runAction(
-    `approve-${side}`,
-    () => relationships.pastorApprove(id, side),
-    '审核确认已保存'
-  )
-
   const endRel = (id) => {
     const reason = window.prompt('请简短说明结束原因（可留空）') || ''
     return runAction(`end-${id}`, () => relationships.end(id, reason), '关系已结束')
@@ -81,7 +75,7 @@ export default function Relationships() {
   return (
     <>
       <h1 className="page-title">我的关系</h1>
-      <p className="page-sub">互相表达意向后进入了解期；双方确认后，由牧者或管理员完成属灵审核。</p>
+      <p className="page-sub">互相表达意向后进入了解期；双方确认后，由各自的引荐人或管理员完成属灵审核。</p>
 
       {loading && <div style={{color:'var(--legacy-muted)',padding:20,fontSize:14}}>加载中…</div>}
       {msg && <div className="success-msg" style={{marginBottom:12}}>{msg}</div>}
@@ -114,7 +108,6 @@ export default function Relationships() {
           user={user}
           busy={busy}
           onConfirm={requestConfirm}
-          onApprove={approveSide}
           onEnd={endRel}
         />
       )}
@@ -122,14 +115,13 @@ export default function Relationships() {
   )
 }
 
-function RelationshipCard({ rel, user, busy, onConfirm, onApprove, onEnd }) {
+function RelationshipCard({ rel, user, busy, onConfirm, onEnd }) {
   const stage = stageLabel(rel)
   const isA = rel.user_a === user?.id
   const myConfirmed = isA ? rel.user_a_confirmed : rel.user_b_confirmed
   const otherConfirmed = isA ? rel.user_b_confirmed : rel.user_a_confirmed
   const myPastor = isA ? rel.pastor_a_approved : rel.pastor_b_approved
   const otherPastor = isA ? rel.pastor_b_approved : rel.pastor_a_approved
-  const canReview = ['admin', 'pastor'].includes(user?.role)
   const canConfirm = !myConfirmed && !['confirmed', 'ended'].includes(rel.state)
   const partnerName = rel.partner_nickname || rel.other_nickname || '对方'
 
@@ -146,8 +138,8 @@ function RelationshipCard({ rel, user, busy, onConfirm, onApprove, onEnd }) {
       <div className="relationship-steps">
         <Step ok={myConfirmed} label="我已确认愿意进入关系确认" />
         <Step ok={otherConfirmed} label="对方已确认愿意进入关系确认" />
-        <Step ok={myPastor} label="我方牧者 / 管理员已确认" />
-        <Step ok={otherPastor} label="对方牧者 / 管理员已确认" />
+        <Step ok={myPastor} label="我方引荐人 / 管理员已确认" />
+        <Step ok={otherPastor} label="对方引荐人 / 管理员已确认" />
       </div>
 
       <div className="relationship-actions">
@@ -155,16 +147,6 @@ function RelationshipCard({ rel, user, busy, onConfirm, onApprove, onEnd }) {
           <button className="btn btn-primary" disabled={busy === `confirm-${rel.id}`} onClick={() => onConfirm(rel.id)}>
             {busy === `confirm-${rel.id}` ? '提交中…' : '确认进入关系流程'}
           </button>
-        )}
-        {canReview && rel.user_a_confirmed && rel.user_b_confirmed && rel.state !== 'confirmed' && (
-          <>
-            <button className="btn btn-outline" disabled={busy === 'approve-user_a' || rel.pastor_a_approved} onClick={() => onApprove(rel.id, 'user_a')}>
-              确认甲方属灵审核
-            </button>
-            <button className="btn btn-outline" disabled={busy === 'approve-user_b' || rel.pastor_b_approved} onClick={() => onApprove(rel.id, 'user_b')}>
-              确认乙方属灵审核
-            </button>
-          </>
         )}
         {!['confirmed', 'ended'].includes(rel.state) && (
           <button className="btn btn-outline" disabled={busy === `end-${rel.id}`} onClick={() => onEnd(rel.id)}>

@@ -408,6 +408,12 @@ CREATE TABLE relationships (
     -- 牧者审核（双方牧者各自点头）
     pastor_a_approved   BOOLEAN NOT NULL DEFAULT FALSE,
     pastor_b_approved   BOOLEAN NOT NULL DEFAULT FALSE,
+    pastor_a_approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    pastor_b_approved_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    pastor_a_endorsement_id UUID REFERENCES endorsements(id) ON DELETE SET NULL,
+    pastor_b_endorsement_id UUID REFERENCES endorsements(id) ON DELETE SET NULL,
+    pastor_a_approved_at TIMESTAMPTZ,
+    pastor_b_approved_at TIMESTAMPTZ,
     confirmation_requested_by UUID REFERENCES users(id),
     confirmation_requested_at TIMESTAMPTZ,
     user_a_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
@@ -417,10 +423,12 @@ CREATE TABLE relationships (
     confirmed_at    TIMESTAMPTZ,                         -- 关系正式确立时间
     ended_at        TIMESTAMPTZ,
     ended_reason    TEXT,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (user_a, user_b)
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_relationships_users ON relationships(user_a, user_b);
+CREATE UNIQUE INDEX idx_relationships_one_active_pair
+    ON relationships(user_a, user_b)
+    WHERE state <> 'ended';
 
 -- 15. chat_channels — 匹配后的私聊通道
 CREATE TABLE chat_channels (

@@ -308,7 +308,7 @@ async function verifyAiConsultation(client) {
   assert(history.history?.length >= 2, `${client.label} AI history should include recent consultations`);
 }
 
-async function verifyRelationshipConfirmation(alice, bob, reviewer, outsider) {
+async function verifyRelationshipConfirmation(alice, bob, reviewerA, reviewerB, outsider) {
   const initiated = await alice.post('/relationships/initiate', { partner_id: bob.user.id });
   assert(initiated.relationship?.id, 'relationship initiate should return relationship');
   const relationshipId = initiated.relationship.id;
@@ -318,12 +318,20 @@ async function verifyRelationshipConfirmation(alice, bob, reviewer, outsider) {
   const second = await bob.post(`/relationships/${relationshipId}/request-confirmation`, {});
   assert(second.relationship?.state === 'mutual_confirmed', `expected mutual_confirmed, got ${second.relationship?.state}`);
   await expectStatus(outsider, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' }, 403);
-  const aSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' });
+  const pending = await reviewerA.get('/relationship-reviews');
+  assert(pending.reviews?.some((review) => review.relationship_id === relationshipId && review.side === 'user_a'), 'assigned referrer should see the relationship review');
+  const aSide = await reviewerA.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_a' });
   assert(aSide.relationship?.state === 'pastoral_review', `expected pastoral_review, got ${aSide.relationship?.state}`);
-  const bSide = await reviewer.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' });
+  await expectStatus(reviewerA, 'POST', `/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' }, 409);
+  const bSide = await reviewerB.post(`/relationships/${relationshipId}/pastor-approve`, { side: 'user_b' });
   assert(bSide.relationship?.state === 'confirmed', `expected confirmed, got ${bSide.relationship?.state}`);
   const mine = await alice.get('/relationships/mine');
   assert(mine.relationship?.state === 'confirmed', 'confirmed relationship should appear in mine');
+
+  await alice.delete(`/relationships/${relationshipId}`, { reason: '真实验收关系重启' });
+  const restarted = await alice.post('/relationships/initiate', { partner_id: bob.user.id });
+  assert(restarted.relationship?.id !== relationshipId, 'restarted relationship should preserve the ended history');
+  assert(restarted.relationship?.state === 'chatting', `restarted relationship should begin in chatting, got ${restarted.relationship?.state}`);
 }
 
 async function verifyDailyCheckin(client) {
@@ -392,7 +400,7 @@ async function verifyAccountSecurity(stamp) {
   assert(login.user?.id === resetUser.user.id, 'new password should allow login');
 }
 
-async function verifyMatchAndChat(users, admin) {
+async function verifyMatchAndChat(users, admin, referrer) {
   const [alice, bob, cara, dan, partial] = users;
   const aliceCandidates = await alice.get('/match/candidates');
   const candidateIds = new Set((aliceCandidates.candidates || []).map((candidate) => candidate.id));
@@ -423,7 +431,7 @@ async function verifyMatchAndChat(users, admin) {
   assert(aliceMessages.messages?.some((msg) => msg.body.includes('Bob 实战回复')), 'alice should see bob reply');
   assert(bobMessages.messages?.some((msg) => msg.body.includes('Alice 实战消息')), 'bob should see alice message');
   await expectStatus(cara, 'GET', `/chat/channels/${aliceChannel.id}/messages`, undefined, 403);
-  await verifyRelationshipConfirmation(alice, bob, admin, cara);
+  await verifyRelationshipConfirmation(alice, bob, referrer, admin, cara);
 }
 
 async function verifyCommunity(users) {
@@ -636,7 +644,7 @@ async function run() {
   await verifyAccountSecurity(stamp);
 
   console.log('[verify-real-users] checking match and chat...');
-  await verifyMatchAndChat(users, admin);
+  await verifyMatchAndChat(users, admin, referrer);
 
   console.log('[verify-real-users] checking community...');
   const communityResult = await verifyCommunity(users);

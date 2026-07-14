@@ -26,6 +26,15 @@ test('schema diagnosis checks course pastor review workflow', () => {
   assert.match(source, /\['endorsements', \['user_id', 'endorser_user_id', 'kind', 'state', 'verified_at'\]\]/);
 });
 
+test('schema diagnosis checks relationship review provenance', () => {
+  assert.match(source, /'pastor_a_approved_by'/);
+  assert.match(source, /'pastor_b_approved_by'/);
+  assert.match(source, /'pastor_a_endorsement_id'/);
+  assert.match(source, /'pastor_b_endorsement_id'/);
+  assert.match(source, /'pastor_a_approved_at'/);
+  assert.match(source, /'pastor_b_approved_at'/);
+});
+
 test('schema diagnosis checks textbook reading system tables and constraints', () => {
   for (const table of ['textbooks', 'textbook_chapters', 'textbook_reading_progress', 'course_unit_readings']) {
     assert.match(source, new RegExp(`'${table}'`));
