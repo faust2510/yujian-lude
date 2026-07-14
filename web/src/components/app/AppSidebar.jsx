@@ -12,14 +12,18 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { SECTION_ICONS } from './section-icons'
 import UserMenu from './UserMenu'
 
 export default function AppSidebar({ user, onLogout }) {
+  const { isMobile } = useSidebar()
   const { pathname } = useLocation()
   const activeSection = resolvePrimarySection(pathname)
+
+  if (isMobile) return null
 
   return (
     <Sidebar className="app-sidebar" collapsible="offcanvas">

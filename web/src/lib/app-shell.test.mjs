@@ -21,6 +21,11 @@ test('application shell uses the fixed shadcn sidebar structure and one main lan
   assert.match(layout, /<div className="app-main"/)
 })
 
+test('mobile layouts do not mount the shadcn sheet sidebar', () => {
+  assert.match(sidebar, /useSidebar/)
+  assert.match(sidebar, /if \(isMobile\) return null/)
+})
+
 test('desktop sidebar exposes private messages with an accessible icon action', () => {
   assert.match(sidebar, /MessageCircleIcon/)
   assert.match(sidebar, /to="\/chat" aria-label="私信"/)
