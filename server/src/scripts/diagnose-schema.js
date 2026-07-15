@@ -32,6 +32,7 @@ const requiredTables = [
   'faith_profiles',
   'endorsements',
   'pastor_certifications',
+  'pastor_letters',
   'courses',
   'course_units',
   'course_progress',
@@ -77,6 +78,7 @@ const requiredColumns = [
   ['login_attempts', ['email', 'ip', 'failed_count', 'locked_until', 'last_failed_at']],
   ['password_reset_tokens', ['user_id', 'token_hash', 'expires_at', 'used_at']],
   ['pastor_certifications', ['user_id', 'church_name', 'contact_email', 'state', 'reviewed_by', 'reviewed_at']],
+  ['pastor_letters', ['user_id', 'pastor_name', 'pastor_contact', 'is_verified', 'verified_by', 'verified_at']],
   ['profiles', ['user_id', 'completion', 'privacy_ok']],
   ['faith_profiles', ['user_id', 'church_name', 'testimony']],
   ['endorsements', ['user_id', 'endorser_user_id', 'kind', 'state', 'verified_at']],
@@ -121,6 +123,7 @@ const requiredUniqueIndexes = [
   ['matches', ['user_id', 'target_id']],
   ['relationships', ['user_a', 'user_b'], "state <> 'ended'"],
   ['pastor_certifications', ['user_id'], "state = 'pending'"],
+  ['pastor_letters', ['user_id']],
   ['vip_subscription_requests', ['user_id'], "state = 'pending'"],
   ['vip_subscription_requests', ['payment_confirmation_reference']],
   ['login_attempts', ['email', 'ip']],
@@ -135,6 +138,15 @@ const requiredUniqueIndexes = [
   ['community_memberships', ['user_id', 'group_id']],
   ['community_bookmarks', ['user_id', 'post_id']],
   ['community_event_rsvps', ['event_id', 'user_id']],
+];
+
+const requiredConstraints = [
+  ['pastor_letters', 'pastor_letters_verification_consistent', 'c'],
+  ['pastor_letters', 'pastor_letters_verified_by_fkey', 'f', 'r'],
+];
+
+const requiredTriggers = [
+  ['pastor_letters', 'pastor_letters_reset_verification_on_content_change'],
 ];
 
 const requiredSettings = [
@@ -234,6 +246,39 @@ export async function hasUniqueIndex(queryable, tableName, expectedColumns, expe
   ));
 }
 
+async function constraintExists(tableName, constraintName, constraintType, deleteAction) {
+  const row = await one(
+    `SELECT c.contype, c.confdeltype
+       FROM pg_constraint c
+       JOIN pg_class tbl ON tbl.oid = c.conrelid
+       JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+      WHERE ns.nspname = 'public'
+        AND tbl.relname = $1
+        AND c.conname = $2`,
+    [tableName, constraintName]
+  );
+  return Boolean(
+    row
+    && row.contype === constraintType
+    && (deleteAction === undefined || row.confdeltype === deleteAction)
+  );
+}
+
+async function triggerExists(tableName, triggerName) {
+  const row = await one(
+    `SELECT 1
+       FROM pg_trigger t
+       JOIN pg_class tbl ON tbl.oid = t.tgrelid
+       JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+      WHERE ns.nspname = 'public'
+        AND tbl.relname = $1
+        AND t.tgname = $2
+        AND t.tgisinternal = FALSE`,
+    [tableName, triggerName]
+  );
+  return Boolean(row);
+}
+
 async function settingExists(key) {
   const row = await one('SELECT EXISTS (SELECT 1 FROM app_settings WHERE key = $1) AS exists', [key]);
   return row.exists;
@@ -290,6 +335,20 @@ async function run() {
     if (!tableMap.get(tableName)) continue;
     if (!(await hasUniqueIndex(pool, tableName, columns, predicate))) {
       missing.push(`unique ${tableName}(${columns.join(', ')})`);
+    }
+  }
+
+  for (const [tableName, constraintName, constraintType, deleteAction] of requiredConstraints) {
+    if (!tableMap.get(tableName)) continue;
+    if (!(await constraintExists(tableName, constraintName, constraintType, deleteAction))) {
+      missing.push(`constraint ${tableName}.${constraintName}`);
+    }
+  }
+
+  for (const [tableName, triggerName] of requiredTriggers) {
+    if (!tableMap.get(tableName)) continue;
+    if (!(await triggerExists(tableName, triggerName))) {
+      missing.push(`trigger ${tableName}.${triggerName}`);
     }
   }
 

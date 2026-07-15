@@ -19,6 +19,14 @@ const pastorCertificationMigrationPath = path.resolve(
   __dirname,
   '../../db/migrations/0016_harden_pastor_certifications.sql'
 );
+const pastorLetterMigrationPath = path.resolve(
+  __dirname,
+  '../../db/migrations/0017_harden_pastor_letters.sql'
+);
+const pastorLetterInvariantMigrationPath = path.resolve(
+  __dirname,
+  '../../db/migrations/0018_enforce_pastor_letter_verification.sql'
+);
 
 function connectionUrlWithDatabase(databaseUrl, databaseName) {
   const url = new URL(databaseUrl);
@@ -80,6 +88,15 @@ test('schema diagnosis checks course pastor review workflow', () => {
   assert.match(source, /'course_pastor_reviews'/);
   assert.match(source, /\['course_pastor_reviews', \['user_id', 'course_id', 'endorsement_id', 'assigned_reviewer_id', 'state', 'reviewed_by', 'reviewed_at'\]\]/);
   assert.match(source, /\['endorsements', \['user_id', 'endorser_user_id', 'kind', 'state', 'verified_at'\]\]/);
+});
+
+test('schema diagnosis checks pastor letter ownership and verification provenance', () => {
+  assert.match(source, /'pastor_letters'/);
+  assert.match(source, /\['pastor_letters', \['user_id', 'pastor_name', 'pastor_contact', 'is_verified', 'verified_by', 'verified_at'\]\]/);
+  assert.match(source, /\['pastor_letters', \['user_id'\]\]/);
+  assert.match(source, /pastor_letters_verification_consistent/);
+  assert.match(source, /pastor_letters_reset_verification_on_content_change/);
+  assert.match(source, /pastor_letters_verified_by_fkey/);
 });
 
 test('unique index diagnosis fails when no candidate index exists', async () => {
@@ -236,6 +253,189 @@ test('PostgreSQL diagnosis and migration enforce one pending pastor certificatio
     assert.equal(withExpressionIndex.code, 1, diagnosisDetails(withExpressionIndex));
     assert.equal(withIncludeIndex.code, 0, diagnosisDetails(withIncludeIndex));
     assert.equal(withCorrectIndex.code, 0, diagnosisDetails(withCorrectIndex));
+  } finally {
+    if (databasePool) await databasePool.end();
+    if (databaseCreated) {
+      await adminPool.query(
+        `SELECT pg_terminate_backend(pid)
+           FROM pg_stat_activity
+          WHERE datname = $1
+            AND pid <> pg_backend_pid()`,
+        [databaseName]
+      );
+      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)}`);
+    }
+    await adminPool.end();
+  }
+});
+
+test('PostgreSQL pastor letter migration deduplicates legacy rows and enables route upserts', {
+  skip: !process.env.TEST_DATABASE_URL,
+  timeout: 30_000,
+}, async () => {
+  const databaseName = `codex_pastor_letters_${process.pid}_${randomUUID().replace(/-/g, '')}`;
+  const maintenanceUrl = connectionUrlWithDatabase(process.env.TEST_DATABASE_URL, 'postgres');
+  const databaseUrl = connectionUrlWithDatabase(process.env.TEST_DATABASE_URL, databaseName);
+  const adminPool = new Pool({ connectionString: maintenanceUrl });
+  let databaseCreated = false;
+  let databasePool;
+
+  try {
+    await adminPool.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
+    databaseCreated = true;
+    databasePool = new Pool({ connectionString: databaseUrl });
+    await databasePool.query(readFileSync(schemaPath, 'utf8'));
+    await databasePool.query(readFileSync(seedPath, 'utf8'));
+
+    const freshColumns = await databasePool.query(
+      `SELECT column_name, data_type
+         FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'pastor_letters'
+          AND column_name IN ('verified_by', 'verified_at')
+        ORDER BY column_name`
+    );
+    assert.deepEqual(freshColumns.rows, [
+      { column_name: 'verified_at', data_type: 'timestamp with time zone' },
+      { column_name: 'verified_by', data_type: 'uuid' },
+    ]);
+    assert.equal(await hasUniqueIndex(databasePool, 'pastor_letters', ['user_id']), true);
+
+    await databasePool.query('DROP INDEX idx_pastor_letters_user');
+    await databasePool.query(
+      `ALTER TABLE pastor_letters
+         DROP COLUMN verified_by,
+         DROP COLUMN verified_at`
+    );
+    const legacyDiagnosis = await runSchemaDiagnosis(databaseUrl);
+    assert.equal(legacyDiagnosis.code, 1, diagnosisDetails(legacyDiagnosis));
+
+    const firstUserId = 'aaaaaaaa-1000-0000-0000-000000000001';
+    const secondUserId = 'bbbbbbbb-1000-0000-0000-000000000001';
+    const verifierId = 'cccccccc-1000-0000-0000-000000000001';
+    await databasePool.query(
+      `INSERT INTO users (id, email, password_hash)
+       VALUES ($1, 'pastor-letter-a@example.com', 'test'),
+              ($2, 'pastor-letter-b@example.com', 'test'),
+              ($3, 'pastor-letter-verifier@example.com', 'test')`,
+      [firstUserId, secondUserId, verifierId]
+    );
+    await databasePool.query(
+      `INSERT INTO pastor_letters
+         (id, user_id, pastor_name, pastor_contact, is_verified, created_at, updated_at)
+       VALUES
+         ('11000000-0000-0000-0000-000000000001', $1, 'A older created', 'a1@example.com', FALSE, '2026-01-01T00:00:00Z', '2026-01-03T00:00:00Z'),
+         ('11000000-0000-0000-0000-000000000002', $1, 'A winner', 'a2@example.com', TRUE, '2026-01-02T00:00:00Z', '2026-01-03T00:00:00Z'),
+         ('11000000-0000-0000-0000-000000000003', $1, 'A older updated', 'a3@example.com', TRUE, '2026-01-04T00:00:00Z', '2026-01-02T00:00:00Z'),
+         ('22000000-0000-0000-0000-000000000001', $2, 'B lower id', 'b1@example.com', FALSE, '2026-02-01T00:00:00Z', '2026-02-02T00:00:00Z'),
+         ('22000000-0000-0000-0000-000000000002', $2, 'B winner', 'b2@example.com', FALSE, '2026-02-01T00:00:00Z', '2026-02-02T00:00:00Z')`,
+      [firstUserId, secondUserId]
+    );
+
+    const migrationClient = await databasePool.connect();
+    try {
+      await migrationClient.query('BEGIN');
+      await migrationClient.query(readFileSync(pastorLetterMigrationPath, 'utf8'));
+      await migrationClient.query('COMMIT');
+      const afterOwnershipMigration = await runSchemaDiagnosis(databaseUrl);
+      assert.equal(afterOwnershipMigration.code, 1, diagnosisDetails(afterOwnershipMigration));
+      await migrationClient.query('BEGIN');
+      await migrationClient.query(readFileSync(pastorLetterInvariantMigrationPath, 'utf8'));
+      await migrationClient.query('COMMIT');
+    } catch (err) {
+      await migrationClient.query('ROLLBACK');
+      throw err;
+    } finally {
+      migrationClient.release();
+    }
+
+    const migrated = await databasePool.query(
+      `SELECT id::text, user_id::text, pastor_name, is_verified,
+              verified_by::text,
+              verified_at IS NOT DISTINCT FROM updated_at AS verified_at_backfilled
+         FROM pastor_letters
+        ORDER BY user_id`
+    );
+    assert.deepEqual(migrated.rows, [
+      {
+        id: '11000000-0000-0000-0000-000000000002',
+        user_id: firstUserId,
+        pastor_name: 'A winner',
+        is_verified: false,
+        verified_by: null,
+        verified_at_backfilled: false,
+      },
+      {
+        id: '22000000-0000-0000-0000-000000000002',
+        user_id: secondUserId,
+        pastor_name: 'B winner',
+        is_verified: false,
+        verified_by: null,
+        verified_at_backfilled: false,
+      },
+    ]);
+
+    const routeUpsert = await databasePool.query(
+      `INSERT INTO pastor_letters (user_id, pastor_name, pastor_contact)
+       VALUES ($1, 'A route update', 'route@example.com')
+       ON CONFLICT (user_id) DO UPDATE SET
+         pastor_name = EXCLUDED.pastor_name,
+         pastor_contact = EXCLUDED.pastor_contact,
+         updated_at = now()
+       RETURNING id::text, pastor_name`,
+      [firstUserId]
+    );
+    assert.deepEqual(routeUpsert.rows, [{
+      id: '11000000-0000-0000-0000-000000000002',
+      pastor_name: 'A route update',
+    }]);
+
+    await assert.rejects(
+      databasePool.query(
+        `INSERT INTO pastor_letters (user_id, pastor_name, pastor_contact)
+         VALUES ($1, 'A duplicate', 'duplicate@example.com')`,
+        [firstUserId]
+      ),
+      (err) => err.code === '23505'
+    );
+
+    await assert.rejects(
+      databasePool.query(
+        'UPDATE pastor_letters SET is_verified = TRUE WHERE user_id = $1',
+        [firstUserId]
+      ),
+      (err) => err.code === '23514'
+    );
+    await databasePool.query(
+      `UPDATE pastor_letters
+          SET is_verified = TRUE, verified_by = $1, verified_at = now()
+        WHERE user_id = $2`,
+      [verifierId, firstUserId]
+    );
+    await assert.rejects(
+      databasePool.query('DELETE FROM users WHERE id = $1', [verifierId]),
+      (err) => err.code === '23503'
+    );
+    const verifierCleanup = await databasePool.query(
+      'SELECT verified_by::text FROM pastor_letters WHERE user_id = $1',
+      [firstUserId]
+    );
+    assert.equal(verifierCleanup.rows[0].verified_by, verifierId);
+
+    await databasePool.query(
+      `UPDATE pastor_letters SET faith_note = 'changed after verification' WHERE user_id = $1`,
+      [firstUserId]
+    );
+    const resetAfterEdit = await databasePool.query(
+      `SELECT is_verified, verified_by::text, verified_at
+         FROM pastor_letters WHERE user_id = $1`,
+      [firstUserId]
+    );
+    assert.deepEqual(resetAfterEdit.rows, [{ is_verified: false, verified_by: null, verified_at: null }]);
+
+    assert.equal(await hasUniqueIndex(databasePool, 'pastor_letters', ['user_id']), true);
+    const migratedDiagnosis = await runSchemaDiagnosis(databaseUrl);
+    assert.equal(migratedDiagnosis.code, 0, diagnosisDetails(migratedDiagnosis));
   } finally {
     if (databasePool) await databasePool.end();
     if (databaseCreated) {

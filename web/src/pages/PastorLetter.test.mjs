@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8')
+
+const api = read('api/client.js')
+const profile = read('pages/Profile.jsx')
+const admin = read('pages/Admin.jsx')
+const relationships = read('pages/Relationships.jsx')
+
+test('pastor letter API follows the member, match, and admin contracts', () => {
+  assert.match(api, /export const pastorLetters =/)
+  assert.match(api, /mine:\s*\(\) => api\.get\('\/me\/pastor-letter'\)/)
+  assert.match(api, /save:\s*\(data\) => api\.put\('\/me\/pastor-letter', data\)/)
+  assert.match(api, /forMatch:\s*\(targetId\) => api\.get\(`\/match\/\$\{targetId\}\/pastor-letter`\)/)
+  assert.match(api, /pastorLetters:\s*\(page = 1\) => api\.get\('\/pastor-letters', \{ params: \{ page \} \}\)/)
+  assert.match(api, /reviewPastorLetter:\s*\(id, action, updatedAt\) =>\s*api\.patch\(`\/pastor-letters\/\$\{id\}`, \{ action, updated_at: updatedAt \}\)/)
+})
+
+test('profile loads and saves the complete optional pastor letter with backend limits', () => {
+  const form = profile.match(/<form className="card" onSubmit=\{savePastorLetter\}>([\s\S]*?)<\/form>/)?.[1] || ''
+
+  assert.match(profile, /pastorLetters\.mine\(\)/)
+  assert.match(profile, /pastorLetters\.save\(pastorLetter\)/)
+  assert.match(profile, /pastorLetterLoadState/)
+  assert.match(profile, /pastorLetterEdited/)
+  assert.match(profile, /pastorLetterExists/)
+  assert.match(profile, /pastorLetterMsgType/)
+  assert.match(form, /牧者介绍信（可选）/)
+  assert.match(form, /pastorLetter\.pastor_name/)
+  assert.match(form, /pastorLetter\.pastor_contact/)
+  assert.match(form, /pastorLetter\.family_note/)
+  assert.match(form, /pastorLetter\.faith_note/)
+  assert.match(form, /pastorLetter\.spiritual_note/)
+  assert.match(form, /pastorLetter\.church_life_note/)
+  assert.match(form, /maxLength=\{120\}/)
+  assert.match(form, /maxLength=\{320\}/)
+  assert.equal((form.match(/maxLength=\{2000\}/g) || []).length, 4)
+  assert.match(form, /'未提交'/)
+  assert.equal((form.match(/disabled=\{busy\.pastorLetter \|\| pastorLetterLoadState !== 'ready'\}/g) || []).length, 7)
+  assert.match(form, /pastorLetterMsgType === 'error' \? 'error-msg' : 'success-msg'/)
+  assert.match(form, /busy\.pastorLetter\s*\?\s*'保存中…'/)
+  assert.match(profile, /nextLetter\.is_verified\s*\?\s*'牧者介绍信已保存，核验状态保持不变'\s*:\s*'牧者介绍信已保存，等待核验'/)
+})
+
+test('admin application tab loads and reviews complete pastor letters', () => {
+  const applicationsTab = admin.match(/function ApplicationsTab\(\) \{([\s\S]*?)\n\}\n\nfunction AuditTab/)?.[1] || ''
+
+  assert.match(applicationsTab, /Promise\.allSettled\(\[[\s\S]*admin\.pastorLetters\(currentLettersPage\.current\)/)
+  assert.match(applicationsTab, /item\.nickname\s*\|\|\s*item\.email/)
+  assert.match(applicationsTab, /item\.pastor_name/)
+  assert.match(applicationsTab, /item\.pastor_contact/)
+  assert.match(applicationsTab, /item\.family_note/)
+  assert.match(applicationsTab, /item\.faith_note/)
+  assert.match(applicationsTab, /item\.spiritual_note/)
+  assert.match(applicationsTab, /item\.church_life_note/)
+  assert.match(applicationsTab, /item\.is_verified\s*\?\s*'已核验'\s*:\s*'待核验'/)
+  assert.match(applicationsTab, /reviewPastorLetter\(item\.id,\s*'approve',\s*item\.updated_at\)/)
+  assert.match(applicationsTab, /'核验通过'/)
+  assert.match(applicationsTab, /reviewPastorLetter\(item\.id,\s*'revoke',\s*item\.updated_at\)/)
+  assert.match(applicationsTab, /'撤销核验'/)
+  assert.match(applicationsTab, /reviewingPastorLetter/)
+  assert.match(applicationsTab, /lettersPage/)
+  assert.match(applicationsTab, /lettersTotal/)
+  assert.match(applicationsTab, /lettersPageSize/)
+  assert.match(applicationsTab, /lettersLoadRequest/)
+  assert.match(applicationsTab, /currentLettersPage/)
+  assert.match(applicationsTab, /requestId !== lettersLoadRequest\.current/)
+  assert.match(applicationsTab, /const load = useCallback\([\s\S]*?\}, \[\]\)/)
+  assert.match(applicationsTab, /牧者介绍信核验已完成，但列表刷新失败/)
+  assert.match(applicationsTab, /setLettersPage\(page => page - 1\)/)
+  assert.match(applicationsTab, /setLettersPage\(page => page \+ 1\)/)
+  assert.match(applicationsTab, /window\.confirm\('确认撤销这封牧者介绍信的核验状态吗？'\)/)
+  assert.match(applicationsTab, /disabled=\{reviewingPastorLetter === item\.id\}/)
+})
+
+test('relationships conditionally loads a partner letter without exposing contact details', () => {
+  assert.match(relationships, /partner_id/)
+  assert.match(relationships, /const \[partnerLetters, setPartnerLetters\] = useState\(\{\}\)/)
+  assert.match(relationships, /nextChannels\.map\(channel => channel\.other_id\)/)
+  assert.match(relationships, /pastorLetters\.forMatch\(targetId\)/)
+  assert.match(relationships, /Promise\.allSettled/)
+  assert.match(relationships, /relationshipLoadRequest/)
+  assert.match(relationships, /relationshipActionRequest/)
+  assert.match(relationships, /requestId !== relationshipLoadRequest\.current/)
+  assert.match(relationships, /requestId !== relationshipActionRequest\.current/)
+  assert.match(relationships, /setPartnerLetters\(nextLetters\)/)
+  assert.match(relationships, /Object\.entries\(partnerLetters\)/)
+  assert.match(relationships, /\[403, 404\]\.includes\(status\)/)
+  assert.match(relationships, /牧者介绍信加载失败/)
+  assert.match(relationships, /的牧者介绍信/)
+  assert.match(relationships, /letter\.pastor_name/)
+  assert.match(relationships, /letter\.family_note/)
+  assert.match(relationships, /letter\.faith_note/)
+  assert.match(relationships, /letter\.spiritual_note/)
+  assert.match(relationships, /letter\.church_life_note/)
+  assert.doesNotMatch(relationships, /pastor_contact/)
+})

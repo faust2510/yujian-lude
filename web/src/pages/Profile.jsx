@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { profile, auth } from '../api/client'
+import { useEffect, useRef, useState } from 'react'
+import { profile, auth, pastorLetters } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 function messageClass(text) {
@@ -16,9 +16,18 @@ export default function Profile() {
     church_name:'', presbytery:'', region:'', denomination:'',
     coworker:'', baptism_date:'', faith_years:'', testimony:''
   })
+  const [pastorLetter, setPastorLetter] = useState({
+    pastor_name:'', pastor_contact:'', family_note:'', faith_note:'',
+    spiritual_note:'', church_life_note:'', is_verified: false
+  })
+  const pastorLetterEdited = useRef(false)
+  const [pastorLetterLoadState, setPastorLetterLoadState] = useState('loading')
+  const [pastorLetterExists, setPastorLetterExists] = useState(false)
   const [exposure, setExposure] = useState(null)
   const [msg, setMsg] = useState('')
   const [faithMsg, setFaithMsg] = useState('')
+  const [pastorLetterMsg, setPastorLetterMsg] = useState('')
+  const [pastorLetterMsgType, setPastorLetterMsgType] = useState('')
   const [endorsements, setEndorsements] = useState([])
   const [endorsement, setEndorsement] = useState({ kind:'pastor', name:'', contact:'', church:'', note:'' })
   const [endorsementMsg, setEndorsementMsg] = useState('')
@@ -26,7 +35,7 @@ export default function Profile() {
   const [pwdMsg, setPwdMsg] = useState('')
   const [verifyMsg, setVerifyMsg] = useState('')
   const [verifyLink, setVerifyLink] = useState('')
-  const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, endorsement: false, password: false, verify: false })
+  const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, pastorLetter: false, endorsement: false, password: false, verify: false })
 
   useEffect(() => {
     profile.get().then(r => {
@@ -39,8 +48,27 @@ export default function Profile() {
     }).finally(() => setBusy(p => ({...p, initial: false})))
   }, [])
 
+  useEffect(() => {
+    pastorLetters.mine().then(r => {
+      const letter = r.data.letter || null
+      setPastorLetterExists(Boolean(letter))
+      if (letter && !pastorLetterEdited.current) {
+        setPastorLetter(p => ({...p, ...letter}))
+      }
+      setPastorLetterLoadState('ready')
+    }).catch(err => {
+      setPastorLetterMsg(err.response?.data?.error || '牧者介绍信加载失败')
+      setPastorLetterMsgType('error')
+      setPastorLetterLoadState('error')
+    })
+  }, [])
+
   const set = key => e => setForm(p => ({...p, [key]: e.target.value}))
   const setF = key => e => setFaith(p => ({...p, [key]: e.target.value}))
+  const setPastorLetterField = key => e => {
+    pastorLetterEdited.current = true
+    setPastorLetter(p => ({...p, [key]: e.target.value}))
+  }
 
   const changePwd = async (e) => {
     e.preventDefault()
@@ -99,6 +127,28 @@ export default function Profile() {
     }
     catch (err) { setFaithMsg(err.response?.data?.error || '保存失败，请检查信仰档案后重试') }
     finally { setBusy(p => ({...p, faith: false})) }
+  }
+
+  const savePastorLetter = async (e) => {
+    e.preventDefault()
+    if (pastorLetterLoadState !== 'ready') return
+    setBusy(p => ({...p, pastorLetter: true}))
+    setPastorLetterMsg('')
+    setPastorLetterMsgType('')
+    try {
+      const r = await pastorLetters.save(pastorLetter)
+      const nextLetter = r.data?.letter || {}
+      setPastorLetter(p => ({...p, ...nextLetter, is_verified: nextLetter.is_verified ?? false}))
+      setPastorLetterExists(true)
+      pastorLetterEdited.current = false
+      setPastorLetterMsg(nextLetter.is_verified ? '牧者介绍信已保存，核验状态保持不变' : '牧者介绍信已保存，等待核验')
+      setPastorLetterMsgType('success')
+    } catch (err) {
+      setPastorLetterMsg(err.response?.data?.error || '牧者介绍信保存失败')
+      setPastorLetterMsgType('error')
+    } finally {
+      setBusy(p => ({...p, pastorLetter: false}))
+    }
   }
 
   const addEndorsement = async (e) => {
@@ -193,6 +243,32 @@ export default function Profile() {
         </div>
         <button className="btn btn-primary" disabled={busy.faith}>{busy.faith ? '保存中…' : '保存信仰档案'}</button>
         {faithMsg && <div className={messageClass(faithMsg)}>{faithMsg}</div>}
+      </form>
+
+      <form className="card" onSubmit={savePastorLetter}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12,marginBottom:8,flexWrap:'wrap'}}>
+          <h3 style={{fontSize:15}}>牧者介绍信（可选）</h3>
+          <span className={`badge ${pastorLetter.is_verified ? 'badge-green' : pastorLetterLoadState === 'error' ? 'badge-gray' : 'badge-yellow'}`}>
+            {pastorLetterLoadState === 'loading'
+              ? '加载中'
+              : pastorLetterLoadState === 'error'
+                ? '加载失败'
+                : pastorLetterExists
+                  ? pastorLetter.is_verified ? '已核验' : '待核验'
+                  : '未提交'}
+          </span>
+        </div>
+        <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:16}}>提交后由平台核验；更新内容会重新进入待核验状态。</p>
+        <div className="grid-2">
+          <div className="field"><label>牧者姓名</label><input required maxLength={120} disabled={busy.pastorLetter || pastorLetterLoadState !== 'ready'} value={pastorLetter.pastor_name} onChange={setPastorLetterField('pastor_name')} /></div>
+          <div className="field"><label>牧者联系方式</label><input required maxLength={320} disabled={busy.pastorLetter || pastorLetterLoadState !== 'ready'} value={pastorLetter.pastor_contact} onChange={setPastorLetterField('pastor_contact')} /></div>
+        </div>
+        <div className="field"><label>家庭情况</label><textarea rows={3} maxLength={2000} disabled={busy.pastorLetter || pastorLetterLoadState !== 'ready'} value={pastorLetter.family_note} onChange={setPastorLetterField('family_note')} /></div>
+        <div className="field"><label>信仰情况</label><textarea rows={3} maxLength={2000} disabled={busy.pastorLetter || pastorLetterLoadState !== 'ready'} value={pastorLetter.faith_note} onChange={setPastorLetterField('faith_note')} /></div>
+        <div className="field"><label>属灵生命</label><textarea rows={3} maxLength={2000} disabled={busy.pastorLetter || pastorLetterLoadState !== 'ready'} value={pastorLetter.spiritual_note} onChange={setPastorLetterField('spiritual_note')} /></div>
+        <div className="field"><label>教会生活</label><textarea rows={3} maxLength={2000} disabled={busy.pastorLetter || pastorLetterLoadState !== 'ready'} value={pastorLetter.church_life_note} onChange={setPastorLetterField('church_life_note')} /></div>
+        <button className="btn btn-primary" disabled={busy.pastorLetter || pastorLetterLoadState !== 'ready'}>{busy.pastorLetter ? '保存中…' : '保存介绍信'}</button>
+        {pastorLetterMsg && <div className={pastorLetterMsgType === 'error' ? 'error-msg' : 'success-msg'}>{pastorLetterMsg}</div>}
       </form>
 
       <form className="card" onSubmit={addEndorsement}>

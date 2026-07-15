@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { admin } from '../api/client'
 import { formatCurrencyAmount } from '../lib/currency'
 
@@ -452,23 +452,42 @@ function ReportsTab() {
 function ApplicationsTab() {
   const [pastors, setPastors] = useState([])
   const [communityAdmins, setCommunityAdmins] = useState([])
+  const [letters, setLetters] = useState([])
+  const [lettersPage, setLettersPage] = useState(1)
+  const [lettersTotal, setLettersTotal] = useState(0)
+  const [lettersPageSize, setLettersPageSize] = useState(50)
   const [error, setError] = useState('')
+  const [reviewingPastorLetter, setReviewingPastorLetter] = useState('')
+  const lettersLoadRequest = useRef(0)
+  const currentLettersPage = useRef(lettersPage)
+  currentLettersPage.current = lettersPage
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    const requestId = ++lettersLoadRequest.current
     try {
       setError('')
-      const [pastorRes, communityRes] = await Promise.all([
+      const [pastorRes, communityRes, letterRes] = await Promise.allSettled([
         admin.pastorApplications(),
         admin.communityAdminApplications(),
+        admin.pastorLetters(currentLettersPage.current),
       ])
-      setPastors(pastorRes.data.applications || [])
-      setCommunityAdmins(communityRes.data.applications || [])
+      if (requestId !== lettersLoadRequest.current) return
+      if (pastorRes.status === 'fulfilled') setPastors(pastorRes.value.data.applications || [])
+      if (communityRes.status === 'fulfilled') setCommunityAdmins(communityRes.value.data.applications || [])
+      if (letterRes.status === 'fulfilled') {
+        setLetters(letterRes.value.data.letters || [])
+        setLettersTotal(letterRes.value.data.total || 0)
+        setLettersPageSize(letterRes.value.data.pageSize || 50)
+      }
+      const failed = [pastorRes, communityRes, letterRes].find(result => result.status === 'rejected')
+      if (failed) setError(getErrorMessage(failed.reason, '部分申请列表加载失败'))
     } catch (err) {
+      if (requestId !== lettersLoadRequest.current) return
       setError(getErrorMessage(err, '申请列表加载失败'))
     }
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load, lettersPage])
 
   const reviewPastor = async (id, action) => {
     try {
@@ -488,6 +507,32 @@ function ApplicationsTab() {
     }
   }
 
+  const reviewPastorLetter = async (id, action, updatedAt) => {
+    if (reviewingPastorLetter) return
+    if (action === 'revoke' && !window.confirm('确认撤销这封牧者介绍信的核验状态吗？')) return
+    setReviewingPastorLetter(id)
+    try {
+      await admin.reviewPastorLetter(id, action, updatedAt)
+      const reviewPage = currentLettersPage.current
+      const requestId = ++lettersLoadRequest.current
+      let response
+      try {
+        response = await admin.pastorLetters(reviewPage)
+      } catch {
+        setError('牧者介绍信核验已完成，但列表刷新失败，请手动刷新')
+        return
+      }
+      if (requestId !== lettersLoadRequest.current || currentLettersPage.current !== reviewPage) return
+      setLetters(response.data.letters || [])
+      setLettersTotal(response.data.total || 0)
+      setLettersPageSize(response.data.pageSize || 50)
+    } catch (err) {
+      setError(getErrorMessage(err, '牧者介绍信核验失败'))
+    } finally {
+      setReviewingPastorLetter('')
+    }
+  }
+
   return (
     <div className="card">
       <h3 style={{fontSize:15,marginBottom:12}}>认证与申请</h3>
@@ -503,6 +548,29 @@ function ApplicationsTab() {
           {item.state === 'pending' && <div style={{display:'flex',gap:8,marginTop:8}}><ActionButton primary onClick={()=>reviewPastor(item.id,'approve')}>通过</ActionButton><ActionButton onClick={()=>reviewPastor(item.id,'reject')}>驳回</ActionButton></div>}
         </div>
       ))}
+      <h4 style={{fontSize:14,margin:'18px 0 8px'}}>牧者介绍信</h4>
+      {letters.length === 0 && <Empty>暂无牧者介绍信</Empty>}
+      {letters.map(item => (
+        <div key={item.id} style={{padding:'10px 0',borderBottom:'1px solid var(--border)'}}>
+          <div style={{fontSize:14,fontWeight:600}}>{item.nickname || item.email || item.user_id} · {item.pastor_name}</div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)'}}>牧者联系方式：{item.pastor_contact || '未填写'} · {item.is_verified ? '已核验' : '待核验'}</div>
+          <div style={{fontSize:13,marginTop:6}}>家庭情况：{item.family_note || '未填写'}</div>
+          <div style={{fontSize:13,marginTop:6}}>信仰情况：{item.faith_note || '未填写'}</div>
+          <div style={{fontSize:13,marginTop:6}}>属灵生命：{item.spiritual_note || '未填写'}</div>
+          <div style={{fontSize:13,marginTop:6}}>教会生活：{item.church_life_note || '未填写'}</div>
+          <div style={{display:'flex',gap:8,marginTop:8}}>
+            {!item.is_verified && <ActionButton primary disabled={reviewingPastorLetter === item.id} onClick={()=>reviewPastorLetter(item.id, 'approve', item.updated_at)}>{reviewingPastorLetter === item.id ? '核验中…' : '核验通过'}</ActionButton>}
+            {item.is_verified && <ActionButton disabled={reviewingPastorLetter === item.id} onClick={()=>reviewPastorLetter(item.id, 'revoke', item.updated_at)}>{reviewingPastorLetter === item.id ? '处理中…' : '撤销核验'}</ActionButton>}
+          </div>
+        </div>
+      ))}
+      {lettersTotal > lettersPageSize && (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,marginTop:12}}>
+          <ActionButton disabled={lettersPage <= 1} onClick={()=>setLettersPage(page => page - 1)}>上一页</ActionButton>
+          <span className="muted-small">第 {lettersPage} 页 · 共 {lettersTotal} 封</span>
+          <ActionButton disabled={lettersPage * lettersPageSize >= lettersTotal} onClick={()=>setLettersPage(page => page + 1)}>下一页</ActionButton>
+        </div>
+      )}
       <h4 style={{fontSize:14,margin:'18px 0 8px'}}>社区管理员申请</h4>
       {communityAdmins.length === 0 && <Empty>暂无社区管理员申请</Empty>}
       {communityAdmins.map(item => (

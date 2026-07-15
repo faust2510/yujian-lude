@@ -25,6 +25,12 @@ export const profile = {
   removeEndorsement: (id) => api.delete(`/me/endorsements/${id}`),
 }
 
+export const pastorLetters = {
+  mine: () => api.get('/me/pastor-letter'),
+  save: (data) => api.put('/me/pastor-letter', data),
+  forMatch: (targetId) => api.get(`/match/${targetId}/pastor-letter`),
+}
+
 export const points = {
   balance: () => api.get('/me/points'),
   checkin: () => api.post('/me/checkin'),
@@ -186,6 +192,9 @@ export const admin = {
   pastorApplications: () => api.get('/pastor-cert/applications'),
   reviewPastorApplication: (id, action = 'approve') =>
     api.patch(`/pastor-cert/applications/${id}`, { action }),
+  pastorLetters: (page = 1) => api.get('/pastor-letters', { params: { page } }),
+  reviewPastorLetter: (id, action, updatedAt) =>
+    api.patch(`/pastor-letters/${id}`, { action, updated_at: updatedAt }),
 }
 
 export default api

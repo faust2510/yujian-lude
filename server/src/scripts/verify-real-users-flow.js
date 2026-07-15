@@ -432,6 +432,94 @@ async function verifyAccountSecurity(stamp) {
   assert(login.user?.id === resetUser.user.id, 'new password should allow login');
 }
 
+async function verifyPastorLetter(alice, bob, outsider, admin) {
+  const letterPayload = {
+    pastor_name: '真实验收牧者',
+    pastor_contact: `pastor-letter-${Date.now()}@example.test`,
+    family_note: '家庭关系稳定，愿意认真预备婚姻。',
+    faith_note: '信仰告白清楚，并固定参与主日敬拜。',
+    spiritual_note: '愿意接受教会陪伴，也能诚实面对自己的软弱。',
+    church_life_note: '持续参与团契与服事。',
+  };
+
+  const saved = await alice.put('/me/pastor-letter', letterPayload);
+  assert(saved.letter?.is_verified === false, 'new pastor letter should begin unverified');
+  const mine = await alice.get('/me/pastor-letter');
+  assert(mine.letter?.pastor_contact === letterPayload.pastor_contact, 'owner should see pastor contact');
+
+  await expectStatus(bob, 'GET', `/match/${alice.user.id}/pastor-letter`, undefined, 403);
+  await expectStatus(admin, 'PATCH', '/pastor-letters/not-a-uuid', { action: 'approve' }, 400);
+  await expectStatus(
+    admin,
+    'PATCH',
+    '/pastor-letters/99999999-9999-4999-8999-999999999999',
+    { action: 'approve', updated_at: '2026-07-15T00:00:00.000Z' },
+    404,
+  );
+
+  const adminLetters = await admin.get('/pastor-letters');
+  const letter = adminLetters.letters?.find((item) => item.user_id === alice.user.id);
+  assert(letter?.pastor_contact === letterPayload.pastor_contact, 'admin should see pastor contact for verification');
+  await expectStatus(admin, 'PATCH', `/pastor-letters/${letter.id}`, {
+    action: 'invalid',
+    updated_at: letter.updated_at,
+  }, 400);
+
+  const reviewCurrentLetter = async (action) => {
+    const currentList = await admin.get('/pastor-letters');
+    const current = currentList.letters?.find((item) => item.id === letter.id);
+    assert(current?.updated_at, `pastor letter should expose updated_at before ${action}`);
+    return admin.patch(`/pastor-letters/${letter.id}`, { action, updated_at: current.updated_at });
+  };
+
+  await reviewCurrentLetter('approve');
+  const verifiedVersion = (await admin.get('/pastor-letters')).letters?.find((item) => item.id === letter.id);
+  await expectStatus(admin, 'PATCH', `/pastor-letters/${letter.id}`, {
+    action: 'approve',
+    updated_at: verifiedVersion.updated_at,
+  }, 409);
+
+  await alice.post(`/match/${bob.user.id}/intent`, { intent: 'like' });
+  const mutual = await bob.post(`/match/${alice.user.id}/intent`, { intent: 'like' });
+  assert(mutual.mutual === true, 'second like should create a mutual match');
+
+  const visible = await bob.get(`/match/${alice.user.id}/pastor-letter`);
+  assert(visible.letter?.pastor_name === letterPayload.pastor_name, 'mutual match should see verified pastor letter');
+  assert(
+    !Object.prototype.hasOwnProperty.call(visible.letter, 'pastor_contact'),
+    'mutual match must not see pastor contact',
+  );
+  const verifiedMine = await alice.get('/me/pastor-letter');
+  const unchanged = await alice.put('/me/pastor-letter', letterPayload);
+  assert(unchanged.letter?.is_verified === true, 'saving unchanged content should keep verification');
+  assert(
+    unchanged.letter?.updated_at === verifiedMine.letter?.updated_at,
+    'saving unchanged content should keep the review version',
+  );
+  const visibleAfterRetry = await bob.get(`/match/${alice.user.id}/pastor-letter`);
+  assert(visibleAfterRetry.letter?.pastor_name === letterPayload.pastor_name, 'unchanged retry should stay visible');
+  await expectStatus(outsider, 'GET', `/match/${alice.user.id}/pastor-letter`, undefined, 403);
+
+  const updatedPayload = { ...letterPayload, faith_note: '更新后的信仰情况需要重新核验。' };
+  const updated = await alice.put('/me/pastor-letter', updatedPayload);
+  assert(updated.letter?.is_verified === false, 'editing a verified pastor letter should revoke verification');
+  const hiddenAfterEdit = await bob.get(`/match/${alice.user.id}/pastor-letter`);
+  assert(hiddenAfterEdit.letter === null, 'edited pastor letter should stay hidden until reverified');
+
+  await reviewCurrentLetter('approve');
+  const visibleAfterReview = await bob.get(`/match/${alice.user.id}/pastor-letter`);
+  assert(visibleAfterReview.letter?.faith_note === updatedPayload.faith_note, 'reverified letter should expose updated notes');
+  assert(
+    !Object.prototype.hasOwnProperty.call(visibleAfterReview.letter, 'pastor_contact'),
+    'reverified letter must still hide pastor contact',
+  );
+
+  await reviewCurrentLetter('revoke');
+  const hiddenAfterRevoke = await bob.get(`/match/${alice.user.id}/pastor-letter`);
+  assert(hiddenAfterRevoke.letter === null, 'revoked pastor letter should no longer be visible');
+  await reviewCurrentLetter('approve');
+}
+
 async function verifyMatchAndChat(users, admin, referrer) {
   const [alice, bob, cara, dan, partial] = users;
   const aliceCandidates = await alice.get('/match/candidates');
@@ -445,9 +533,7 @@ async function verifyMatchAndChat(users, admin, referrer) {
   assert(partialStatus.inPool === false, 'partial user should not be in match pool');
   await expectStatus(partial, 'POST', `/match/${alice.user.id}/intent`, { intent: 'like' }, 403);
 
-  await alice.post(`/match/${bob.user.id}/intent`, { intent: 'like' });
-  const mutual = await bob.post(`/match/${alice.user.id}/intent`, { intent: 'like' });
-  assert(mutual.mutual === true, 'second like should create a mutual match');
+  await verifyPastorLetter(alice, bob, cara, admin);
 
   const aliceChannels = await alice.get('/chat/channels');
   const bobChannels = await bob.get('/chat/channels');

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { chat, relationships } from '../api/client'
+import { useEffect, useRef, useState } from 'react'
+import { chat, pastorLetters, relationships } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 function stageLabel(rel) {
@@ -15,41 +15,77 @@ export default function Relationships() {
   const { user } = useAuth()
   const [data, setData] = useState(null)
   const [channels, setChannels] = useState([])
+  const [partnerLetters, setPartnerLetters] = useState({})
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
+  const relationshipLoadRequest = useRef(0)
+  const relationshipActionRequest = useRef(0)
 
   const load = async () => {
+    const requestId = ++relationshipLoadRequest.current
     setLoading(true)
     setError('')
+    setPartnerLetters({})
     try {
       const [rel, ch] = await Promise.all([relationships.list(), chat.channels()])
+      const relationship = rel.data?.relationship
+      const nextChannels = ch.data.channels || []
+
+      const targetIds = [...new Set([
+        ...nextChannels.map(channel => channel.other_id),
+        relationship?.partner_id,
+      ].filter(Boolean))]
+      const letterResults = await Promise.allSettled(targetIds.map(async targetId => {
+        const letterRes = await pastorLetters.forMatch(targetId)
+        return [targetId, letterRes.data.letter || null]
+      }))
+      const nextLetters = {}
+      let letterError = ''
+      for (const result of letterResults) {
+        if (result.status === 'fulfilled') {
+          const [targetId, letter] = result.value
+          if (letter) nextLetters[targetId] = letter
+          continue
+        }
+        const status = result.reason?.response?.status
+        if (![403, 404].includes(status)) {
+          letterError = result.reason?.response?.data?.error || '牧者介绍信加载失败，请稍后重试'
+        }
+      }
+      if (requestId !== relationshipLoadRequest.current) return
       setData(rel.data)
-      setChannels(ch.data.channels || [])
+      setChannels(nextChannels)
+      setPartnerLetters(nextLetters)
+      if (letterError) setError(letterError)
     } catch (err) {
+      if (requestId !== relationshipLoadRequest.current) return
       setError(err.response?.data?.error || '关系信息加载失败')
       setData({ relationship: null })
       setChannels([])
     } finally {
-      setLoading(false)
+      if (requestId === relationshipLoadRequest.current) setLoading(false)
     }
   }
 
   useEffect(() => { load() }, [])
 
   const runAction = async (key, action, success) => {
+    const requestId = ++relationshipActionRequest.current
     setBusy(key)
     setMsg('')
     setError('')
     try {
       await action()
+      if (requestId !== relationshipActionRequest.current) return
       setMsg(success)
       await load()
     } catch (err) {
+      if (requestId !== relationshipActionRequest.current) return
       setError(err.response?.data?.error || '操作失败，请稍后重试')
     } finally {
-      setBusy('')
+      if (requestId === relationshipActionRequest.current) setBusy('')
     }
   }
 
@@ -71,6 +107,18 @@ export default function Relationships() {
   }
 
   const activeChannels = channels.filter(channel => channel.other_id)
+  const visiblePartnerLetters = Object.entries(partnerLetters).filter(([, letter]) => (
+    letter.pastor_name || letter.family_note || letter.faith_note ||
+    letter.spiritual_note || letter.church_life_note
+  ))
+  const partnerNameFor = targetId => {
+    const channel = channels.find(item => item.other_id === targetId)
+    if (channel?.other_nickname) return channel.other_nickname
+    if (data?.relationship?.partner_id === targetId) {
+      return data.relationship.partner_nickname || data.relationship.other_nickname || '对方'
+    }
+    return '对方'
+  }
 
   return (
     <>
@@ -111,6 +159,17 @@ export default function Relationships() {
           onEnd={endRel}
         />
       )}
+
+      {visiblePartnerLetters.map(([targetId, letter]) => (
+        <div className="card" key={targetId}>
+          <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:12}}>{partnerNameFor(targetId)}的牧者介绍信</h3>
+          {letter.pastor_name && <LetterSection label="介绍牧者">{letter.pastor_name}</LetterSection>}
+          {letter.family_note && <LetterSection label="家庭情况">{letter.family_note}</LetterSection>}
+          {letter.faith_note && <LetterSection label="信仰情况">{letter.faith_note}</LetterSection>}
+          {letter.spiritual_note && <LetterSection label="属灵生命">{letter.spiritual_note}</LetterSection>}
+          {letter.church_life_note && <LetterSection label="教会生活">{letter.church_life_note}</LetterSection>}
+        </div>
+      ))}
     </>
   )
 }
@@ -154,6 +213,15 @@ function RelationshipCard({ rel, user, busy, onConfirm, onEnd }) {
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+function LetterSection({ label, children }) {
+  return (
+    <div style={{marginTop:10}}>
+      <div className="muted-small" style={{marginBottom:3}}>{label}</div>
+      <div style={{fontSize:14,whiteSpace:'pre-wrap'}}>{children}</div>
     </div>
   )
 }

@@ -428,10 +428,51 @@ CREATE TABLE pastor_letters (
     spiritual_note  TEXT,                                -- 属灵生命状态
     church_life_note TEXT,                               -- 教会生活参与
     is_verified     BOOLEAN NOT NULL DEFAULT FALSE,      -- 管理员核实真实性
+    verified_by     UUID REFERENCES users(id) ON DELETE RESTRICT,
+    verified_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT pastor_letters_verification_consistent CHECK (
+      (
+        is_verified = TRUE
+        AND verified_by IS NOT NULL
+        AND verified_at IS NOT NULL
+        AND verified_by <> user_id
+      )
+      OR
+      (
+        is_verified = FALSE
+        AND verified_by IS NULL
+        AND verified_at IS NULL
+      )
+    )
 );
-CREATE INDEX idx_pastor_letters_user ON pastor_letters(user_id);
+CREATE UNIQUE INDEX idx_pastor_letters_user ON pastor_letters(user_id);
+
+CREATE OR REPLACE FUNCTION reset_pastor_letter_verification_on_content_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.is_verified := FALSE;
+  NEW.verified_by := NULL;
+  NEW.verified_at := NULL;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER pastor_letters_reset_verification_on_content_change
+BEFORE UPDATE OF pastor_name, pastor_contact, family_note, faith_note, spiritual_note, church_life_note
+ON pastor_letters
+FOR EACH ROW
+WHEN (
+  ROW(OLD.pastor_name, OLD.pastor_contact, OLD.family_note, OLD.faith_note,
+      OLD.spiritual_note, OLD.church_life_note)
+  IS DISTINCT FROM
+  ROW(NEW.pastor_name, NEW.pastor_contact, NEW.family_note, NEW.faith_note,
+      NEW.spiritual_note, NEW.church_life_note)
+)
+EXECUTE FUNCTION reset_pastor_letter_verification_on_content_change();
 
 -- ============================================================
 -- v3 新表
