@@ -230,7 +230,7 @@ export default function Chat() {
               background: 'var(--surface)', display: 'flex', gap: 10, alignItems: 'center'
             }}>
               <input value={text} onChange={e => setText(e.target.value)} maxLength={2000}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && send()}
                 placeholder="输入消息…"
                 style={{
                   flex: 1, padding: '10px 14px', borderRadius: 10,

@@ -37,3 +37,19 @@ test('confirmed relationships still expose the end action', () => {
   assert.doesNotMatch(endAction, /!\['confirmed', 'ended'\]\.includes\(rel\.state\)/)
   assert.match(endAction, />\s*结束关系\s*</)
 })
+
+test('cancelling the end reason prompt never calls the relationship endpoint', () => {
+  const endRel = relationships.match(/const endRel = \(id\) => \{[\s\S]*?\n  \}/)?.[0] || ''
+
+  assert.match(endRel, /const reason = window\.prompt/)
+  assert.match(endRel, /if \(reason === null\) return/)
+  assert.ok(endRel.indexOf('reason === null') < endRel.indexOf('runAction'))
+})
+
+test('relationship loading does not turn chat failures into a false empty relationship', () => {
+  assert.match(relationships, /Promise\.allSettled\(\[relationships\.list\(\), chat\.channels\(\)\]\)/)
+  assert.match(relationships, /relResult\.status === 'rejected'/)
+  assert.match(relationships, /!loading && data && !data\.relationship/)
+  assert.match(relationships, /onClick=\{load\}[\s\S]*?>重试</)
+  assert.doesNotMatch(relationships, /setData\(\{ relationship: null \}\)/)
+})

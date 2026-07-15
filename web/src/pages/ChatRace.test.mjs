@@ -92,3 +92,7 @@ test('mobile channel-list failures remain visible in list mode', () => {
   assert.match(channelList, /role="alert"/)
   assert.match(source, /active && error/)
 })
+
+test('IME composition enter does not send an unfinished message', () => {
+  assert.match(source, /!e\.nativeEvent\.isComposing && send\(\)/)
+})

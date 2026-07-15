@@ -20,6 +20,28 @@ test('pastor certification submits the complete application payload', () => {
   assert.match(application, /statement:\s*form\.statement/)
 })
 
+test('pastor certification keeps the application closed until status is ready', () => {
+  assert.match(pastor, /useState\('loading'\)/)
+  assert.match(pastor, /setCertLoadState\('ready'\)/)
+  assert.match(pastor, /setCertLoadState\('error'\)/)
+
+  const applicationCondition = pastor.match(/\{\(([^)]*certLoadState[^)]*)\) && \(\s*<div className="card">\s*<h3[^>]*>申请牧者认证<\/h3>/)?.[1] || ''
+  assert.match(applicationCondition, /certLoadState === 'ready'/)
+  assert.match(applicationCondition, /canApplyForCertification/)
+})
+
+test('pastor certification status error offers retry without opening the application', () => {
+  assert.match(pastor, /认证状态加载失败/)
+  assert.match(pastor, /onClick=\{loadCertificationStatus\}[^>]*>重新加载<\/button>/)
+  assert.doesNotMatch(pastor, /catch\(\(\) => setStatus\(\{ certification: null \}\)\)/)
+})
+
+test('a rejected pastor certification can be corrected and submitted again', () => {
+  const applicationCondition = pastor.match(/\{\(([^)]*certLoadState[^)]*)\) && \(\s*<div className="card">\s*<h3[^>]*>申请牧者认证<\/h3>/)?.[1] || ''
+  assert.match(pastor, /const canApplyForCertification = !status\?\.certification \|\| certState === 'rejected'/)
+  assert.match(applicationCondition, /canApplyForCertification/)
+})
+
 test('admin pastor review displays the submitted supporting documents', () => {
   const applicationsTab = admin.match(/function ApplicationsTab\(\) \{([\s\S]*?)\n\}\n\nfunction AuditTab/)?.[1] || ''
 

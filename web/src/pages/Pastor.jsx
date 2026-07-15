@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { coursePastorReviews, pastorCert, relationshipReviews } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Pastor() {
   const { user } = useAuth()
   const [status, setStatus] = useState(null)
+  const [certLoadState, setCertLoadState] = useState('loading')
   const [form, setForm] = useState({
     church_name: '', presbytery: '', ordination_info: '', contact: '', statement: ''
   })
@@ -19,9 +20,21 @@ export default function Pastor() {
   const [relationshipMsg, setRelationshipMsg] = useState('')
   const [relationshipBusy, setRelationshipBusy] = useState('')
 
-  useEffect(() => {
-    pastorCert.status().then(r => setStatus(r.data)).catch(() => setStatus({ certification: null }))
+  const loadCertificationStatus = useCallback(async () => {
+    setCertLoadState('loading')
+    setStatus(null)
+    try {
+      const response = await pastorCert.status()
+      setStatus(response.data)
+      setCertLoadState('ready')
+    } catch {
+      setCertLoadState('error')
+    }
   }, [])
+
+  useEffect(() => {
+    loadCertificationStatus()
+  }, [loadCertificationStatus])
 
   useEffect(() => {
     setRelationshipLoading(true)
@@ -88,7 +101,7 @@ export default function Pastor() {
         statement: form.statement,
       })
       setMsg('已提交，等待管理员审核')
-      pastorCert.status().then(r => setStatus(r.data)).catch(() => {})
+      loadCertificationStatus()
     } catch (e) {
       setMsg(e.response?.data?.error || '提交失败，请重试')
     }
@@ -96,6 +109,7 @@ export default function Pastor() {
 
   const isPastor = user?.role === 'pastor'
   const certState = status?.certification?.state
+  const canApplyForCertification = !status?.certification || certState === 'rejected'
 
   return (
     <>
@@ -195,14 +209,25 @@ export default function Pastor() {
         </div>
       )}
 
-      {!canReview && certState === 'pending' && (
+      {!canReview && certLoadState === 'loading' && (
+        <div className="card" style={{fontSize:13,color:'var(--legacy-muted)'}}>认证状态加载中…</div>
+      )}
+
+      {!canReview && certLoadState === 'error' && (
+        <div className="card">
+          <div className="error-msg">认证状态加载失败，请重新加载。</div>
+          <button className="btn btn-outline" onClick={loadCertificationStatus}>重新加载</button>
+        </div>
+      )}
+
+      {!canReview && certLoadState === 'ready' && certState === 'pending' && (
         <div className="card" style={{background:'#FFF8E8',border:'1px solid #F0D896'}}>
           <span className="badge badge-soft">审核中</span>
           <p style={{fontSize:14,marginTop:8,color:'var(--legacy-muted)'}}>你的牧者认证申请正在等待管理员审核。</p>
         </div>
       )}
 
-      {!canReview && certState !== 'pending' && (
+      {(!canReview && certLoadState === 'ready' && canApplyForCertification) && (
         <div className="card">
           <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:4}}>申请牧者认证</h3>
           <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:16}}>

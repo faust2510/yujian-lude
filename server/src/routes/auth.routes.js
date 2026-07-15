@@ -14,6 +14,7 @@ import {
 import { canExposeDevTokens, config } from '../config.js';
 import { awardPoints, recomputeExposure } from '../lib/rewards.js';
 import { accountMail } from '../lib/mailer.js';
+import { validatePassword } from '../lib/password-policy.js';
 import {
   createPublicToken,
   hashToken,
@@ -73,9 +74,8 @@ router.post('/register', async (req, res) => {
   const { password, nickname } = req.body || {};
   const email = normalizeEmailKey(req.body?.email);
   if (!email || !EMAIL_RE.test(email)) return res.status(400).json({ error: '邮箱格式不正确' });
-  if (typeof password !== 'string' || password.length < 8) {
-    return res.status(400).json({ error: '密码至少 8 位' });
-  }
+  const passwordError = validatePassword(password);
+  if (passwordError) return res.status(400).json({ error: passwordError });
 
   const exists = await one('SELECT 1 FROM users WHERE email=$1', [email]);
   if (exists) return res.status(409).json({ error: '该邮箱已注册' });
@@ -121,7 +121,9 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { password } = req.body || {};
   const email = normalizeEmailKey(req.body?.email);
-  if (!email || !password) return res.status(400).json({ error: '请输入邮箱和密码' });
+  if (!email || typeof password !== 'string' || !password) return res.status(400).json({ error: '请输入邮箱和密码' });
+  const passwordError = validatePassword(password, { requireMinimum: false });
+  if (passwordError) return res.status(400).json({ error: passwordError });
   const ip = clientIp(req);
   const attempt = await loginAttempt(email, ip);
   if (isLocked(attempt)) {
@@ -284,7 +286,8 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   const { token, new_password } = req.body || {};
   if (!token || !new_password) return res.status(400).json({ error: '缺少 token 或新密码' });
-  if (new_password.length < 8) return res.status(400).json({ error: '新密码至少 8 位' });
+  const passwordError = validatePassword(new_password, { label: '新密码' });
+  if (passwordError) return res.status(400).json({ error: passwordError });
 
   const tokenHash = hashToken(token);
   const row = await tx(async (db) => {
@@ -311,7 +314,10 @@ router.post('/reset-password', async (req, res) => {
 router.post('/change-password', requireAuth, async (req, res) => {
   const { current_password, new_password } = req.body || {};
   if (!current_password || !new_password) return res.status(400).json({ error: '请填写当前密码和新密码' });
-  if (new_password.length < 8) return res.status(400).json({ error: '新密码至少 8 位' });
+  const currentPasswordError = validatePassword(current_password, { label: '当前密码', requireMinimum: false });
+  if (currentPasswordError) return res.status(400).json({ error: currentPasswordError });
+  const newPasswordError = validatePassword(new_password, { label: '新密码' });
+  if (newPasswordError) return res.status(400).json({ error: newPasswordError });
   const u = await one('SELECT password_hash FROM users WHERE id=$1', [req.user.id]);
   if (!u || !(await verifyPassword(current_password, u.password_hash))) {
     return res.status(401).json({ error: '当前密码不正确' });

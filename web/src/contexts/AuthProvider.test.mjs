@@ -22,6 +22,15 @@ test('auth recovery exposes a clear retry state for transient failures', () => {
   assert.match(source, /isRetrying \? '正在重试…' : '重新尝试'/)
 })
 
+test('auth recovery never blocks login registration reset or verification routes', () => {
+  assert.match(source, /useLocation\(\)/)
+  for (const route of ['/login', '/register', '/reset-password', '/verify-email']) {
+    assert.match(source, new RegExp(`['"]${route}['"]`))
+  }
+  assert.match(source, /const recoveryBlocksRoute = !PUBLIC_ACCOUNT_ROUTES\.has\(location\.pathname\)/)
+  assert.match(source, /recoveryError && recoveryBlocksRoute/)
+})
+
 test('successful auth responses retain the complete user including nickname', () => {
   assert.match(source, /const nextUser = r\.data\.user/)
   assert.match(source, /setUser\(nextUser\)/)

@@ -13,6 +13,20 @@ const routePath = path.join(__dirname, 'admin.routes.js');
 const source = readFileSync(routePath, 'utf8');
 const ADMIN_ID = '11111111-1111-4111-8111-111111111111';
 
+test('admin resource ids are validated before route handlers', () => {
+  assert.match(source, /router\.param\('id',\s*validateUuidParam\)/);
+});
+
+test('ban actions require an actual boolean instead of coercing strings', () => {
+  const banRoute = source.slice(
+    source.indexOf("router.post('/users/:id/ban'"),
+    source.indexOf("router.post('/users/:id/role'"),
+  );
+
+  assert.match(banRoute, /typeof req\.body\?\.ban !== 'boolean'/);
+  assert.doesNotMatch(banRoute, /req\.body\?\.ban !== false/);
+});
+
 function compactSql(sql) {
   return sql.replace(/\s+/g, ' ').trim();
 }

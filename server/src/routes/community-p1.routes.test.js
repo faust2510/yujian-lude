@@ -84,15 +84,32 @@ test('平台管理员可以将帖子设为精选', async () => {
     path: `/community/posts/${POST_ID}/feature`,
     body: { action: 'feature' },
     dbRows: async (sql) => {
-      if (/SELECT group_id FROM community_posts/i.test(sql)) return [{ group_id: null }];
+      if (/SELECT group_id, state FROM community_posts/i.test(sql)) return [{ group_id: null, state: 'visible' }];
       if (/FROM community_admin_applications/i.test(sql)) return [];
-      if (/UPDATE community_posts SET state = 'featured'/i.test(sql)) return [];
+      if (/UPDATE community_posts SET state = 'featured'/i.test(sql)) return [{ id: POST_ID }];
       throw new Error(`Unexpected SQL: ${sql}`);
     },
   });
 
   assert.equal(result.status, 200);
   assert.equal(result.calls.some(({ sql }) => /UPDATE community_posts SET state = 'featured'/i.test(sql)), true);
+});
+
+test('已删除帖子不能通过置顶或精选重新公开', async () => {
+  const result = await requestRoute({
+    method: 'PATCH',
+    path: `/community/posts/${POST_ID}/feature`,
+    body: { action: 'pin' },
+    dbRows: async (sql) => {
+      if (/SELECT group_id, state FROM community_posts/i.test(sql)) {
+        return [{ group_id: null, state: 'removed' }];
+      }
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  });
+
+  assert.equal(result.status, 409);
+  assert.equal(result.calls.some(({ sql }) => /UPDATE community_posts/i.test(sql)), false);
 });
 
 test('平台管理员可以审核小组帖子', async () => {

@@ -15,6 +15,14 @@ router.use(requireAuth, requireRole('admin'));
 const ADMIN_USER_OP_LOCK_KEY = 871406252;
 const EXPOSURE_SETTING_KEYS = new Set(['exposure.base', 'exposure.endorsement_bonus', 'course.exposure_multiplier']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateUuidParam(_req, res, next, value) {
+  if (!UUID_RE.test(value)) return res.status(400).json({ error: 'ID 格式不正确' });
+  next();
+}
+
+router.param('id', validateUuidParam);
+
 const INTEGER_SETTING_FIELDS = new Map([
   ['points.daily_checkin', ['amount']],
   ['points.profile_complete', ['amount']],
@@ -148,7 +156,10 @@ router.post('/users/:id/points', async (req, res) => {
 });
 
 router.post('/users/:id/ban', async (req, res) => {
-  const ban = req.body?.ban !== false;
+  if (typeof req.body?.ban !== 'boolean') {
+    return res.status(400).json({ error: 'ban 必须是布尔值' });
+  }
+  const ban = req.body.ban;
   try {
     await tx(async (db) => {
       await db.query('SELECT pg_advisory_xact_lock($1)', [ADMIN_USER_OP_LOCK_KEY]);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { vip as vipApi, points } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { formatCurrencyAmount } from '../lib/currency'
@@ -10,6 +10,7 @@ export default function Vip() {
   const [pts, setPts] = useState(null)
   const [redemption, setRedemption] = useState(null)
   const [subscriptions, setSubscriptions] = useState([])
+  const [subscriptionStatus, setSubscriptionStatus] = useState('loading')
   const [days, setDays] = useState(1)
   const [msg, setMsg] = useState('')
   const [subscriptionMsg, setSubscriptionMsg] = useState('')
@@ -20,8 +21,20 @@ export default function Vip() {
   const [applicantNote, setApplicantNote] = useState('')
   const [selectedTier, setSelectedTier] = useState('basic')
 
+  const loadSubscriptions = useCallback(async () => {
+    setSubscriptionStatus('loading')
+    try {
+      const response = await vipApi.subscriptions()
+      setSubscriptions(response.data.subscriptions || [])
+      setSubscriptionStatus('ready')
+    } catch {
+      setSubscriptionStatus('error')
+    }
+  }, [])
+
   useEffect(() => {
-    Promise.allSettled([vipApi.plans(), points.balance(), vipApi.subscriptions()]).then(([plansResult, pointsResult, subscriptionsResult]) => {
+    loadSubscriptions()
+    Promise.allSettled([vipApi.plans(), points.balance()]).then(([plansResult, pointsResult]) => {
       if (plansResult.status === 'fulfilled') {
         setPlans(plansResult.value.data.plans || [])
         setRedemption(plansResult.value.data.redemption || null)
@@ -30,22 +43,21 @@ export default function Vip() {
         setPts(pointsResult.value.data)
         setRedemption(current => current || pointsResult.value.data.vipRedemption || null)
       }
-      if (subscriptionsResult.status === 'fulfilled') {
-        setSubscriptions(subscriptionsResult.value.data.subscriptions || [])
-      }
-      if (plansResult.status === 'rejected' || pointsResult.status === 'rejected' || subscriptionsResult.status === 'rejected') {
+      if (plansResult.status === 'rejected' || pointsResult.status === 'rejected') {
         setLoadError('会员与积分信息加载不完整，请刷新重试')
       }
     })
-  }, [])
+  }, [loadSubscriptions])
 
   useEffect(() => {
     const refreshVipState = async () => {
+      setSubscriptionStatus('loading')
       try {
         const [subscriptionsResult] = await Promise.all([vipApi.subscriptions(), refreshMe()])
         setSubscriptions(subscriptionsResult.data.subscriptions || [])
+        setSubscriptionStatus('ready')
       } catch {
-        setLoadError('会员申请状态刷新失败，请稍后重试')
+        setSubscriptionStatus('error')
       }
     }
 
@@ -185,7 +197,20 @@ export default function Vip() {
           {selectedPlan?.payment_instructions || '请联系平台运营获取收款方式，付款后填写流水尾号。'}
         </div>
 
-        {pendingSubscription ? (
+        {subscriptionStatus === 'loading' && (
+          <div style={{borderTop:'1px solid var(--border)',paddingTop:14,fontSize:13,color:'var(--legacy-muted)'}}>
+            正在加载会员申请状态…
+          </div>
+        )}
+        {subscriptionStatus === 'error' && (
+          <div className="error-msg" style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
+            <div>会员申请状态加载失败，请重试</div>
+            <button className="btn btn-outline" style={{marginTop:12}} onClick={loadSubscriptions}>
+              重新加载
+            </button>
+          </div>
+        )}
+        {subscriptionStatus === 'ready' && pendingSubscription && (
           <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
             <span className="badge badge-soft">待核款</span>
             <div style={{fontSize:13,marginTop:8}}>申请套餐：{pendingSubscription.tier === 'pro' ? '进阶 VIP' : '基础 VIP'}</div>
@@ -195,7 +220,8 @@ export default function Vip() {
               取消申请
             </button>
           </div>
-        ) : (
+        )}
+        {subscriptionStatus === 'ready' && !pendingSubscription && (
           <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
             <div className="field">
               <label htmlFor="vip-payment-reference">付款流水尾号</label>

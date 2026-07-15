@@ -208,7 +208,38 @@ test('非小组成员不能申请组管理员', async () => {
   assert.equal(result.calls.some(({ sql }) => /INSERT INTO community_admin_applications/i.test(sql)), false);
 });
 
-test('非法的小组和申请 ID 在查询数据库前返回 400', async () => {
+test('非法的社区资源 ID 在查询数据库前统一返回 400', async () => {
+  const invalidResourceRequests = [
+    { path: '/community/groups/not-a-uuid' },
+    { method: 'PATCH', path: '/community/groups/not-a-uuid', body: { name: '测试' } },
+    { method: 'POST', path: '/community/groups/not-a-uuid/join', body: {} },
+    { path: '/community/groups/not-a-uuid/members' },
+    { path: '/community/groups/not-a-uuid/pending' },
+    { method: 'PATCH', path: `/community/groups/not-a-uuid/members/${OTHER_ID}`, body: { action: 'approve' } },
+    { method: 'PATCH', path: `/community/groups/${GROUP_ID}/members/not-a-uuid`, body: { action: 'approve' } },
+    { method: 'POST', path: '/community/posts/not-a-uuid/like', body: {} },
+    { path: '/community/posts/not-a-uuid/comments' },
+    { method: 'DELETE', path: '/community/comments/not-a-uuid' },
+    { method: 'POST', path: '/community/follow/not-a-uuid', body: {} },
+    { method: 'DELETE', path: '/community/posts/not-a-uuid' },
+    { method: 'PATCH', path: '/community/posts/not-a-uuid/feature', body: { action: 'pin' } },
+    { method: 'PATCH', path: '/community/posts/not-a-uuid/moderate', body: { action: 'approve' } },
+    { method: 'POST', path: '/community/posts/not-a-uuid/bookmark', body: {} },
+    { path: '/community/groups/not-a-uuid/events' },
+    { method: 'POST', path: '/community/groups/not-a-uuid/events', body: { title: '测试活动' } },
+    { method: 'POST', path: '/community/events/not-a-uuid/rsvp', body: { status: 'going' } },
+    { path: '/community/user/not-a-uuid/profile' },
+    { path: '/community/user/not-a-uuid/posts' },
+  ];
+  for (const request of invalidResourceRequests) {
+    const result = await requestRoute({
+      ...request,
+      dbRows: async (sql) => { throw new Error(`Unexpected SQL: ${sql}`); },
+    });
+    assert.equal(result.status, 400, `${request.method || 'GET'} ${request.path}`);
+    assert.equal(result.calls.length, 0, `${request.method || 'GET'} ${request.path}`);
+  }
+
   const invalidGroup = await requestRoute({
     method: 'POST',
     path: '/community/admin-apply',

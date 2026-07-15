@@ -47,6 +47,25 @@ test('VIP page refreshes subscriptions and current user together on window focus
   assert.match(vip, /window\.removeEventListener\('focus', refreshVipState\)/)
 })
 
+test('VIP page tracks subscription loading, ready, and error states', () => {
+  assert.match(vip, /const \[subscriptionStatus, setSubscriptionStatus\] = useState\('loading'\)/)
+  assert.match(vip, /setSubscriptionStatus\('loading'\)/)
+  assert.match(vip, /setSubscriptionStatus\('ready'\)/)
+  assert.match(vip, /setSubscriptionStatus\('error'\)/)
+})
+
+test('VIP page only shows a new application after subscription status is ready', () => {
+  assert.match(vip, /subscriptionStatus === 'loading'/)
+  assert.match(vip, /subscriptionStatus === 'error'/)
+  assert.match(vip, /subscriptionStatus === 'ready' && !pendingSubscription/)
+})
+
+test('VIP subscription error state offers a retry action', () => {
+  assert.match(vip, /会员申请状态加载失败/)
+  assert.match(vip, /onClick=\{loadSubscriptions\}/)
+  assert.match(vip, />\s*重新加载\s*</)
+})
+
 test('admin console exposes VIP request review and does not assign VIP as a role', () => {
   assert.match(api, /vipSubscriptions:/)
   assert.match(api, /reviewVipSubscription:/)

@@ -122,6 +122,22 @@ test('invalid textbook chapter index returns 400 before authentication and keeps
   });
 });
 
+test('non-object JSON request bodies return 400 before protected routes and keep the process healthy', async () => {
+  await withServer(async (baseUrl, child) => {
+    for (const body of [null, [], 'invalid']) {
+      const result = await jsonRequest(`${baseUrl}/api/community/posts`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      assert.equal(result.response.status, 400);
+      assert.deepEqual(result.body, { error: '请求体必须是 JSON 对象' });
+    }
+    await assertHealthy(baseUrl, child);
+  });
+});
+
 test('async route rejection reaches error middleware and keeps the process healthy', async () => {
   await withServer(async (baseUrl, child) => {
     const result = await jsonRequest(`${baseUrl}/api/auth/register`, {

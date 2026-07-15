@@ -63,6 +63,7 @@ async function requestRoute({ method = 'GET', path, body, dbRows }) {
   } finally {
     pool.query = originalQuery;
     pool.connect = originalConnect;
+    server.closeAllConnections?.();
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
 }
@@ -80,8 +81,11 @@ function assertRevocationBlockingLock(sql) {
 }
 
 function assertNotificationVisibilityFilter(sql) {
+  assert.match(sql, /notification_actor\.is_banned = FALSE/i);
   assert.match(sql, /n\.post_id IS NULL/i);
-  assert.match(sql, /EXISTS \( SELECT 1 FROM community_posts p WHERE p\.id = n\.post_id/i);
+  assert.match(sql, /EXISTS \( SELECT 1 FROM community_posts p JOIN users post_author/i);
+  assert.match(sql, /post_author\.is_banned = FALSE/i);
+  assert.match(sql, /WHERE p\.id = n\.post_id/i);
   assert.match(sql, /p\.state IN \('visible','pinned','featured'\)/i);
   assert.match(sql, /p\.moderation = 'approved'/i);
   assert.match(sql, /p\.group_id IS NULL OR EXISTS \( SELECT 1 FROM community_memberships cm/i);

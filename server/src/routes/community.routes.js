@@ -9,11 +9,27 @@ const POST_TYPES = new Set(['post', 'announcement']);
 const REPORT_TARGET_TYPES = new Set(['post', 'comment', 'user']);
 const REPORT_REASONS = new Set(['spam', 'inappropriate', 'fraud', 'harassment', 'other']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const VISIBLE_NOTIFICATION_FILTER = `(
-  n.post_id IS NULL
-  OR EXISTS (
+
+function validateUuidParam(_req, res, next, value) {
+  if (!UUID_RE.test(value)) return res.status(400).json({ error: 'ID 格式不正确' });
+  next();
+}
+
+router.param('id', validateUuidParam);
+router.param('userId', validateUuidParam);
+
+const VISIBLE_NOTIFICATION_FILTER = `
+  EXISTS (
+    SELECT 1 FROM users notification_actor
+     WHERE notification_actor.id = n.actor_id
+       AND notification_actor.is_banned = FALSE
+  )
+  AND (
+    n.post_id IS NULL
+    OR EXISTS (
     SELECT 1
       FROM community_posts p
+      JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
      WHERE p.id = n.post_id
        AND p.state IN ('visible','pinned','featured')
        AND p.moderation = 'approved'
@@ -27,8 +43,8 @@ const VISIBLE_NOTIFICATION_FILTER = `(
               AND cm.state = 'approved'
          )
        )
-  )
-)`;
+    )
+  )`;
 
 function communityRouteError(status, message) {
   const error = new Error(message);
@@ -76,6 +92,7 @@ async function canViewPost(userId, postId) {
   const row = await one(
     `SELECT p.id, p.author_id, p.group_id
        FROM community_posts p
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
       WHERE p.id = $1
         AND p.state IN ('visible','pinned','featured')
         AND p.moderation = 'approved'
@@ -136,7 +153,10 @@ router.get('/community/groups', requireAuth, async (req, res) => {
   const { rows } = await query(
     `SELECT g.id, g.name, g.description, g.category, g.join_policy, g.cover_image,
             g.created_by, g.created_at,
-            (SELECT COUNT(*)::int FROM community_memberships WHERE group_id = g.id AND state = 'approved') AS member_count,
+            (SELECT COUNT(*)::int
+               FROM community_memberships cm
+               JOIN users member_user ON member_user.id = cm.user_id AND member_user.is_banned = FALSE
+              WHERE cm.group_id = g.id AND cm.state = 'approved') AS member_count,
             (SELECT role FROM community_memberships WHERE group_id = g.id AND user_id = $1 AND state = 'approved') AS my_role,
             (SELECT state FROM community_memberships WHERE group_id = g.id AND user_id = $1) AS my_membership_state
        FROM community_groups g
@@ -175,7 +195,10 @@ router.get('/community/groups/:id', requireAuth, async (req, res) => {
   const row = await one(
     `SELECT g.id, g.name, g.description, g.category, g.join_policy, g.cover_image,
             g.created_by, g.created_at,
-            (SELECT COUNT(*)::int FROM community_memberships WHERE group_id = g.id AND state = 'approved') AS member_count,
+            (SELECT COUNT(*)::int
+               FROM community_memberships cm
+               JOIN users member_user ON member_user.id = cm.user_id AND member_user.is_banned = FALSE
+              WHERE cm.group_id = g.id AND cm.state = 'approved') AS member_count,
             (SELECT role FROM community_memberships WHERE group_id = g.id AND user_id = $2 AND state = 'approved') AS my_role,
             (SELECT state FROM community_memberships WHERE group_id = g.id AND user_id = $2) AS my_membership_state,
             COALESCE(pr.nickname, '匿名') AS owner_nickname
@@ -259,6 +282,7 @@ router.get('/community/groups/:id/members', requireAuth, async (req, res) => {
     `SELECT m.user_id, m.role, m.state, m.joined_at,
             COALESCE(pr.nickname, '匿名') AS nickname
        FROM community_memberships m
+       JOIN users member_user ON member_user.id = m.user_id AND member_user.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = m.user_id
       WHERE m.group_id = $1 AND m.state = 'approved'
       ORDER BY (m.role = 'owner') DESC, (m.role = 'admin') DESC, m.joined_at ASC`,
@@ -337,6 +361,7 @@ router.get('/community/posts/search', requireAuth, async (req, res) => {
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me,
             EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $1) AS bookmarked_by_me
       FROM community_posts p
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
       WHERE p.state IN ('visible','pinned')
         AND p.moderation = 'approved'
@@ -395,6 +420,7 @@ router.get('/community/posts', requireAuth, async (req, res) => {
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $${params.length + 1}) AS liked_by_me,
             EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $${params.length + 1}) AS bookmarked_by_me
       FROM community_posts p
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        ${where}
       ORDER BY (p.state = 'pinned') DESC, (p.state = 'featured') DESC, p.created_at DESC
@@ -418,6 +444,7 @@ router.get('/community/feed/following', requireAuth, async (req, res) => {
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me,
             EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $1) AS bookmarked_by_me
        FROM community_posts p
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        WHERE p.state IN ('visible','pinned')
          AND p.moderation = 'approved'
@@ -445,6 +472,7 @@ router.get('/community/feed/hot', requireAuth, async (req, res) => {
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me,
             EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $1) AS bookmarked_by_me
        FROM community_posts p
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        WHERE p.state IN ('visible','pinned','featured') AND p.moderation = 'approved'
          AND p.group_id IS NULL
@@ -471,6 +499,7 @@ router.get('/community/feed/trending', requireAuth, async (req, res) => {
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me,
             EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $1) AS bookmarked_by_me
        FROM community_posts p
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        WHERE p.state IN ('visible','pinned','featured') AND p.moderation = 'approved'
          AND p.group_id IS NULL
@@ -568,6 +597,7 @@ router.get('/community/posts/:id/comments', requireAuth, async (req, res) => {
     `SELECT c.id, c.post_id, c.author_id, c.parent_id, c.body, c.created_at,
             COALESCE(pr.nickname, '匿名') AS author_nickname
        FROM community_comments c
+       JOIN users comment_author ON comment_author.id = c.author_id AND comment_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = c.author_id
       WHERE c.post_id = $1
       ORDER BY c.created_at ASC`,
@@ -601,6 +631,7 @@ router.post('/community/posts/:id/comments', requireAuth, async (req, res) => {
       const postResult = await client.query(
         `SELECT p.id, p.author_id, p.group_id
            FROM community_posts p
+           JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
           WHERE p.id = $1
             AND p.state IN ('visible','pinned','featured')
             AND p.moderation = 'approved'
@@ -716,6 +747,7 @@ router.get('/community/following', requireAuth, async (req, res) => {
   const { rows } = await query(
     `SELECT f.followee_id AS user_id, COALESCE(pr.nickname, '匿名') AS nickname
        FROM community_follows f
+       JOIN users followed_user ON followed_user.id = f.followee_id AND followed_user.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = f.followee_id
       WHERE f.follower_id = $1
       ORDER BY f.created_at DESC`,
@@ -731,6 +763,7 @@ router.get('/community/hashtags', requireAuth, async (_req, res) => {
        FROM community_hashtags ch
        JOIN community_post_hashtags cph ON cph.hashtag_id = ch.id
        JOIN community_posts p ON p.id = cph.post_id
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
       WHERE p.state IN ('visible','pinned','featured')
         AND p.moderation = 'approved'
         AND p.group_id IS NULL
@@ -820,23 +853,26 @@ router.delete('/community/posts/:id', requireAuth, async (req, res) => {
 // --- 置顶/精华帖（组长 / 社区管理员） ---
 router.patch('/community/posts/:id/feature', requireAuth, async (req, res) => {
   const { action } = req.body; // 'pin' | 'unpin' | 'feature' | 'unfeature'
-  const post = await one(`SELECT group_id FROM community_posts WHERE id = $1`, [req.params.id]);
+  const post = await one(`SELECT group_id, state FROM community_posts WHERE id = $1`, [req.params.id]);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
+  if (post.state === 'removed') return res.status(409).json({ error: '已删除帖子不能重新公开' });
   const isGroupMod = post.group_id && await isGroupAdmin(req.user.id, post.group_id);
   const isGlobalAdmin = req.user.role === 'admin' || await isCommunityAdmin(req.user.id);
   if (!isGroupMod && !isGlobalAdmin) return res.status(403).json({ error: '无权操作' });
 
+  let updated;
   if (action === 'pin') {
-    await query(`UPDATE community_posts SET state = 'pinned', pinned_by = $1 WHERE id = $2`, [req.user.id, req.params.id]);
+    updated = await one(`UPDATE community_posts SET state = 'pinned', pinned_by = $1 WHERE id = $2 AND state <> 'removed' RETURNING id`, [req.user.id, req.params.id]);
   } else if (action === 'unpin') {
-    await query(`UPDATE community_posts SET state = 'visible', pinned_by = NULL WHERE id = $1`, [req.params.id]);
+    updated = await one(`UPDATE community_posts SET state = 'visible', pinned_by = NULL WHERE id = $1 AND state <> 'removed' RETURNING id`, [req.params.id]);
   } else if (action === 'feature') {
-    await query(`UPDATE community_posts SET state = 'featured', featured_by = $1 WHERE id = $2`, [req.user.id, req.params.id]);
+    updated = await one(`UPDATE community_posts SET state = 'featured', featured_by = $1 WHERE id = $2 AND state <> 'removed' RETURNING id`, [req.user.id, req.params.id]);
   } else if (action === 'unfeature') {
-    await query(`UPDATE community_posts SET state = 'visible', featured_by = NULL WHERE id = $1`, [req.params.id]);
+    updated = await one(`UPDATE community_posts SET state = 'visible', featured_by = NULL WHERE id = $1 AND state <> 'removed' RETURNING id`, [req.params.id]);
   } else {
     return res.status(400).json({ error: 'action 须为 pin/unpin/feature/unfeature' });
   }
+  if (!updated) return res.status(409).json({ error: '帖子状态已变化，请刷新后重试' });
   res.json({ ok: true });
 });
 
@@ -903,6 +939,7 @@ router.get('/community/bookmarks', requireAuth, async (req, res) => {
             TRUE AS bookmarked_by_me
        FROM community_bookmarks b
        JOIN community_posts p ON p.id = b.post_id
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
       WHERE b.user_id = $1
         AND p.state IN ('visible','pinned','featured')
@@ -958,6 +995,7 @@ router.post('/community/reports', requireAuth, async (req, res) => {
         const { rows } = await client.query(
           `SELECT p.id, p.author_id, p.group_id
              FROM community_posts p
+             JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
             WHERE p.id = $1
               AND p.state IN ('visible','pinned','featured')
               AND p.moderation = 'approved'
@@ -979,6 +1017,8 @@ router.post('/community/reports', requireAuth, async (req, res) => {
           `SELECT c.id, c.author_id, c.post_id, p.group_id
              FROM community_comments c
              JOIN community_posts p ON p.id = c.post_id
+             JOIN users comment_author ON comment_author.id = c.author_id AND comment_author.is_banned = FALSE
+             JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
             WHERE c.id = $1
               AND p.state IN ('visible','pinned','featured')
               AND p.moderation = 'approved'
@@ -997,7 +1037,7 @@ router.post('/community/reports', requireAuth, async (req, res) => {
         target = rows[0];
       } else {
         const { rows } = await client.query(
-          'SELECT id FROM users WHERE id = $1 FOR SHARE',
+          'SELECT id FROM users WHERE id = $1 AND is_banned = FALSE FOR SHARE',
           [target_id]
         );
         target = rows[0];
@@ -1290,7 +1330,7 @@ router.get('/community/user/:userId/profile', requireAuth, async (req, res) => {
         EXISTS(SELECT 1 FROM community_follows WHERE follower_id = $1 AND followee_id = u.id) AS followed_by_me
       FROM users u
       LEFT JOIN profiles pr ON pr.user_id = u.id
-      WHERE u.id = $2`,
+      WHERE u.id = $2 AND u.is_banned = FALSE`,
     [req.user.id, userId]
   );
   if (!row) return res.status(404).json({ error: '用户不存在' });
@@ -1311,6 +1351,7 @@ router.get('/community/user/:userId/posts', requireAuth, async (req, res) => {
             (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id)::int AS comment_count,
             EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me
       FROM community_posts p
+       JOIN users post_author ON post_author.id = p.author_id AND post_author.is_banned = FALSE
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
       WHERE p.author_id = $2
         AND p.state IN ('visible','pinned','featured')
@@ -1332,9 +1373,10 @@ router.get('/community/suggested-users', requireAuth, async (req, res) => {
             pr.intro,
             (SELECT COUNT(*) FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned','featured') AND moderation = 'approved' AND group_id IS NULL)::int AS post_count,
             (SELECT COUNT(*) FROM community_follows WHERE followee_id = u.id)::int AS follower_count
-       FROM users u
+      FROM users u
        LEFT JOIN profiles pr ON pr.user_id = u.id
       WHERE u.id != $1
+        AND u.is_banned = FALSE
         AND u.id NOT IN (SELECT followee_id FROM community_follows WHERE follower_id = $1)
         AND EXISTS (SELECT 1 FROM community_posts WHERE author_id = u.id AND state IN ('visible','pinned','featured') AND moderation = 'approved' AND group_id IS NULL)
       ORDER BY (SELECT COUNT(*) FROM community_follows WHERE followee_id = u.id) DESC,

@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { auth } from '../api/client'
 import { Button } from '../components/ui/button'
 import { AuthContext } from './AuthContext'
 
+const PUBLIC_ACCOUNT_ROUTES = new Set(['/login', '/register', '/reset-password', '/verify-email'])
+
 export function AuthProvider({ children }) {
+  const location = useLocation()
   const [user, setUser] = useState(undefined) // undefined = loading
   const [recoveryError, setRecoveryError] = useState(null)
   const [isRetrying, setIsRetrying] = useState(false)
   const refreshRequest = useRef(0)
+  const recoveryBlocksRoute = !PUBLIC_ACCOUNT_ROUTES.has(location.pathname)
 
   const refreshMe = useCallback(async () => {
     const requestId = ++refreshRequest.current
@@ -74,7 +79,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{ user, login, register, logout, refreshMe }}>
-      {recoveryError ? (
+      {recoveryError && recoveryBlocksRoute ? (
         <div className="loading-screen" role="alert">
           <p>{recoveryError}</p>
           <Button type="button" onClick={retryRecovery} disabled={isRetrying}>

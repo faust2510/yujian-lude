@@ -29,9 +29,20 @@ export default function Relationships() {
     setError('')
     setPartnerLetters({})
     try {
-      const [rel, ch] = await Promise.all([relationships.list(), chat.channels()])
+      const [relResult, chatResult] = await Promise.allSettled([relationships.list(), chat.channels()])
+      const nextChannels = chatResult.status === 'fulfilled' ? chatResult.value.data.channels || [] : []
+      if (relResult.status === 'rejected') {
+        if (requestId !== relationshipLoadRequest.current) return
+        setData(null)
+        setChannels(nextChannels)
+        setError(relResult.reason?.response?.data?.error || '关系信息加载失败')
+        return
+      }
+      const rel = relResult.value
       const relationship = rel.data?.relationship
-      const nextChannels = ch.data.channels || []
+      let loadError = chatResult.status === 'rejected'
+        ? chatResult.reason?.response?.data?.error || '私聊对象加载失败，请稍后重试'
+        : ''
 
       const targetIds = [...new Set([
         ...nextChannels.map(channel => channel.other_id),
@@ -58,11 +69,12 @@ export default function Relationships() {
       setData(rel.data)
       setChannels(nextChannels)
       setPartnerLetters(nextLetters)
-      if (letterError) setError(letterError)
+      if (letterError) loadError = letterError
+      if (loadError) setError(loadError)
     } catch (err) {
       if (requestId !== relationshipLoadRequest.current) return
       setError(err.response?.data?.error || '关系信息加载失败')
-      setData({ relationship: null })
+      setData(null)
       setChannels([])
     } finally {
       if (requestId === relationshipLoadRequest.current) setLoading(false)
@@ -102,7 +114,8 @@ export default function Relationships() {
   )
 
   const endRel = (id) => {
-    const reason = window.prompt('请简短说明结束原因（可留空）') || ''
+    const reason = window.prompt('请简短说明结束原因（可留空）')
+    if (reason === null) return
     return runAction(`end-${id}`, () => relationships.end(id, reason), '关系已结束')
   }
 
@@ -127,9 +140,13 @@ export default function Relationships() {
 
       {loading && <div style={{color:'var(--legacy-muted)',padding:20,fontSize:14}}>加载中…</div>}
       {msg && <div className="success-msg" style={{marginBottom:12}}>{msg}</div>}
-      {error && <div className="error-msg" style={{marginBottom:12}}>{error}</div>}
+      {error && (
+        <div className="error-msg" style={{marginBottom:12}}>
+          {error} <button className="btn btn-outline" onClick={load}>重试</button>
+        </div>
+      )}
 
-      {!loading && !data?.relationship && (
+      {!loading && data && !data.relationship && (
         <div className="card">
           <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:8}}>还没有进行中的关系</h3>
           <p style={{fontSize:14,color:'var(--legacy-muted)',marginBottom:16}}>可以从已经互相表达意向的私聊对象中，开启关系确认流程。</p>

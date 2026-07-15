@@ -12,6 +12,14 @@ import {
 } from '../lib/profile-inputs.js';
 
 const router = Router();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateUuidParam(_req, res, next, value) {
+  if (!UUID_RE.test(value)) return res.status(400).json({ error: '背书 ID 格式不正确' });
+  next();
+}
+
+router.param('id', validateUuidParam);
 
 // 读自己的资料 + 信仰档案 + 背书 + 完课徽章
 router.get('/me/profile', requireAuth, async (req, res) => {
@@ -38,6 +46,9 @@ router.get('/me/profile', requireAuth, async (req, res) => {
 router.put('/me/profile', requireAuth, async (req, res) => {
   const uid = req.user.id;
   const { nickname, city, birth_date, education, goal, preference, intro, privacy_ok } = req.body || {};
+  if (typeof privacy_ok !== 'boolean') {
+    return res.status(400).json({ error: 'privacy_ok 必须是布尔值' });
+  }
   try {
     const normalizedBirthDate = normalizeBirthDate(birth_date);
     const normalizedBirthYear = normalizedBirthDate ? Number(normalizedBirthDate.slice(0, 4)) : null;
@@ -61,7 +72,7 @@ router.put('/me/profile', requireAuth, async (req, res) => {
          ON CONFLICT (user_id) DO UPDATE SET
            nickname=$2, city=$3, birth_date=$4, birth_year=$5, education=$6, goal=$7,
            preference=$8, intro=$9, privacy_ok=$10, completion=$11, updated_at=now()`,
-        [uid, nickname, city, normalizedBirthDate, normalizedBirthYear, education, goal, preference, intro, !!privacy_ok, completion]
+        [uid, nickname, city, normalizedBirthDate, normalizedBirthYear, education, goal, preference, intro, privacy_ok, completion]
       );
       if (completion >= 100) await awardPoints(db, uid, 'points.profile_complete');
       return recomputeExposure(db, uid);

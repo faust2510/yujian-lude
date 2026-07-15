@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ai } from '../api/client'
 
 const safeGuidancePrompts = [
@@ -23,20 +23,33 @@ const escalationGuidance = [
 export default function AiConsult() {
   const [question, setQuestion] = useState('')
   const [history, setHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [historyError, setHistoryError] = useState('')
   const [answer, setAnswer] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const historyRequest = useRef(0)
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
+    const requestId = ++historyRequest.current
     try {
+      setHistoryLoading(true)
+      setHistoryError('')
       const r = await ai.history()
+      if (requestId !== historyRequest.current) return
       setHistory(r.data.history || [])
-    } catch {
-      setHistory([])
+    } catch (err) {
+      if (requestId !== historyRequest.current) return
+      setHistoryError(err.response?.data?.error || '最近咨询加载失败，请稍后重试')
+    } finally {
+      if (requestId === historyRequest.current) setHistoryLoading(false)
     }
-  }
+  }, [])
 
-  useEffect(() => { loadHistory() }, [])
+  useEffect(() => {
+    loadHistory()
+    return () => { historyRequest.current += 1 }
+  }, [loadHistory])
 
   const ask = async (e) => {
     e.preventDefault()
@@ -159,7 +172,14 @@ export default function AiConsult() {
               <h2>最近咨询</h2>
               <span>{history.length}</span>
             </div>
-            {history.length === 0 && <p className="muted-small">暂无咨询记录</p>}
+            {historyLoading && <p className="muted-small">加载中…</p>}
+            {historyError && (
+              <div className="error-msg">
+                <span>{historyError}</span>
+                <button type="button" className="btn btn-outline" onClick={loadHistory}>重试</button>
+              </div>
+            )}
+            {!historyLoading && !historyError && history.length === 0 && <p className="muted-small">暂无咨询记录</p>}
             {history.slice(0, 6).map((item, index) => (
               <button
                 className="ai-history-item"

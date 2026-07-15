@@ -127,18 +127,27 @@ function VipSubscriptionsTab() {
   const [confirmationRefs, setConfirmationRefs] = useState({})
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const vipSubscriptionsRequest = useRef(0)
+  const stateRef = useRef(state)
+  stateRef.current = state
 
   const load = useCallback(async (nextState = state) => {
+    const requestId = ++vipSubscriptionsRequest.current
     try {
       setError('')
       const response = await admin.vipSubscriptions(nextState)
+      if (requestId !== vipSubscriptionsRequest.current) return
       setItems(response.data.subscriptions || [])
     } catch (err) {
+      if (requestId !== vipSubscriptionsRequest.current) return
       setError(getErrorMessage(err, 'VIP 申请加载失败'))
     }
   }, [state])
 
-  useEffect(() => { load(state) }, [load, state])
+  useEffect(() => {
+    load(state)
+    return () => { vipSubscriptionsRequest.current += 1 }
+  }, [load, state])
 
   const review = async (item, action) => {
     const note = (notes[item.id] || '').trim()
@@ -155,7 +164,7 @@ function VipSubscriptionsTab() {
       setBusy(item.id)
       setError('')
       await admin.reviewVipSubscription(item.id, action, note, confirmationRef)
-      await load()
+      await load(stateRef.current)
     } catch (err) {
       setError(getErrorMessage(err, 'VIP 申请审核失败'))
     } finally {
@@ -258,26 +267,35 @@ function EndorsementsTab() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const endorsementsRequest = useRef(0)
+  const stateRef = useRef(state)
+  stateRef.current = state
 
   const load = useCallback(async (nextState = state) => {
+    const requestId = ++endorsementsRequest.current
     try {
       setLoading(true)
       setError('')
       const r = await admin.endorsements(nextState)
+      if (requestId !== endorsementsRequest.current) return
       setItems(r.data.endorsements || [])
     } catch (err) {
+      if (requestId !== endorsementsRequest.current) return
       setError(getErrorMessage(err, '背书列表加载失败'))
     } finally {
-      setLoading(false)
+      if (requestId === endorsementsRequest.current) setLoading(false)
     }
   }, [state])
 
-  useEffect(() => { load(state) }, [load, state])
+  useEffect(() => {
+    load(state)
+    return () => { endorsementsRequest.current += 1 }
+  }, [load, state])
 
   const review = async (id, decision) => {
     try {
       await admin.reviewEndorsement(id, decision)
-      await load()
+      await load(stateRef.current)
     } catch (err) {
       setError(getErrorMessage(err, '审核操作失败，请稍后重试'))
     }
@@ -460,23 +478,32 @@ function ReportsTab() {
   const [state, setState] = useState('pending')
   const [reports, setReports] = useState([])
   const [error, setError] = useState('')
+  const reportsRequest = useRef(0)
+  const stateRef = useRef(state)
+  stateRef.current = state
 
   const load = useCallback(async (nextState = state) => {
+    const requestId = ++reportsRequest.current
     try {
       setError('')
       const r = await admin.reports(nextState)
+      if (requestId !== reportsRequest.current) return
       setReports(r.data.reports || [])
     } catch (err) {
+      if (requestId !== reportsRequest.current) return
       setError(getErrorMessage(err, '举报列表加载失败'))
     }
   }, [state])
 
-  useEffect(() => { load(state) }, [load, state])
+  useEffect(() => {
+    load(state)
+    return () => { reportsRequest.current += 1 }
+  }, [load, state])
 
   const review = async (id, action) => {
     try {
       await admin.reviewReport(id, action)
-      await load()
+      await load(stateRef.current)
     } catch (err) {
       setError(getErrorMessage(err, '举报处理失败'))
     }

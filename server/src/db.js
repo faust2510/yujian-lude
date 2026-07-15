@@ -6,6 +6,7 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: config.databaseUrl,
+  options: '-c timezone=Asia/Shanghai',
   // 生产环境若数据库要求 SSL，可在 DATABASE_URL 末尾加 ?sslmode=require
   // 或在此设置 ssl: { rejectUnauthorized: false }
   max: 10,
