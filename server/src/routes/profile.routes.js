@@ -7,6 +7,7 @@ import {
   calculateProfileCompletion,
   ProfileInputError,
   normalizeBaptismDate,
+  normalizeBirthYear,
   normalizeFaithYears,
 } from '../lib/profile-inputs.js';
 
@@ -37,22 +38,38 @@ router.get('/me/profile', requireAuth, async (req, res) => {
 router.put('/me/profile', requireAuth, async (req, res) => {
   const uid = req.user.id;
   const { nickname, city, birth_year, education, goal, preference, intro, privacy_ok } = req.body || {};
-  const merged = { nickname, city, birth_year, education, goal, preference, intro, privacy_ok };
-  const completion = calculateProfileCompletion(merged);
+  try {
+    const normalizedBirthYear = normalizeBirthYear(birth_year);
+    const merged = {
+      nickname,
+      city,
+      birth_year: normalizedBirthYear,
+      education,
+      goal,
+      preference,
+      intro,
+      privacy_ok,
+    };
+    const completion = calculateProfileCompletion(merged);
 
-  const exposure = await tx(async (db) => {
-    await db.query(
-      `INSERT INTO profiles (user_id, nickname, city, birth_year, education, goal, preference, intro, privacy_ok, completion, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
-       ON CONFLICT (user_id) DO UPDATE SET
-         nickname=$2, city=$3, birth_year=$4, education=$5, goal=$6,
-         preference=$7, intro=$8, privacy_ok=$9, completion=$10, updated_at=now()`,
-      [uid, nickname, city, birth_year, education, goal, preference, intro, !!privacy_ok, completion]
-    );
-    if (completion >= 100) await awardPoints(db, uid, 'points.profile_complete');
-    return recomputeExposure(db, uid);
-  });
-  res.json({ ok: true, completion, exposure });
+    const exposure = await tx(async (db) => {
+      await db.query(
+        `INSERT INTO profiles (user_id, nickname, city, birth_year, education, goal, preference, intro, privacy_ok, completion, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
+         ON CONFLICT (user_id) DO UPDATE SET
+           nickname=$2, city=$3, birth_year=$4, education=$5, goal=$6,
+           preference=$7, intro=$8, privacy_ok=$9, completion=$10, updated_at=now()`,
+        [uid, nickname, city, normalizedBirthYear, education, goal, preference, intro, !!privacy_ok, completion]
+      );
+      if (completion >= 100) await awardPoints(db, uid, 'points.profile_complete');
+      return recomputeExposure(db, uid);
+    });
+    res.json({ ok: true, completion, exposure });
+  } catch (err) {
+    if (err instanceof ProfileInputError) return res.status(400).json({ error: err.message });
+    console.error('[profile:details]', err);
+    return res.status(500).json({ error: '个人资料保存失败，请稍后重试' });
+  }
 });
 
 // 更新信仰档案（六项字段）

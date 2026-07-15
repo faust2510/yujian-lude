@@ -23,6 +23,20 @@ export function calculateProfileCompletion(profile = {}) {
   return Math.round((filled / values.length) * 100);
 }
 
+export function normalizeBirthYear(value, now = new Date()) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const input = String(value).trim();
+  const maxYear = now.getUTCFullYear() - 18;
+  if (!/^\d{4}$/.test(input)) {
+    throw new ProfileInputError(`出生年份必须是 1940 到 ${maxYear} 之间的四位整数`);
+  }
+  const year = Number(input);
+  if (!Number.isInteger(year) || year < 1940 || year > maxYear) {
+    throw new ProfileInputError(`出生年份必须是 1940 到 ${maxYear} 之间的四位整数`);
+  }
+  return year;
+}
+
 function isValidDateParts(year, month, day) {
   const value = new Date(Date.UTC(year, month - 1, day));
   return (

@@ -26,10 +26,24 @@ test('mobile layouts do not mount the shadcn sheet sidebar', () => {
   assert.match(sidebar, /if \(isMobile\) return null/)
 })
 
-test('desktop sidebar exposes private messages with an accessible icon action', () => {
+test('desktop sidebar exposes quick access with accessible icon actions', () => {
   assert.match(sidebar, /MessageCircleIcon/)
-  assert.match(sidebar, /to="\/chat" aria-label="私信"/)
-  assert.match(sidebar, /<TooltipContent>私信<\/TooltipContent>/)
+  assert.match(sidebar, /to=\{item\.to\} aria-label=\{item\.label\}/)
+  assert.match(sidebar, /<TooltipContent>\{item\.label\}<\/TooltipContent>/)
+})
+
+test('desktop and mobile shells expose relationship and AI quick access', () => {
+  for (const shell of [sidebar, mobileHeader]) {
+    assert.match(shell, /QUICK_ACCESS_ITEMS\.map/)
+    assert.match(shell, /to=\{item\.to\}/)
+    assert.match(shell, /aria-label=\{item\.label\}/)
+    assert.match(shell, /<TooltipContent>\{item\.label\}<\/TooltipContent>/)
+  }
+})
+
+test('user identity prefers the backend nickname over the email prefix', () => {
+  assert.match(userMenu, /const displayName = user\?\.nickname \|\| user\?\.email\?\.split\('@'\)\[0\]/)
+  assert.match(userMenu, /user-menu-identity[^}]*\{displayName\}/)
 })
 
 test('aggregate navigation owns aria-current and shares one icon map', () => {

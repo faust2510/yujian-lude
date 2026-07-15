@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { ArrowLeft, MessageCircle, Send } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { chat } from '../api/client'
+import './Chat.css'
 
 function timeAgo(iso) {
   if (!iso) return ''
@@ -21,7 +23,7 @@ export default function Chat() {
   const [loadingChannels, setLoadingChannels] = useState(true)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [error, setError] = useState('')
-  const bottomRef = useRef(null)
+  const messagesRef = useRef(null)
   const pollRef = useRef(null)
   const activeChannelIdRef = useRef(null)
   const messageRequestIdRef = useRef(0)
@@ -49,7 +51,7 @@ export default function Chat() {
       const r = await chat.messages(id)
       if (requestId !== messageRequestIdRef.current || activeChannelIdRef.current !== id) return
       setMessages(r.data?.messages || [])
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      setTimeout(() => messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight, behavior: 'smooth' }), 50)
     } catch (err) {
       if (!options.silent && requestId === messageRequestIdRef.current && activeChannelIdRef.current === id) {
         setError(err.response?.data?.error || '消息加载失败，请重试')
@@ -82,6 +84,14 @@ export default function Chat() {
     setActive(channel)
   }
 
+  const showChannelList = () => {
+    activeChannelIdRef.current = null
+    messageRequestIdRef.current += 1
+    setActive(null)
+    setMessages([])
+    setError('')
+  }
+
   const send = async () => {
     if (!text.trim() || !active || sending) return
     const channelId = active.id
@@ -102,18 +112,21 @@ export default function Chat() {
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - var(--nav-h, 60px))', background: 'var(--bg)' }}>
-      <div style={{ width: 280, borderRight: '1px solid var(--border)', overflowY: 'auto', background: 'var(--surface)', flexShrink: 0 }}>
+    <div className={`chat-shell ${active ? 'chat-view-conversation' : 'chat-view-list'}`}>
+      <div className="chat-channel-list">
         <div style={{
           padding: '16px 20px', borderBottom: '1px solid var(--border)',
           fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 15, color: 'var(--fg)'
         }}>私信</div>
+        {error && !active && (
+          <div className="chat-list-error error-msg" role="alert">{error}</div>
+        )}
         {loadingChannels && (
           <div style={{ padding: 24, color: 'var(--legacy-muted)', fontSize: 13 }}>对话加载中…</div>
         )}
-        {!loadingChannels && channels.length === 0 && (
+        {!loadingChannels && !error && channels.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>💬</div>
+            <MessageCircle size={32} style={{ marginBottom: 12, opacity: 0.3 }} aria-hidden="true" />
             <p style={{ color: 'var(--legacy-muted)', fontSize: 13, lineHeight: 1.6 }}>
               暂无对话。<br />与候选人互相表达意向后，私信通道会自动开通。
             </p>
@@ -121,11 +134,13 @@ export default function Chat() {
           </div>
         )}
         {channels.map(ch => (
-          <div key={ch.id} onClick={() => selectChannel(ch)}
+          <button key={ch.id} type="button" className="chat-channel-item"
+            onClick={() => selectChannel(ch)} aria-pressed={active?.id === ch.id}
             style={{
               padding: '14px 20px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
               background: active?.id === ch.id ? 'var(--bg)' : 'var(--surface)',
-              transition: 'background 0.15s'
+              transition: 'background 0.15s', width: '100%', borderTop: 0, borderLeft: 0,
+              borderRight: 0, textAlign: 'left', color: 'inherit', font: 'inherit'
             }}
             onMouseEnter={e => { if (active?.id !== ch.id) e.currentTarget.style.background = '#FAF0EE' }}
             onMouseLeave={e => { if (active?.id !== ch.id) e.currentTarget.style.background = 'var(--surface)' }}>
@@ -138,12 +153,12 @@ export default function Chat() {
             {ch.last_at && (
               <div style={{ fontSize: 11, color: 'var(--legacy-muted)', marginTop: 4, opacity: 0.6 }}>{timeAgo(ch.last_at)}</div>
             )}
-          </div>
+          </button>
         ))}
       </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        {error && (
+      <div className="chat-conversation">
+        {active && error && (
           <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
             <span className="error-msg" style={{ marginTop: 0 }}>{error}</span>
           </div>
@@ -158,13 +173,16 @@ export default function Chat() {
           </div>
         ) : (
           <>
-            <div style={{
+            <div className="chat-conversation-header" style={{
               padding: '12px 20px', borderBottom: '1px solid var(--border)',
               background: 'var(--surface)', fontWeight: 600, fontSize: 15
             }}>
+              <button className="chat-back-button" onClick={showChannelList} aria-label="返回对话列表" title="返回对话列表">
+                <ArrowLeft size={20} aria-hidden="true" />
+              </button>
               {active.other_nickname || '对方'}
             </div>
-            <div style={{
+            <div className="chat-messages" ref={messagesRef} style={{
               flex: 1, overflowY: 'auto', padding: '20px 24px',
               display: 'flex', flexDirection: 'column', gap: 12
             }}>
@@ -206,9 +224,8 @@ export default function Chat() {
                   </div>
                 )
               })}
-              <div ref={bottomRef} />
             </div>
-            <div style={{
+            <div className="chat-composer" style={{
               padding: '12px 20px', borderTop: '1px solid var(--border)',
               background: 'var(--surface)', display: 'flex', gap: 10, alignItems: 'center'
             }}>
@@ -224,13 +241,16 @@ export default function Chat() {
                 onFocus={e => e.target.style.borderColor = 'var(--brand)'}
                 onBlur={e => e.target.style.borderColor = 'var(--border)'} />
               <button onClick={send} disabled={sending || !text.trim()}
+                className="chat-send-button"
+                aria-label="发送消息"
                 style={{
                   padding: '10px 22px', background: sending ? 'var(--brand-dark)' : 'var(--brand)',
                   color: '#fff', border: 'none', borderRadius: 10, cursor: sending ? 'not-allowed' : 'pointer',
                   fontWeight: 600, fontSize: 14, transition: 'background 0.15s', whiteSpace: 'nowrap',
                   opacity: text.trim() ? 1 : 0.5
                 }}>
-                {sending ? '发送中…' : '发送'}
+                <Send size={17} aria-hidden="true" />
+                <span>{sending ? '发送中…' : '发送'}</span>
               </button>
             </div>
           </>

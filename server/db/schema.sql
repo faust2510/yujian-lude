@@ -59,14 +59,18 @@ CREATE TABLE profiles (
     user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     nickname     TEXT,
     city         TEXT,
-    birth_year   INTEGER,                                -- 前端 birthYear，校验 1940..(今年-18)
+    birth_year   INTEGER,                                -- 前端 birthYear，只允许成年年份
     education    TEXT,                                   -- 本科/硕士/博士...
     goal         TEXT,                                   -- 婚恋目标
     preference   TEXT,                                   -- 期望对象
     intro        TEXT,                                   -- 自我介绍
     privacy_ok   BOOLEAN NOT NULL DEFAULT FALSE,         -- 隐私授权
     completion   SMALLINT NOT NULL DEFAULT 0,            -- 资料完整度 0-100（服务端计算）
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT profiles_birth_year_adult_check CHECK (
+        birth_year IS NULL OR
+        birth_year BETWEEN 1940 AND EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER - 18
+    )
 );
 
 -- ============================================================

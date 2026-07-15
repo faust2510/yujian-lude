@@ -33,7 +33,16 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
   const eligibilityFilters = [
     'p.privacy_ok = TRUE',
     'p.completion >= 100',
-    `EXISTS(SELECT 1 FROM faith_profiles fp WHERE fp.user_id = u.id AND NULLIF(BTRIM(fp.church_name), '') IS NOT NULL AND NULLIF(BTRIM(fp.testimony), '') IS NOT NULL)`,
+    'p.birth_year BETWEEN 1940 AND EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER - 18',
+    `EXISTS(
+      SELECT 1 FROM faith_profiles fp
+       WHERE fp.user_id = u.id
+         AND NULLIF(BTRIM(fp.church_name), '') IS NOT NULL
+         AND NULLIF(BTRIM(fp.presbytery), '') IS NOT NULL
+         AND fp.baptism_date IS NOT NULL
+         AND fp.faith_years >= 0
+         AND NULLIF(BTRIM(fp.testimony), '') IS NOT NULL
+    )`,
   ];
   if (gate.requireEndorsement) {
     eligibilityFilters.push(`EXISTS(SELECT 1 FROM endorsements en WHERE en.user_id = u.id AND en.kind IN ('pastor','referrer') AND en.state='verified')`);
@@ -87,31 +96,32 @@ router.post('/match/:targetId/intent', requireAuth, async (req, res) => {
   if (!target) return res.status(404).json({ error: '候选人不存在' });
   if (!(await isInMatchPool(targetId))) return res.status(403).json({ error: '对方尚未进入匹配池' });
 
-  const existing = await one(
-    `SELECT status FROM matches WHERE user_id = $1 AND target_id = $2`,
-    [req.user.id, targetId]
-  );
-  if (intent === 'like' && existing?.status === 'matched') {
-    return res.json({ ok: true, mutual: true });
-  }
-  const alreadyExpressed = intent === 'like' && ACTIVE_MATCH_STATUSES.includes(existing?.status);
+  const limitKey = req.user.is_vip ? 'limits.daily_intents_vip' : 'limits.daily_intents_free';
+  const limit = intent === 'like'
+    ? (await getSetting(limitKey))?.value ?? (req.user.is_vip ? 15 : 3)
+    : null;
 
-  // 每日主动次数上限（VIP 更多）
-  if (intent === 'like' && !alreadyExpressed) {
-    const limKey = req.user.is_vip ? 'limits.daily_intents_vip' : 'limits.daily_intents_free';
-    const lim = (await getSetting(limKey))?.value ?? (req.user.is_vip ? 15 : 3);
-    const used = await one(
-      `SELECT count(*)::int AS n FROM matches
-        WHERE user_id = $1 AND intent_sent_at::date = CURRENT_DATE`,
-      [req.user.id]
-    );
-    if ((used?.n ?? 0) >= lim) {
-      return res.status(429).json({ error: `今日主动次数已用完（${lim} 次）`, isVip: req.user.is_vip });
+  const outcome = await tx(async (db) => {
+    if (intent === 'like') {
+      await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [req.user.id]);
+      const existing = await db.query(
+        `SELECT status FROM matches WHERE user_id = $1 AND target_id = $2`,
+        [req.user.id, targetId]
+      );
+      if (existing.rows[0]?.status === 'matched') return { limited: false, mutual: true };
+
+      const alreadyExpressed = ACTIVE_MATCH_STATUSES.includes(existing.rows[0]?.status);
+      if (!alreadyExpressed) {
+        const used = await db.query(
+          `SELECT count(*)::int AS n FROM matches
+            WHERE user_id = $1 AND intent_sent_at::date = CURRENT_DATE`,
+          [req.user.id]
+        );
+        if ((used.rows[0]?.n ?? 0) >= limit) return { limited: true, mutual: false };
+      }
     }
-  }
 
-  let mutual = false;
-  await tx(async (db) => {
+    let mutual = false;
     const [a, b] = [req.user.id, targetId].sort();
     await db.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [a, b]);
 
@@ -142,7 +152,7 @@ router.post('/match/:targetId/intent', requireAuth, async (req, res) => {
        RETURNING id, status`,
       [req.user.id, targetId, nextStatus]
     );
-    if (intent === 'pass') return;
+    if (intent === 'pass') return { limited: false, mutual: false };
 
     await awardPoints(db, req.user.id, 'points.intent_sent', {});
     // 检查是否互相心动 → 自动建私聊通道
@@ -169,8 +179,12 @@ router.post('/match/:targetId/intent', requireAuth, async (req, res) => {
         [req.user.id, targetId]
       );
     }
+    return { limited: false, mutual };
   });
-  res.json({ ok: true, mutual });
+  if (outcome.limited) {
+    return res.status(429).json({ error: `今日主动次数已用完（${limit} 次）`, isVip: req.user.is_vip });
+  }
+  res.json({ ok: true, mutual: outcome.mutual });
 });
 
 // 谁看过我（VIP 专属）

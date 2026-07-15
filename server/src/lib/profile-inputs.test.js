@@ -6,6 +6,7 @@ import {
   normalizeBaptismDate,
   normalizeFaithYears,
 } from './profile-inputs.js';
+import * as profileInputs from './profile-inputs.js';
 
 const completeProfile = {
   nickname: '路得',
@@ -62,4 +63,21 @@ test('rejects faith years that cannot be stored as an integer', () => {
     () => normalizeFaithYears('-1'),
     /信主年数/
   );
+});
+
+test('normalizes only adult four-digit birth years', () => {
+  assert.equal(typeof profileInputs.normalizeBirthYear, 'function');
+  const now = new Date('2026-07-15T00:00:00.000Z');
+
+  assert.equal(profileInputs.normalizeBirthYear('1994', now), 1994);
+  assert.equal(profileInputs.normalizeBirthYear(2008, now), 2008);
+  assert.equal(profileInputs.normalizeBirthYear('', now), null);
+  assert.equal(profileInputs.normalizeBirthYear(null, now), null);
+
+  for (const value of ['2009', '1939', '94', '1994.5', 'not-a-year']) {
+    assert.throws(
+      () => profileInputs.normalizeBirthYear(value, now),
+      /出生年份/
+    );
+  }
 });

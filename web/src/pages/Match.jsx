@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp, Crown, Eye } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { matches } from '../api/client'
+import { useAuth } from '../contexts/AuthContext'
 
 const EMPTY_FILTERS = { min_age: '', max_age: '', city: '' }
 
 export default function Match() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [candidates, setCandidates] = useState([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState(EMPTY_FILTERS)
@@ -14,7 +17,14 @@ export default function Match() {
   const [lockedStatus, setLockedStatus] = useState(null)
   const [error, setError] = useState('')
   const [acting, setActing] = useState({})
+  const [expanded, setExpanded] = useState({})
+  const [viewers, setViewers] = useState([])
+  const [viewersLoading, setViewersLoading] = useState(false)
+  const [viewersUpsell, setViewersUpsell] = useState(false)
+  const [viewersError, setViewersError] = useState('')
   const candidatesRequest = useRef(0)
+  const viewersRequest = useRef(0)
+  const viewedCandidates = useRef(new Set())
 
   const loadCandidates = useCallback((nextFilters) => {
     const requestId = ++candidatesRequest.current
@@ -42,7 +52,65 @@ export default function Match() {
     return () => { candidatesRequest.current += 1 }
   }, [loadCandidates])
 
+  const loadViewers = useCallback(() => {
+    const requestId = ++viewersRequest.current
+    setViewersError('')
+    if (!user) {
+      setViewersLoading(false)
+      setViewersUpsell(false)
+      setViewers([])
+      return
+    }
+    if (!user?.is_vip) {
+      setViewersLoading(false)
+      setViewersUpsell(true)
+      setViewers([])
+      return
+    }
+
+    setViewersLoading(true)
+    matches.viewers()
+      .then(r => {
+        if (requestId !== viewersRequest.current) return
+        setViewers(r.data?.viewers || [])
+        setViewersUpsell(false)
+      })
+      .catch(err => {
+        if (requestId !== viewersRequest.current) return
+        if (err.response?.status === 403) {
+          setViewersUpsell(true)
+          setViewers([])
+          return
+        }
+        setViewersError(err.response?.data?.error || '浏览记录加载失败，请稍后重试')
+      })
+      .finally(() => {
+        if (requestId === viewersRequest.current) setViewersLoading(false)
+      })
+  }, [user])
+
+  useEffect(() => {
+    loadViewers()
+    return () => { viewersRequest.current += 1 }
+  }, [loadViewers])
+
+  const recordView = async (id) => {
+    if (viewedCandidates.current.has(id)) return
+    viewedCandidates.current.add(id)
+    try {
+      await matches.view(id)
+    } catch {
+      viewedCandidates.current.delete(id)
+    }
+  }
+
+  const toggleDetails = (id) => {
+    if (!expanded[id]) recordView(id)
+    setExpanded(current => ({...current, [id]: !current[id]}))
+  }
+
   const express = async (id, intent) => {
+    recordView(id)
     setActing(p => ({...p, [id]: true}))
     try {
       const r = await matches.express(id, intent)
@@ -90,6 +158,42 @@ export default function Match() {
           {loading ? '筛选中…' : '筛选'}
         </button>
       </div>
+
+      {user && (
+        <section style={{borderBottom:'1px solid var(--border)',padding:'14px 0',marginBottom:16}} aria-labelledby="match-viewers-title">
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+            <Eye size={18} aria-hidden="true" />
+            <h2 id="match-viewers-title" style={{fontFamily:'var(--font-serif)',fontSize:16}}>谁看过我</h2>
+          </div>
+          {viewersLoading ? (
+            <div style={{fontSize:13,color:'var(--legacy-muted)'}}>浏览记录加载中…</div>
+          ) : viewersUpsell ? (
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+              <span style={{fontSize:13,color:'var(--legacy-muted)'}}>升级 VIP 后可查看最近浏览过你的用户。</span>
+              <button className="btn btn-outline" onClick={() => navigate('/vip')}>
+                <Crown size={16} aria-hidden="true" />
+                升级 VIP
+              </button>
+            </div>
+          ) : viewersError ? (
+            <div className="error-msg">
+              <span>{viewersError}</span>
+              <button className="btn btn-outline" onClick={loadViewers}>重试</button>
+            </div>
+          ) : viewers.length === 0 ? (
+            <div style={{fontSize:13,color:'var(--legacy-muted)'}}>暂时还没有浏览记录</div>
+          ) : (
+            <div style={{display:'flex',gap:12,overflowX:'auto',paddingBottom:2}}>
+              {viewers.map(viewer => (
+                <div key={`${viewer.viewer_id}-${viewer.viewed_at}`} style={{minWidth:130,fontSize:13}}>
+                  <strong>{viewer.nickname || '匿名用户'}</strong>
+                  <div style={{color:'var(--legacy-muted)',marginTop:2}}>{viewer.city || '城市未填写'} · {new Date(viewer.viewed_at).toLocaleDateString('zh-CN')}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {loading && <div style={{color:'var(--legacy-muted)',padding:20,fontSize:14}}>加载中…</div>}
 
@@ -144,6 +248,17 @@ export default function Match() {
               <div style={{fontSize:12,color:'var(--brand)',marginBottom:8}}>⛪ {c.church_name}</div>
             )}
             {c.has_badge && <span className="badge badge-green" style={{marginBottom:8}}>已完成婚姻装备</span>}
+            <button className="btn btn-outline" style={{width:'100%',fontSize:13,marginTop:8}}
+              onClick={() => toggleDetails(c.id)} aria-expanded={!!expanded[c.id]}>
+              <Eye size={15} aria-hidden="true" />
+              {expanded[c.id] ? '收起资料' : '查看资料'}
+              {expanded[c.id] ? <ChevronUp size={15} aria-hidden="true" /> : <ChevronDown size={15} aria-hidden="true" />}
+            </button>
+            {expanded[c.id] && (
+              <div style={{fontSize:12,color:'var(--legacy-muted)',lineHeight:1.7,padding:'10px 0 2px'}}>
+                {c.church_name ? `教会：${c.church_name}` : '教会信息未填写'}
+              </div>
+            )}
             {mutuals[c.id] ? (
               <button className="btn btn-primary" style={{flex:1,fontSize:13,marginTop:8}}
                 onClick={() => navigate('/chat')}>

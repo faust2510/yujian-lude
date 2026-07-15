@@ -57,7 +57,8 @@ test('profile views are recorded only for an existing visible match candidate', 
       CREATE TABLE profiles (
         user_id UUID PRIMARY KEY REFERENCES users(id),
         completion SMALLINT NOT NULL,
-        privacy_ok BOOLEAN NOT NULL
+        privacy_ok BOOLEAN NOT NULL,
+        birth_year INTEGER
       );
       CREATE TABLE faith_profiles (
         user_id UUID PRIMARY KEY REFERENCES users(id),
@@ -91,12 +92,12 @@ test('profile views are recorded only for an existing visible match candidate', 
         ('${BANNED_ID}', TRUE),
         ('${HIDDEN_ID}', FALSE),
         ('${OUTSIDER_ID}', FALSE);
-      INSERT INTO profiles (user_id, completion, privacy_ok) VALUES
-        ('${VIEWER_ID}', 100, TRUE),
-        ('${VISIBLE_ID}', 100, TRUE),
-        ('${BANNED_ID}', 100, TRUE),
-        ('${HIDDEN_ID}', 40, FALSE),
-        ('${OUTSIDER_ID}', 40, FALSE);
+      INSERT INTO profiles (user_id, completion, privacy_ok, birth_year) VALUES
+        ('${VIEWER_ID}', 100, TRUE, 1990),
+        ('${VISIBLE_ID}', 100, TRUE, 1990),
+        ('${BANNED_ID}', 100, TRUE, 1990),
+        ('${HIDDEN_ID}', 40, FALSE, 1990),
+        ('${OUTSIDER_ID}', 40, FALSE, 1990);
       INSERT INTO faith_profiles (user_id, church_name, presbytery, baptism_date, faith_years, testimony)
       SELECT id, '测试教会', '测试区会', DATE '2020-01-01', 5, '测试见证'
         FROM users;

@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildEndorsementReviewPatch, validateEndorsementDecision } from './endorsement-review.js';
+import * as endorsementReview from './endorsement-review.js';
+
+const { buildEndorsementReviewPatch, validateEndorsementDecision } = endorsementReview;
 
 test('accepts only verified or rejected endorsement decisions', () => {
   assert.equal(validateEndorsementDecision('verified'), true);
@@ -9,6 +11,17 @@ test('accepts only verified or rejected endorsement decisions', () => {
   assert.equal(validateEndorsementDecision('approve'), false);
   assert.equal(validateEndorsementDecision('pending'), false);
   assert.equal(validateEndorsementDecision(undefined), false);
+});
+
+test('allows endorsement review only from pending to a terminal decision', () => {
+  assert.equal(typeof endorsementReview.canReviewEndorsement, 'function');
+  const { canReviewEndorsement } = endorsementReview;
+  assert.equal(canReviewEndorsement('pending', 'verified'), true);
+  assert.equal(canReviewEndorsement('pending', 'rejected'), true);
+  assert.equal(canReviewEndorsement('verified', 'verified'), false);
+  assert.equal(canReviewEndorsement('verified', 'rejected'), false);
+  assert.equal(canReviewEndorsement('rejected', 'verified'), false);
+  assert.equal(canReviewEndorsement('pending', 'pending'), false);
 });
 
 test('verified review records verifier and verification timestamp', () => {

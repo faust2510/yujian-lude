@@ -57,6 +57,10 @@ test('parallel failed logins atomically reach lockout without losing attempts', 
         vip_until TIMESTAMPTZ,
         is_banned BOOLEAN NOT NULL DEFAULT FALSE
       );
+      CREATE TABLE profiles (
+        user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        nickname TEXT
+      );
       CREATE TABLE login_attempts (
         email CITEXT NOT NULL,
         ip INET NOT NULL,

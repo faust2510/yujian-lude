@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { MAIN_SECTIONS, USER_MENU_ITEMS, resolvePrimarySection } from './navigation.js'
+import {
+  MAIN_SECTIONS,
+  QUICK_ACCESS_ITEMS,
+  USER_MENU_ITEMS,
+  resolvePrimarySection,
+} from './navigation.js'
 
 test('MAIN_SECTIONS has the required navigation configuration', () => {
   assert.deepEqual(MAIN_SECTIONS, [
@@ -20,6 +25,15 @@ test('USER_MENU_ITEMS has the required destination order', () => {
     '/faith-test',
     '/vip',
   ])
+})
+
+test('QUICK_ACCESS_ITEMS exposes core routes without adding primary sections', () => {
+  assert.deepEqual(QUICK_ACCESS_ITEMS, [
+    { key: 'relationships', label: '关系旅程', to: '/relationships' },
+    { key: 'ai', label: 'AI 咨询', to: '/ai' },
+    { key: 'chat', label: '私信', to: '/chat' },
+  ])
+  assert.equal(MAIN_SECTIONS.length, 4)
 })
 
 test('resolvePrimarySection maps paths to their primary sections', () => {

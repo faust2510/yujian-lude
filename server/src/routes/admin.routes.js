@@ -3,8 +3,8 @@ import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { loadSettings, setSetting, settingsToAdminRows, validateSettingUpdate } from '../settings.js';
-import { grantVipDays, recomputeExposure } from '../lib/rewards.js';
-import { buildEndorsementReviewPatch, validateEndorsementDecision } from '../lib/endorsement-review.js';
+import { awardPoints, grantVipDays, recomputeExposure } from '../lib/rewards.js';
+import { buildEndorsementReviewPatch, canReviewEndorsement, validateEndorsementDecision } from '../lib/endorsement-review.js';
 import { isAllowedAdminRole, isAssignableAdminRole, validateAdminActorStatus, validateAdminUserAction, writeAdminAudit } from '../lib/admin-audit.js';
 import { normalizeVipSubscriptionReview } from '../lib/vip-subscription.js';
 
@@ -12,6 +12,30 @@ const router = Router();
 router.use(requireAuth, requireRole('admin'));
 
 const ADMIN_USER_OP_LOCK_KEY = 871406252;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INTEGER_SETTING_FIELDS = new Map([
+  ['points.daily_checkin', ['amount']],
+  ['points.profile_complete', ['amount']],
+  ['points.endorsement_done', ['amount']],
+  ['points.email_verified', ['amount']],
+  ['points.course_complete', ['amount']],
+  ['points.intent_sent', ['amount', 'daily_cap']],
+  ['redeem.vip_per_day', ['points', 'days']],
+  ['course.completion_vip_days', ['days']],
+  ['exposure.base', ['value']],
+  ['exposure.endorsement_bonus', ['value']],
+  ['limits.daily_intents_free', ['value']],
+  ['limits.daily_intents_vip', ['value']],
+]);
+
+export function getAdminIntegerSettingError(key, value) {
+  for (const field of INTEGER_SETTING_FIELDS.get(key) ?? []) {
+    if (!Number.isSafeInteger(value?.[field]) || value[field] > 2_147_483_647) {
+      return `${field} 必须是整数`;
+    }
+  }
+  return null;
+}
 
 function routeError(status, message) {
   const err = new Error(message);
@@ -36,6 +60,8 @@ router.put('/settings/:key', async (req, res) => {
   if (value === undefined) return res.status(400).json({ error: '缺少 value' });
   const validation = validateSettingUpdate(req.params.key, value);
   if (!validation.ok) return res.status(400).json({ error: validation.error });
+  const integerError = getAdminIntegerSettingError(req.params.key, validation.value);
+  if (integerError) return res.status(400).json({ error: integerError });
   try {
     await setSetting(req.params.key, validation.value, req.user.id);
     await writeAdminAudit(query, {
@@ -293,48 +319,74 @@ router.get('/endorsements', async (req, res) => {
 router.post('/endorsements/:id/review', async (req, res) => {
   const decision = req.body?.decision; // 'verified' | 'rejected'
   if (!validateEndorsementDecision(decision)) return res.status(400).json({ error: '非法决定' });
-  const en = await one(
-    'SELECT user_id, kind, contact FROM endorsements WHERE id = $1',
-    [req.params.id]
-  );
-  if (!en) return res.status(404).json({ error: '背书不存在' });
-  const patch = buildEndorsementReviewPatch({ decision, reviewerId: req.user.id });
-  await tx(async (db) => {
-    let endorserUserId = null;
-    if (decision === 'verified') {
-      const linked = await db.query(
-        `SELECT u.id
-           FROM users u
-          WHERE LOWER(BTRIM(u.email)) = LOWER(BTRIM($1))
-            AND u.id <> $2
-            AND u.email_verified = TRUE
-            AND u.is_banned = FALSE
-            AND ($3 = 'referrer' OR u.role = 'pastor')
-          LIMIT 1`,
-        [en.contact, en.user_id, en.kind]
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: '背书 ID 格式不正确' });
+  try {
+    await tx(async (db) => {
+      const actor = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
       );
-      endorserUserId = linked.rows[0]?.id ?? null;
-    }
-    await db.query(
-      `UPDATE endorsements
-          SET state = $2, verified_at = $3, verified_by = $4, endorser_user_id = $5
-        WHERE id = $1`,
-      [req.params.id, patch.state, patch.verifiedAt, patch.verifiedBy, endorserUserId]
-    );
-    // 通过后重算曝光（背书 bonus 生效，进匹配池）
-    if (decision === 'verified') await recomputeExposure(db, en.user_id);
-    await writeAdminAudit(db, {
-      actorId: req.user.id,
-      action: 'endorsement.review',
-      targetType: 'endorsement',
-      targetId: req.params.id,
-      detail: {
-        decision,
-        user_id: en.user_id,
-        endorser_user_id: endorserUserId,
-      },
+      const actorError = validateAdminActorStatus(actor.rows[0]);
+      if (actorError) throw routeError(403, actorError);
+
+      const locked = await db.query(
+        `SELECT user_id, kind, contact, state
+           FROM endorsements
+          WHERE id = $1
+          FOR UPDATE`,
+        [req.params.id]
+      );
+      const en = locked.rows[0];
+      if (!en) throw routeError(404, '背书不存在');
+      if (en.user_id === req.user.id) throw routeError(403, '不能审核自己的背书');
+      if (!canReviewEndorsement(en.state, decision)) {
+        throw routeError(409, '背书已被审核，请刷新后重试');
+      }
+
+      const patch = buildEndorsementReviewPatch({ decision, reviewerId: req.user.id });
+      let endorserUserId = null;
+      if (decision === 'verified') {
+        const linked = await db.query(
+          `SELECT u.id
+             FROM users u
+            WHERE LOWER(BTRIM(u.email)) = LOWER(BTRIM($1))
+              AND u.id <> $2
+              AND u.email_verified = TRUE
+              AND u.is_banned = FALSE
+              AND ($3 = 'referrer' OR u.role = 'pastor')
+            LIMIT 1`,
+          [en.contact, en.user_id, en.kind]
+        );
+        endorserUserId = linked.rows[0]?.id ?? null;
+      }
+      const updated = await db.query(
+        `UPDATE endorsements
+            SET state = $2, verified_at = $3, verified_by = $4, endorser_user_id = $5
+          WHERE id = $1 AND state = 'pending'
+          RETURNING id`,
+        [req.params.id, patch.state, patch.verifiedAt, patch.verifiedBy, endorserUserId]
+      );
+      if (!updated.rows.length) throw routeError(409, '背书已被审核，请刷新后重试');
+
+      if (decision === 'verified') {
+        await awardPoints(db, en.user_id, 'points.endorsement_done', { refId: req.params.id });
+        await recomputeExposure(db, en.user_id);
+      }
+      await writeAdminAudit(db, {
+        actorId: req.user.id,
+        action: 'endorsement.review',
+        targetType: 'endorsement',
+        targetId: req.params.id,
+        detail: {
+          decision,
+          user_id: en.user_id,
+          endorser_user_id: endorserUserId,
+        },
+      });
     });
-  });
+  } catch (err) {
+    return sendRouteError(res, err);
+  }
   res.json({ ok: true, decision });
 });
 

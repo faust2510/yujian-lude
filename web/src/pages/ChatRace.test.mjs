@@ -54,3 +54,41 @@ test('the first active channel is registered before its initial message request'
 
   assert.ok(setIdentity !== -1 && setIdentity < load)
 })
+
+test('mobile chat switches between channel list and usable conversation while desktop stays split', () => {
+  assert.match(source, /className=\{`chat-shell \$\{active \? 'chat-view-conversation' : 'chat-view-list'\}`\}/)
+  assert.match(source, /className="chat-channel-list"/)
+  assert.match(source, /className="chat-conversation"/)
+  assert.match(source, /className="chat-messages"/)
+  assert.match(source, /className="chat-back-button"[\s\S]*onClick=\{showChannelList\}/)
+  assert.match(source, /aria-label="返回对话列表"/)
+})
+
+test('leaving a mobile conversation invalidates message work and returns to the list', () => {
+  const showChannelList = section('const showChannelList', '\n\n  const send = async')
+
+  assert.match(showChannelList, /activeChannelIdRef\.current = null/)
+  assert.match(showChannelList, /messageRequestIdRef\.current \+= 1/)
+  assert.match(showChannelList, /setActive\(null\)/)
+})
+
+test('message refresh scrolls only the message pane instead of moving the page header', () => {
+  assert.match(source, /const messagesRef = useRef\(null\)/)
+  assert.match(source, /messagesRef\.current\?\.scrollTo\(\{ top: messagesRef\.current\.scrollHeight/)
+  assert.doesNotMatch(source, /scrollIntoView/)
+  assert.match(source, /className="chat-messages"[\s\S]*ref=\{messagesRef\}/)
+})
+
+test('channel rows are real keyboard-operable buttons', () => {
+  assert.match(source, /<button[^>]*type="button"[^>]*className="chat-channel-item"/)
+  assert.match(source, /aria-pressed=\{active\?\.id === ch\.id\}/)
+  assert.doesNotMatch(source, /<div key=\{ch\.id\} onClick=/)
+})
+
+test('mobile channel-list failures remain visible in list mode', () => {
+  const channelList = section('<div className="chat-channel-list">', '\n      <div className="chat-conversation">')
+
+  assert.match(channelList, /error && !active/)
+  assert.match(channelList, /role="alert"/)
+  assert.match(source, /active && error/)
+})

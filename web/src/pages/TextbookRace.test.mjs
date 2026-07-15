@@ -38,3 +38,10 @@ test('markRead submits and updates only the successfully loaded chapter identity
   assert.match(readerSource, /textbooks\.markRead\(chapter\.slug, chapter\.index\)/)
   assert.match(readerSource, /loadedChapter\.current !== chapter/)
 })
+
+test('a failed chapter load offers retry and a route back to the textbook directory', () => {
+  assert.match(readerSource, /const retryChapter = \(\) =>/)
+  assert.match(readerSource, /onClick=\{retryChapter\}[\s\S]*重试/)
+  assert.match(readerSource, /返回教材目录/)
+  assert.match(readerSource, /navigate\(returnTo \|\| `\/textbooks\/\$\{slug\}`\)/)
+})

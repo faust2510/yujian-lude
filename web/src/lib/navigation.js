@@ -11,6 +11,12 @@ export const USER_MENU_ITEMS = [
   { label: '会员套餐', to: '/vip' },
 ]
 
+export const QUICK_ACCESS_ITEMS = [
+  { key: 'relationships', label: '关系旅程', to: '/relationships' },
+  { key: 'ai', label: 'AI 咨询', to: '/ai' },
+  { key: 'chat', label: '私信', to: '/chat' },
+]
+
 export function resolvePrimarySection(pathname) {
   for (const section of MAIN_SECTIONS) {
     const matches = section.match.some((path) =>

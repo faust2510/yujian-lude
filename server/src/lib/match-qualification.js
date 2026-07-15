@@ -1,5 +1,5 @@
 const ACTIONS = {
-  profile: { key: 'profile', label: '完善个人资料并同意匿名匹配', to: '/profile' },
+  profile: { key: 'profile', label: '完善成年个人资料并同意匿名匹配', to: '/profile' },
   faithProfile: { key: 'faithProfile', label: '补全信仰档案', to: '/profile' },
   faithTest: { key: 'faithTest', label: '通过信仰基础测试', to: '/faith-test' },
   endorsement: { key: 'endorsement', label: '获得牧者或引荐人背书', to: '/profile' },
@@ -15,8 +15,15 @@ function hasDate(value) {
   return value instanceof Date && Number.isFinite(value.getTime());
 }
 
-function isProfileComplete(profile) {
-  return !!profile?.privacy_ok && Number(profile?.completion ?? 0) >= 100;
+function hasAdultBirthYear(value, now = new Date()) {
+  const year = Number(value);
+  return Number.isInteger(year) && year >= 1940 && year <= now.getUTCFullYear() - 18;
+}
+
+function isProfileComplete(profile, now) {
+  return !!profile?.privacy_ok &&
+    Number(profile?.completion ?? 0) >= 100 &&
+    hasAdultBirthYear(profile?.birth_year, now);
 }
 
 function isFaithProfileComplete(faith) {
@@ -41,9 +48,10 @@ export function buildMatchQualification({
   faithTestPassed,
   endorsements,
   lightCourseCompleted,
+  now = new Date(),
 }) {
   const requirements = {
-    profileComplete: isProfileComplete(profile),
+    profileComplete: isProfileComplete(profile, now),
     faithProfileComplete: isFaithProfileComplete(faith),
     faithTestPassed: !!faithTestPassed,
     endorsementVerified: hasVerifiedEndorsement(endorsements),
@@ -62,6 +70,6 @@ export function buildMatchQualification({
     inPool: missing.length === 0,
     missing,
     nextActions: missing.map((key) => ACTIONS[key]),
-    gate: '需完成资料、信仰档案、信仰基础测试、牧者或引荐人背书，以及恋爱必修课后进入匹配池',
+    gate: '需出生年份符合平台成年范围，并完成资料、信仰档案、信仰基础测试、牧者或引荐人背书，以及恋爱必修课后进入匹配池',
   };
 }

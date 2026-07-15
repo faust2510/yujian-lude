@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { textbooks } from '../api/client'
 
@@ -10,6 +11,7 @@ export default function TextbookReader() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [retryKey, setRetryKey] = useState(0)
   const chapterRequest = useRef(0)
   const loadedChapter = useRef(null)
   const returnTo = new URLSearchParams(location.search).get('returnTo')
@@ -39,7 +41,10 @@ export default function TextbookReader() {
       if (requestId === chapterRequest.current) chapterRequest.current += 1
       loadedChapter.current = null
     }
-  }, [slug, index])
+  }, [slug, index, retryKey])
+
+  const retryChapter = () => setRetryKey(key => key + 1)
+  const returnToDirectory = () => navigate(returnTo || `/textbooks/${slug}`)
 
   const markRead = async () => {
     const chapter = loadedChapter.current
@@ -62,11 +67,27 @@ export default function TextbookReader() {
 
   return (
     <article className="textbook-reader">
-      {error && <div className="card error-msg">{error}</div>}
+      {error && !data && (
+        <div className="card error-msg">
+          <p>{error}</p>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginTop:16}}>
+            <button className="btn btn-primary" onClick={retryChapter}>
+              <RefreshCw size={16} aria-hidden="true" />
+              重试
+            </button>
+            <button className="btn btn-outline" onClick={() => navigate(returnTo || `/textbooks/${slug}`)}>
+              <ArrowLeft size={16} aria-hidden="true" />
+              返回教材目录
+            </button>
+          </div>
+        </div>
+      )}
+      {error && data && <div className="card error-msg">{error}</div>}
       {data && (
         <>
           <div className="reader-topbar">
-            <button className="btn btn-outline" onClick={() => navigate(returnTo || `/textbooks/${slug}`)}>
+            <button className="btn btn-outline" onClick={returnToDirectory}>
+              <ArrowLeft size={16} aria-hidden="true" />
               返回
             </button>
             <span className={`badge ${data.chapter.completed ? 'badge-green' : 'badge-yellow'}`}>

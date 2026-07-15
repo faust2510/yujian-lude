@@ -82,21 +82,34 @@ router.post('/register', async (req, res) => {
   const hash = await hashPassword(password);
   const user = await tx(async (db) => {
     const { rows } = await db.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email, role, email_verified',
+      `INSERT INTO users (email, password_hash)
+       VALUES ($1, $2)
+       ON CONFLICT (email) DO NOTHING
+       RETURNING id, email, role, email_verified`,
       [email, hash]
     );
     const u = rows[0];
-    await db.query(
-      'INSERT INTO profiles (user_id, nickname) VALUES ($1, $2)',
+    if (!u) return null;
+    const profile = await db.query(
+      'INSERT INTO profiles (user_id, nickname) VALUES ($1, $2) RETURNING nickname',
       [u.id, nickname || null]
     );
     await db.query('INSERT INTO points_balance (user_id, earned_total) VALUES ($1, 0)', [u.id]);
     await recomputeExposure(db, u.id); // 建立初始曝光行
-    return u;
+    return { ...u, nickname: profile.rows[0]?.nickname ?? null };
   });
+  if (!user) return res.status(409).json({ error: '该邮箱已注册' });
 
   await createSession(res, user.id);
-  res.status(201).json({ user: { id: user.id, email: user.email, role: user.role, email_verified: user.email_verified } });
+  res.status(201).json({
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      email_verified: user.email_verified,
+      nickname: user.nickname,
+    },
+  });
 });
 
 // 登录
@@ -110,7 +123,11 @@ router.post('/login', async (req, res) => {
     return res.status(429).json({ error: '登录失败次数过多，请稍后再试' });
   }
   const u = await one(
-    'SELECT id, email, role, email_verified, vip_until, password_hash, is_banned FROM users WHERE email=$1',
+    `SELECT u.id, u.email, u.role, u.email_verified, u.vip_until,
+            u.password_hash, u.is_banned, p.nickname
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+      WHERE u.email = $1`,
     [email]
   );
   if (!u || !(await verifyPassword(password, u.password_hash))) {
@@ -131,6 +148,7 @@ router.post('/login', async (req, res) => {
       email_verified: u.email_verified,
       vip_until: u.vip_until,
       is_vip: Boolean(u.vip_until && new Date(u.vip_until) > new Date()),
+      nickname: u.nickname,
     },
   });
 });
@@ -142,10 +160,21 @@ router.post('/logout', async (req, res) => {
 });
 
 // 当前登录用户
-router.get('/me', (req, res) => {
+router.get('/me', async (req, res) => {
   if (!req.user) return res.json({ user: null });
   const { id, email, role, email_verified, vip_until, is_vip } = req.user;
-  res.json({ user: { id, email, role, email_verified, vip_until, is_vip } });
+  const profile = await one('SELECT nickname FROM profiles WHERE user_id = $1', [id]);
+  res.json({
+    user: {
+      id,
+      email,
+      role,
+      email_verified,
+      vip_until,
+      is_vip,
+      nickname: profile?.nickname ?? null,
+    },
+  });
 });
 
 router.post('/send-verify', requireAuth, async (req, res) => {
@@ -206,20 +235,26 @@ router.post('/forgot-password', async (req, res) => {
   const token = createPublicToken();
   const tokenHash = hashToken(token);
   const expires = new Date(Date.now() + 60 * 60_000);
-  const recent = await one(
-    `SELECT COUNT(*)::int AS n
-       FROM password_reset_tokens
-      WHERE user_id = $1
-        AND used_at IS NULL
-        AND created_at > now() - INTERVAL '15 minutes'`,
-    [u.id]
-  );
-  if (recent?.n >= 3) return res.json({ ok: true });
-  await query(
-    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, $3)`,
-    [u.id, tokenHash, expires]
-  );
+  const created = await tx(async (db) => {
+    const lockedUser = await db.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [u.id]);
+    if (!lockedUser.rows[0]) return false;
+    const recent = await db.query(
+      `SELECT COUNT(*)::int AS n
+         FROM password_reset_tokens
+        WHERE user_id = $1
+          AND used_at IS NULL
+          AND created_at > now() - INTERVAL '15 minutes'`,
+      [u.id]
+    );
+    if (recent.rows[0]?.n >= 3) return false;
+    await db.query(
+      `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+       VALUES ($1, $2, $3)`,
+      [u.id, tokenHash, expires]
+    );
+    return true;
+  });
+  if (!created) return res.json({ ok: true });
 
   if (config.mail.enabled) {
     try {
