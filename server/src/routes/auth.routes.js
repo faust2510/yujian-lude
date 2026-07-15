@@ -17,7 +17,8 @@ import {
   createPublicToken,
   hashToken,
   isLocked,
-  nextFailedLoginState,
+  LOGIN_LOCKOUT_MINUTES,
+  LOGIN_LOCKOUT_THRESHOLD,
   normalizeEmailKey,
 } from '../lib/auth-security.js';
 
@@ -32,17 +33,34 @@ async function loginAttempt(email, ip) {
   return one('SELECT failed_count, locked_until, last_failed_at FROM login_attempts WHERE email = $1 AND ip = $2', [email, ip]);
 }
 
-async function recordFailedLogin(email, ip) {
-  const previous = await loginAttempt(email, ip);
-  const next = nextFailedLoginState(previous);
-  await query(
+export async function recordFailedLogin(email, ip) {
+  const row = await one(
     `INSERT INTO login_attempts (email, ip, failed_count, locked_until, last_failed_at)
-     VALUES ($1, $2, $3, $4, now())
+     VALUES ($1, $2, 1, NULL, now())
      ON CONFLICT (email, ip)
-     DO UPDATE SET failed_count = $3, locked_until = $4, last_failed_at = now()`,
-    [email, ip, next.failedCount, next.lockedUntil]
+     DO UPDATE SET
+       failed_count = CASE
+         WHEN (login_attempts.locked_until IS NOT NULL AND login_attempts.locked_until <= now())
+           OR login_attempts.last_failed_at <= now() - ($4 * interval '1 minute')
+           THEN 1
+         ELSE LEAST(login_attempts.failed_count + 1, 32767)
+       END,
+       locked_until = CASE
+         WHEN (login_attempts.locked_until IS NOT NULL AND login_attempts.locked_until <= now())
+           OR login_attempts.last_failed_at <= now() - ($4 * interval '1 minute')
+           THEN NULL
+         WHEN LEAST(login_attempts.failed_count + 1, 32767) >= $3
+           THEN now() + ($4 * interval '1 minute')
+         ELSE NULL
+       END,
+       last_failed_at = now()
+     RETURNING failed_count, locked_until`,
+    [email, ip, LOGIN_LOCKOUT_THRESHOLD, LOGIN_LOCKOUT_MINUTES]
   );
-  return next;
+  return {
+    failedCount: Number(row.failed_count),
+    lockedUntil: row.locked_until,
+  };
 }
 
 async function clearFailedLogins(email, ip) {
@@ -159,16 +177,20 @@ router.post('/send-verify', requireAuth, async (req, res) => {
 router.get('/verify', async (req, res) => {
   const { token } = req.query || {};
   if (!token) return res.status(400).json({ error: '缺少 token' });
-  const row = await one(
-    'SELECT user_id FROM email_tokens WHERE token=$1 AND expires_at > now()',
-    [token]
-  );
-  if (!row) return res.status(400).json({ error: 'token 无效或已过期' });
-  await tx(async (db) => {
-    await db.query('UPDATE users SET email_verified=TRUE WHERE id=$1', [row.user_id]);
-    await db.query('DELETE FROM email_tokens WHERE token=$1', [token]);
-    await awardPoints(db, row.user_id, 'points.email_verified');
+  const row = await tx(async (db) => {
+    const consumed = await db.query(
+      `DELETE FROM email_tokens
+        WHERE token = $1 AND expires_at > now()
+        RETURNING user_id`,
+      [token]
+    );
+    const consumedRow = consumed.rows[0];
+    if (!consumedRow) return null;
+    await db.query('UPDATE users SET email_verified=TRUE WHERE id=$1', [consumedRow.user_id]);
+    await awardPoints(db, consumedRow.user_id, 'points.email_verified');
+    return consumedRow;
   });
+  if (!row) return res.status(400).json({ error: 'token 无效或已过期' });
   res.json({ ok: true });
 });
 

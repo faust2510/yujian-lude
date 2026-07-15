@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, one } from '../db.js';
+import { query, one, tx } from '../db.js';
 import { requireAuth } from '../auth.js';
 import { hasPassedRequiredCourseExam } from '../lib/relationship-eligibility.js';
 import { getSetting } from '../settings.js';
@@ -80,58 +80,65 @@ router.post('/relationships/initiate', requireAuth, async (req, res) => {
   }
 });
 
-async function requirePassedLightCourse(userId) {
+async function requirePassedLightCourse(userId, findOne = one) {
   const lightCourseId = await getSetting('match.light_course_id');
-  return hasPassedRequiredCourseExam(one, { userId, requiredCourseId: lightCourseId });
-}
-
-async function loadActiveRelationship(id) {
-  const rel = await one(
-    `SELECT * FROM relationships WHERE id = $1 AND state NOT IN ('confirmed','ended')`,
-    [id]
-  );
-  return rel;
+  return hasPassedRequiredCourseExam(findOne, { userId, requiredCourseId: lightCourseId });
 }
 
 async function handleRelationshipConfirmationRequest(req, res) {
-  const rel = await loadActiveRelationship(req.params.id);
-  if (!rel) return res.status(404).json({ error: '关系不存在' });
+  const result = await tx(async (db) => {
+    const relationshipResult = await db.query(
+      `SELECT *
+         FROM relationships
+        WHERE id = $1 AND state NOT IN ('confirmed','ended')
+        FOR UPDATE`,
+      [req.params.id]
+    );
+    const rel = relationshipResult.rows[0];
+    if (!rel) return { status: 404, error: '关系不存在' };
 
-  const isA = rel.user_a === req.user.id;
-  const isB = rel.user_b === req.user.id;
-  if (!isA && !isB) return res.status(403).json({ error: '无权操作' });
+    const isA = rel.user_a === req.user.id;
+    const isB = rel.user_b === req.user.id;
+    if (!isA && !isB) return { status: 403, error: '无权操作' };
 
-  if (!(await requirePassedLightCourse(req.user.id))) {
-    return res.status(403).json({ error: '需先通过恋爱必修课考试' });
-  }
+    const findOne = async (sql, params) => {
+      const { rows } = await db.query(sql, params);
+      return rows[0] ?? null;
+    };
+    if (!(await requirePassedLightCourse(req.user.id, findOne))) {
+      return { status: 403, error: '需先通过恋爱必修课考试' };
+    }
 
-  const next = confirmRelationshipParticipant(rel, req.user.id);
-  const updated = await one(
-    `UPDATE relationships
-        SET state = $2::relationship_state,
-            confirmation_requested_by = COALESCE(confirmation_requested_by, $3),
-            confirmation_requested_at = COALESCE(confirmation_requested_at, $4),
-            user_a_confirmed = $5,
-            user_b_confirmed = $6,
-            user_a_confirmed_at = COALESCE(user_a_confirmed_at, $7),
-            user_b_confirmed_at = COALESCE(user_b_confirmed_at, $8),
-            user_a_exam_passed = CASE WHEN user_a = $9 THEN TRUE ELSE user_a_exam_passed END,
-            user_b_exam_passed = CASE WHEN user_b = $9 THEN TRUE ELSE user_b_exam_passed END
-      WHERE id = $1
-      RETURNING *`,
-    [
-      rel.id,
-      next.state,
-      next.confirmation_requested_by,
-      next.confirmation_requested_at,
-      next.user_a_confirmed,
-      next.user_b_confirmed,
-      next.user_a_confirmed_at,
-      next.user_b_confirmed_at,
-      req.user.id,
-    ]
-  );
-  res.json({ ok: true, relationship: updated });
+    const next = confirmRelationshipParticipant(rel, req.user.id);
+    const updated = await db.query(
+      `UPDATE relationships
+          SET state = $2::relationship_state,
+              confirmation_requested_by = COALESCE(confirmation_requested_by, $3),
+              confirmation_requested_at = COALESCE(confirmation_requested_at, $4),
+              user_a_confirmed = $5,
+              user_b_confirmed = $6,
+              user_a_confirmed_at = COALESCE(user_a_confirmed_at, $7),
+              user_b_confirmed_at = COALESCE(user_b_confirmed_at, $8),
+              user_a_exam_passed = CASE WHEN user_a = $9 THEN TRUE ELSE user_a_exam_passed END,
+              user_b_exam_passed = CASE WHEN user_b = $9 THEN TRUE ELSE user_b_exam_passed END
+        WHERE id = $1
+        RETURNING *`,
+      [
+        rel.id,
+        next.state,
+        next.confirmation_requested_by,
+        next.confirmation_requested_at,
+        next.user_a_confirmed,
+        next.user_b_confirmed,
+        next.user_a_confirmed_at,
+        next.user_b_confirmed_at,
+        req.user.id,
+      ]
+    );
+    return { status: 200, relationship: updated.rows[0] };
+  });
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ ok: true, relationship: result.relationship });
 }
 
 router.post('/relationships/:id/request-confirmation', requireAuth, handleRelationshipConfirmationRequest);

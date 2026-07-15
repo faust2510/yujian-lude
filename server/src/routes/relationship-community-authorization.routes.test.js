@@ -25,11 +25,15 @@ async function requestRoute(router, {
 }) {
   const calls = [];
   const originalQuery = pool.query;
-  pool.query = async (sql, params = []) => {
+  const originalConnect = pool.connect;
+  const execute = async (sql, params = []) => {
     const compact = compactSql(sql);
     calls.push({ sql: compact, params });
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(compact)) return { rows: [] };
     return { rows: await dbRows(compact, params) };
   };
+  pool.query = execute;
+  pool.connect = async () => ({ query: execute, release() {} });
 
   const app = express();
   app.use(express.json());
@@ -66,6 +70,7 @@ async function requestRoute(router, {
     };
   } finally {
     pool.query = originalQuery;
+    pool.connect = originalConnect;
     await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
   }
 }
@@ -308,6 +313,7 @@ function communityDb({ groupExists = true, eventExists = true, member = true } =
       }
       return [{ id: EVENT_ID, group_id: GROUP_ID, title: '小组活动' }];
     }
+    if (/COUNT\(\*\).*community_event_rsvps/i.test(sql)) return [{ c: 0 }];
     if (/INSERT INTO community_event_rsvps/i.test(sql)) return [];
     throw new Error(`Unexpected SQL: ${sql}`);
   };
@@ -375,4 +381,20 @@ test('event RSVP remains available to an approved member', async () => {
 
   assert.equal(result.status, 200);
   assert.deepEqual(result.body, { ok: true, status: 'going' });
+  assert.equal(result.calls.some(({ sql }) => /FROM community_events[\s\S]*FOR UPDATE/i.test(sql)), true);
+  assert.equal(result.calls.some(({ sql }) => sql === 'BEGIN'), true);
+  assert.equal(result.calls.some(({ sql }) => sql === 'COMMIT'), true);
+});
+
+test('event RSVP rejects unsupported statuses before opening a transaction', async () => {
+  const result = await requestRoute(communityRoutes, {
+    method: 'POST',
+    path: `/community/events/${EVENT_ID}/rsvp`,
+    body: { status: 'approved' },
+    dbRows: communityDb(),
+  });
+
+  assert.equal(result.status, 400);
+  assert.match(result.body.error, /status/);
+  assert.equal(result.calls.length, 0);
 });

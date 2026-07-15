@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { verifyAuthEmailTokenFlow } from './auth-email-acceptance.js';
 
 const { Pool } = pg;
 
@@ -322,7 +323,9 @@ async function run() {
   await runCommand('前端 test', 'npm', ['run', 'test', '--prefix', 'web']);
   await runCommand('前端 lint', 'npm', ['run', 'lint', '--prefix', 'web']);
   await runCommand('前端 build', 'npm', ['run', 'build', '--prefix', 'web']);
-  await runCommand('后端 lib 单测', 'npm', ['run', 'test', '--prefix', 'server']);
+  await runCommand('后端完整测试', 'npm', ['run', 'test', '--prefix', 'server'], {
+    env: { TEST_DATABASE_URL: baseDatabaseUrl },
+  });
 
   await createTempDatabase();
   await runCommand('fresh DB 迁移和 seed', 'npm', ['run', 'migrate', '--prefix', 'server'], {
@@ -341,6 +344,15 @@ async function run() {
   const smtpPort = await startSmtpSink();
   await startServer(tempDatabaseUrl, port, smtpPort);
   await smokeRoutes(baseUrl, apiBase);
+
+  console.log('\n[verify:release] 验收注册验证与密码重置邮件令牌的一次性消费');
+  await verifyAuthEmailTokenFlow({
+    apiBase,
+    smtpMessages,
+    email: `release.auth.${Date.now()}.${crypto.randomBytes(3).toString('hex')}@example.test`,
+    password: 'Passw0rd!2026',
+    newPassword: 'NewPassw0rd!2026',
+  });
 
   await runCommand('MVP 闭环验收', 'npm', ['run', 'verify:mvp', '--prefix', 'server'], {
     env: { DATABASE_URL: tempDatabaseUrl, API_BASE: apiBase },

@@ -8,7 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { attachUser } from './auth.js';
 import { query } from './db.js';
-import { formatReadiness } from './lib/readiness.js';
+import { checkRequiredTables, formatReadiness } from './lib/readiness.js';
+import { REQUIRED_SCHEMA_TABLES } from './lib/schema-requirements.js';
 
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
@@ -41,8 +42,7 @@ app.get('/api/live', (_req, res) => res.json({ ok: true, service: '遇见路得'
 app.get('/api/ready', async (_req, res) => {
   const results = await Promise.all([
     checkDatabase(),
-    checkTable('users'),
-    checkTable('sessions'),
+    checkRequiredTables(query, REQUIRED_SCHEMA_TABLES),
     checkStaticApp(),
   ]);
   const body = formatReadiness(results);
@@ -92,15 +92,6 @@ async function checkDatabase() {
     return { name: 'database', ok: true };
   } catch (error) {
     return { name: 'database', ok: false, error };
-  }
-}
-
-async function checkTable(tableName) {
-  try {
-    const { rows } = await query('SELECT to_regclass($1) AS table_name', [`public.${tableName}`]);
-    return { name: `table:${tableName}`, ok: rows[0]?.table_name === tableName };
-  } catch (error) {
-    return { name: `table:${tableName}`, ok: false, error };
   }
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { matches } from '../api/client'
 
@@ -14,24 +14,33 @@ export default function Match() {
   const [lockedStatus, setLockedStatus] = useState(null)
   const [error, setError] = useState('')
   const [acting, setActing] = useState({})
+  const candidatesRequest = useRef(0)
 
   const loadCandidates = useCallback((nextFilters) => {
+    const requestId = ++candidatesRequest.current
     setLoading(true)
     setError('')
     matches.candidates(nextFilters)
       .then(r => {
+        if (requestId !== candidatesRequest.current) return
         setCandidates(r.data.candidates || [])
         setLockedStatus(r.data.locked ? r.data.status : null)
       })
       .catch((err) => {
+        if (requestId !== candidatesRequest.current) return
         setCandidates([])
         setLockedStatus(null)
         setError(err.response?.data?.error || '候选加载失败，请稍后重试')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (requestId === candidatesRequest.current) setLoading(false)
+      })
   }, [])
 
-  useEffect(() => { loadCandidates(EMPTY_FILTERS) }, [loadCandidates])
+  useEffect(() => {
+    loadCandidates(EMPTY_FILTERS)
+    return () => { candidatesRequest.current += 1 }
+  }, [loadCandidates])
 
   const express = async (id, intent) => {
     setActing(p => ({...p, [id]: true}))

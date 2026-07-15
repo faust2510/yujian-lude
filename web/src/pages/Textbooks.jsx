@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { textbooks } from '../api/client'
 
@@ -9,6 +9,7 @@ export default function Textbooks() {
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
+  const detailRequest = useRef(0)
 
   useEffect(() => {
     let alive = true
@@ -31,25 +32,31 @@ export default function Textbooks() {
   }, [])
 
   useEffect(() => {
-    let alive = true
+    const requestId = ++detailRequest.current
     async function loadDetail() {
       if (!slug) {
         setDetail(null)
+        setDetailLoading(false)
         return
       }
+      setDetail(null)
       setDetailLoading(true)
       setError('')
       try {
         const res = await textbooks.detail(slug)
-        if (alive) setDetail(res.data)
+        if (requestId !== detailRequest.current) return
+        setDetail(res.data)
       } catch (err) {
-        if (alive) setError(err.response?.data?.error || '教材加载失败，请稍后重试')
+        if (requestId !== detailRequest.current) return
+        setError(err.response?.data?.error || '教材加载失败，请稍后重试')
       } finally {
-        if (alive) setDetailLoading(false)
+        if (requestId === detailRequest.current) setDetailLoading(false)
       }
     }
     loadDetail()
-    return () => { alive = false }
+    return () => {
+      if (requestId === detailRequest.current) detailRequest.current += 1
+    }
   }, [slug])
 
   return (

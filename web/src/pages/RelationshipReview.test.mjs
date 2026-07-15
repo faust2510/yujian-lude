@@ -18,8 +18,7 @@ test('relationship reviews have a dedicated API and referrer workbench queue', (
   assert.match(pastor, /relationshipReviews\.list\(\)/)
   assert.match(pastor, /关系确认待办/)
   assert.match(pastor, /确认该侧/)
-  assert.match(pastor, /review\.relationship_id !== item\.relationship_id/)
-  assert.doesNotMatch(pastor, /review\.relationship_id !== item\.relationship_id \|\| review\.side !== item\.side/)
+  assert.match(pastor, /review\.relationship_id !== item\.relationship_id \|\| review\.side !== item\.side/)
 })
 
 test('relationship participants can observe review state but cannot self-review in their page', () => {

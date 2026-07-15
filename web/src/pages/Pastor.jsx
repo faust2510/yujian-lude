@@ -67,7 +67,7 @@ export default function Pastor() {
     try {
       await relationshipReviews.approve(item.relationship_id, item.side)
       setRelationshipQueue(current => current.filter(
-        review => review.relationship_id !== item.relationship_id
+        review => review.relationship_id !== item.relationship_id || review.side !== item.side
       ))
       setRelationshipMsg('该侧关系确认已通过')
     } catch (error) {

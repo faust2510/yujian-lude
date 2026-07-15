@@ -24,3 +24,22 @@ export function formatReadiness(results) {
     checks,
   };
 }
+
+export async function checkRequiredTables(query, tableNames) {
+  try {
+    const { rows } = await query(
+      `SELECT table_name,
+              to_regclass('public.' || table_name) IS NOT NULL AS exists
+         FROM unnest($1::text[]) AS required(table_name)`,
+      [tableNames]
+    );
+    const missing = rows.filter((row) => !row.exists).map((row) => row.table_name);
+    return {
+      name: 'schema_tables',
+      ok: missing.length === 0,
+      ...(missing.length ? { error: new Error(`missing tables: ${missing.join(', ')}`) } : {}),
+    };
+  } catch (error) {
+    return { name: 'schema_tables', ok: false, error };
+  }
+}

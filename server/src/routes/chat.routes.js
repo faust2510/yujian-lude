@@ -50,16 +50,15 @@ router.get('/chat/channels/:id/messages', requireAuth, async (req, res) => {
 router.post('/chat/channels/:id/messages', requireAuth, async (req, res) => {
   const text = req.body.body ?? req.body.text;
   if (!text?.trim()) return res.status(400).json({ error: '内容不能为空' });
-  const ch = await one(
-    `SELECT * FROM chat_channels WHERE id=$1 AND (user_a=$2 OR user_b=$2)`,
-    [req.params.id, req.user.id]
-  );
-  if (!ch) return res.status(403).json({ error: '无权访问' });
   const msg = await one(
     `INSERT INTO chat_messages (channel_id, sender_id, body)
-     VALUES ($1, $2, $3) RETURNING id, sender_id, body, created_at`,
+     SELECT id, $2, $3
+       FROM chat_channels
+      WHERE id = $1 AND (user_a = $2 OR user_b = $2)
+     RETURNING id, sender_id, body, created_at`,
     [req.params.id, req.user.id, text.trim()]
   );
+  if (!msg) return res.status(403).json({ error: '无权访问' });
   res.json({ message: msg });
 });
 

@@ -1,7 +1,6 @@
 import pg from 'pg';
 import { courseExamAnswers } from '../lib/course-exams.js';
 import { QUESTIONS } from '../lib/faith-questions.js';
-import { createPublicToken, hashToken } from '../lib/auth-security.js';
 
 const { Pool } = pg;
 
@@ -81,16 +80,6 @@ async function makeAdmin(userId) {
 
 async function markEmailVerified(userId) {
   await pool.query('UPDATE users SET email_verified = TRUE WHERE id = $1', [userId]);
-}
-
-async function createPasswordResetToken(userId) {
-  const token = createPublicToken();
-  await pool.query(
-    `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
-     VALUES ($1, $2, now() + INTERVAL '1 hour')`,
-    [userId, hashToken(token)]
-  );
-  return token;
 }
 
 async function completeProfile(client, index) {
@@ -338,6 +327,43 @@ async function verifyVipSubscription(client, admin) {
   assert(audit.auditLogs?.some((item) => item.action === 'vip.subscription_review'), 'VIP review should be audited');
 }
 
+async function verifyVipRedemption(client) {
+  const pointsBefore = await client.get('/me/points');
+  const accountBefore = await client.get('/auth/me');
+  const redemption = pointsBefore.vipRedemption;
+  assert(redemption?.points > 0 && redemption?.days > 0, 'VIP redemption settings should be available');
+
+  const redeemDays = Math.floor((pointsBefore.earned * redemption.days) / redemption.points);
+  assert(redeemDays >= 1, `expected enough earned points for VIP redemption, got ${pointsBefore.earned}`);
+  const expectedCost = Math.ceil((redeemDays * redemption.points) / redemption.days);
+  const attempts = await Promise.allSettled([
+    client.post('/vip/redeem', { days: redeemDays }),
+    client.post('/vip/redeem', { days: redeemDays }),
+  ]);
+  const successes = attempts.filter(result => result.status === 'fulfilled');
+  const insufficient = attempts.filter(result => result.status === 'rejected' && result.reason?.status === 402);
+  assert(successes.length === 1, `concurrent VIP redemption expected one success, got ${successes.length}`);
+  assert(insufficient.length === 1, `concurrent VIP redemption expected one insufficient response, got ${insufficient.length}`);
+
+  const pointsAfter = await client.get('/me/points');
+  const accountAfter = await client.get('/auth/me');
+  assert(pointsAfter.earned === pointsBefore.earned - expectedCost, 'VIP redemption should debit the exact configured cost');
+  const vipExtensionMs = new Date(accountAfter.user.vip_until).getTime() - new Date(accountBefore.user.vip_until).getTime();
+  assert(
+    Math.abs(vipExtensionMs - redeemDays * 86_400_000) < 5_000,
+    `VIP redemption should extend expiry by ${redeemDays} days`,
+  );
+
+  const debits = await pool.query(
+    `SELECT count(*)::int AS count, COALESCE(sum(amount), 0)::int AS amount
+       FROM points_ledger
+      WHERE user_id = $1 AND direction = 'debit' AND reason = 'redeem_vip'`,
+    [client.user.id]
+  );
+  assert(debits.rows[0].count === 1, `VIP redemption expected one debit ledger row, got ${debits.rows[0].count}`);
+  assert(debits.rows[0].amount === expectedCost, `VIP redemption debit expected ${expectedCost}, got ${debits.rows[0].amount}`);
+}
+
 async function verifyRelationshipConfirmation(alice, bob, reviewerA, reviewerB, outsider) {
   const initiated = await alice.post('/relationships/initiate', { partner_id: bob.user.id });
   assert(initiated.relationship?.id, 'relationship initiate should return relationship');
@@ -406,8 +432,10 @@ async function verifyAccountSecurity(stamp) {
   assert(forgot.ok, 'forgot password should return ok');
   if (process.env.EXPECT_NO_DEV_TOKENS === 'true') {
     assert(!forgot.devToken, 'production-style verification must not expose reset devToken');
+    return;
   }
-  const resetToken = forgot.devToken || await createPasswordResetToken(resetUser.user.id);
+  const resetToken = forgot.devToken;
+  assert(resetToken, 'development verification requires an explicit reset devToken');
 
   const reset = await resetRequest.post('/auth/reset-password', {
     token: resetToken,
@@ -819,6 +847,7 @@ async function run() {
   console.log('[verify-real-users] checking deep marriage course...');
   await completeDeepMarriageCourse(users[0], referrer, endorsementIds[0], users[1]);
   console.log('[verify-real-users] checking VIP subscription operations...');
+  await verifyVipRedemption(users[0]);
   await verifyVipSubscription(users[0], admin);
 
   console.log('[verify-real-users] checking account security...');

@@ -23,6 +23,7 @@ import Vip from './pages/Vip'
 import Pastor from './pages/Pastor'
 import Admin from './pages/Admin'
 import Chat from './pages/Chat'
+import NotFound from './pages/NotFound'
 import { Toaster } from './components/ui/sonner'
 import { TooltipProvider } from './components/ui/tooltip'
 import './index.css'
@@ -54,6 +55,7 @@ createRoot(document.getElementById('root')).render(
               <Route path="/pastor" element={<Pastor />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/admin" element={<ProtectedRoute role="admin"><Admin /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
           <Toaster />

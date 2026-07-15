@@ -23,6 +23,8 @@ export default function Chat() {
   const [error, setError] = useState('')
   const bottomRef = useRef(null)
   const pollRef = useRef(null)
+  const activeChannelIdRef = useRef(null)
+  const messageRequestIdRef = useRef(0)
 
   const loadChannels = useCallback(async () => {
     setLoadingChannels(true)
@@ -38,18 +40,24 @@ export default function Chat() {
   }, [])
 
   const loadMessages = useCallback(async (id, options = {}) => {
+    const requestId = ++messageRequestIdRef.current
     if (!options.silent) {
       setLoadingMessages(true)
       setError('')
     }
     try {
       const r = await chat.messages(id)
+      if (requestId !== messageRequestIdRef.current || activeChannelIdRef.current !== id) return
       setMessages(r.data?.messages || [])
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     } catch (err) {
-      if (!options.silent) setError(err.response?.data?.error || '消息加载失败，请重试')
+      if (!options.silent && requestId === messageRequestIdRef.current && activeChannelIdRef.current === id) {
+        setError(err.response?.data?.error || '消息加载失败，请重试')
+      }
     } finally {
-      if (!options.silent) setLoadingMessages(false)
+      if (!options.silent && requestId === messageRequestIdRef.current && activeChannelIdRef.current === id) {
+        setLoadingMessages(false)
+      }
     }
   }, [])
 
@@ -57,22 +65,37 @@ export default function Chat() {
 
   useEffect(() => {
     if (!active) return
+    activeChannelIdRef.current = active.id
     setMessages([])
     loadMessages(active.id)
     pollRef.current = setInterval(() => loadMessages(active.id, { silent: true }), 5000)
-    return () => clearInterval(pollRef.current)
+    return () => {
+      clearInterval(pollRef.current)
+      messageRequestIdRef.current += 1
+    }
   }, [active, loadMessages])
+
+  const selectChannel = (channel) => {
+    if (activeChannelIdRef.current === channel.id) return
+    activeChannelIdRef.current = channel.id
+    messageRequestIdRef.current += 1
+    setActive(channel)
+  }
 
   const send = async () => {
     if (!text.trim() || !active || sending) return
+    const channelId = active.id
     setSending(true)
     try {
-      await chat.send(active.id, text.trim())
+      await chat.send(channelId, text.trim())
+      if (activeChannelIdRef.current !== channelId) return
       setText('')
-      await loadMessages(active.id)
+      await loadMessages(channelId)
       await loadChannels()
     } catch (err) {
-      setError(err.response?.data?.error || '发送失败，请稍后重试')
+      if (activeChannelIdRef.current === channelId) {
+        setError(err.response?.data?.error || '发送失败，请稍后重试')
+      }
     } finally {
       setSending(false)
     }
@@ -98,7 +121,7 @@ export default function Chat() {
           </div>
         )}
         {channels.map(ch => (
-          <div key={ch.id} onClick={() => setActive(ch)}
+          <div key={ch.id} onClick={() => selectChannel(ch)}
             style={{
               padding: '14px 20px', cursor: 'pointer', borderBottom: '1px solid var(--border)',
               background: active?.id === ch.id ? 'var(--bg)' : 'var(--surface)',

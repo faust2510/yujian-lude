@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { profile, auth, pastorLetters } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -35,18 +35,38 @@ export default function Profile() {
   const [pwdMsg, setPwdMsg] = useState('')
   const [verifyMsg, setVerifyMsg] = useState('')
   const [verifyLink, setVerifyLink] = useState('')
+  const [profileLoadState, setProfileLoadState] = useState('loading')
+  const profileLoadRequest = useRef(0)
   const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, pastorLetter: false, endorsement: false, password: false, verify: false })
 
-  useEffect(() => {
-    profile.get().then(r => {
+  const loadProfile = useCallback(async () => {
+    const requestId = ++profileLoadRequest.current
+    setProfileLoadState('loading')
+    setBusy(p => ({...p, initial: true}))
+    setMsg('')
+    try {
+      const r = await profile.get()
+      if (requestId !== profileLoadRequest.current) return
       if (r.data.profile) setForm(p => ({...p, ...r.data.profile}))
       if (r.data.faith) setFaith(p => ({...p, ...r.data.faith}))
       setEndorsements(r.data.endorsements || [])
       setExposure(r.data.exposure ?? null)
-    }).catch(() => {
+      setProfileLoadState('ready')
+    } catch {
+      if (requestId !== profileLoadRequest.current) return
       setMsg('资料加载失败，请刷新重试')
-    }).finally(() => setBusy(p => ({...p, initial: false})))
+      setProfileLoadState('error')
+    } finally {
+      if (requestId === profileLoadRequest.current) {
+        setBusy(p => ({...p, initial: false}))
+      }
+    }
   }, [])
+
+  useEffect(() => {
+    loadProfile()
+    return () => { profileLoadRequest.current += 1 }
+  }, [loadProfile])
 
   useEffect(() => {
     pastorLetters.mine().then(r => {
@@ -105,6 +125,7 @@ export default function Profile() {
 
   const saveProfile = async (e) => {
     e.preventDefault()
+    if (profileLoadState !== 'ready') return
     setBusy(p => ({...p, profile: true}))
     setMsg('')
     try {
@@ -118,6 +139,7 @@ export default function Profile() {
   }
   const saveFaith = async (e) => {
     e.preventDefault()
+    if (profileLoadState !== 'ready') return
     setBusy(p => ({...p, faith: true}))
     setFaithMsg('')
     try {
@@ -186,6 +208,12 @@ export default function Profile() {
         </p>
       )}
       {busy.initial && <div className="card" style={{fontSize:14,color:'var(--legacy-muted)',marginBottom:16}}>正在加载你的资料…</div>}
+      {profileLoadState === 'error' && (
+        <div className="card" style={{marginBottom:16}}>
+          <div className="error-msg">{msg || '资料加载失败，请刷新重试'}</div>
+          <button type="button" className="btn btn-outline" onClick={loadProfile}>重新加载</button>
+        </div>
+      )}
 
       <div className="card" style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
         <div>
@@ -199,6 +227,7 @@ export default function Profile() {
 
       <form className="card" onSubmit={saveProfile}>
         <h3 style={{fontSize:15,marginBottom:16}}>个人资料</h3>
+        <fieldset disabled={profileLoadState !== 'ready' || busy.profile} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="grid-2">
           <div className="field"><label>昵称</label><input value={form.nickname||''} onChange={set('nickname')} /></div>
           <div className="field"><label>所在城市</label><input value={form.city||''} onChange={set('city')} /></div>
@@ -222,13 +251,15 @@ export default function Profile() {
           <input type="checkbox" checked={!!form.privacy_ok} onChange={e => setForm(p => ({...p, privacy_ok: e.target.checked}))} />
           <span>我同意将资料用于平台内的匿名匹配，敏感信息仅顾问与匹配对象可见</span>
         </label>
-        <button className="btn btn-primary" disabled={busy.profile}>{busy.profile ? '保存中…' : '保存资料'}</button>
+        <button className="btn btn-primary" disabled={busy.profile || profileLoadState !== 'ready'}>{busy.profile ? '保存中…' : '保存资料'}</button>
+        </fieldset>
         {msg && <div className={messageClass(msg)}>{msg}</div>}
       </form>
 
       <form className="card" onSubmit={saveFaith}>
         <h3 style={{fontSize:15,marginBottom:8}}>信仰档案</h3>
         <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:16}}>这是信任网络的根基，牧者背书会基于此。</p>
+        <fieldset disabled={profileLoadState !== 'ready' || busy.faith} style={{border:0,padding:0,margin:0,minWidth:0}}>
         <div className="grid-2">
           <div className="field"><label>所属教会 / 堂会</label><input value={faith.church_name||''} onChange={setF('church_name')} /></div>
           <div className="field"><label>所在区会</label><input value={faith.presbytery||''} onChange={setF('presbytery')} placeholder="例如 北美中华联合区会" /></div>
@@ -241,7 +272,8 @@ export default function Profile() {
         <div className="field"><label>简短见证</label>
           <textarea rows={3} value={faith.testimony||''} onChange={setF('testimony')} />
         </div>
-        <button className="btn btn-primary" disabled={busy.faith}>{busy.faith ? '保存中…' : '保存信仰档案'}</button>
+        <button className="btn btn-primary" disabled={busy.faith || profileLoadState !== 'ready'}>{busy.faith ? '保存中…' : '保存信仰档案'}</button>
+        </fieldset>
         {faithMsg && <div className={messageClass(faithMsg)}>{faithMsg}</div>}
       </form>
 

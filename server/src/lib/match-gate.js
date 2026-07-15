@@ -23,7 +23,7 @@ export async function getMatchQualification(userId) {
     [userId]
   );
   const testRow = await one(
-    `SELECT passed FROM faith_tests WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    `SELECT EXISTS(SELECT 1 FROM faith_tests WHERE user_id = $1 AND passed = TRUE) AS passed`,
     [userId]
   );
   const { rows: endorsements } = await query(

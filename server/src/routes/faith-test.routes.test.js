@@ -8,10 +8,12 @@ function correctAnswers() {
   return QUESTIONS.map(({ id, answer }) => ({ id, a: answer }));
 }
 
-function makeDb() {
+function makeDb({ passedBefore = false } = {}) {
   const inserts = [];
+  const calls = [];
   return {
     inserts,
+    calls,
     async one(sql) {
       if (/COUNT\(\*\)/.test(sql)) return { n: 0 };
       return null;
@@ -19,7 +21,15 @@ function makeDb() {
     async tx(callback) {
       return callback({
         async query(sql, params) {
-          inserts.push({ sql, params });
+          calls.push({ sql, params });
+          if (/MAX\(attempt_no\)/.test(sql)) return { rows: [{ next_attempt_no: 1 }] };
+          if (/INSERT INTO faith_tests/.test(sql)) {
+            inserts.push({ sql, params });
+            return { rows: [] };
+          }
+          if (/BOOL_OR\(passed\)/.test(sql)) {
+            return { rows: [{ qualified: passedBefore || Boolean(inserts.at(-1)?.params?.[2]) }] };
+          }
           return { rows: [] };
         },
       });
@@ -44,8 +54,8 @@ function makeApp(db) {
   return app;
 }
 
-async function submit(answers) {
-  const db = makeDb();
+async function submit(answers, dbOptions) {
+  const db = makeDb(dbOptions);
   const app = makeApp(db);
   const server = app.listen(0);
   try {
@@ -99,5 +109,19 @@ test('accepts exactly one legal answer for every question', async () => {
   assert.equal(result.body.score, QUESTIONS.length);
   assert.equal(result.body.total, QUESTIONS.length);
   assert.equal(result.body.passed, true);
+  assert.equal(result.body.qualified, true);
+  assert.equal(result.body.attemptNo, 1);
   assert.equal(result.db.inserts.length, 1);
+  assert.equal(result.db.calls.some(({ sql }) => /pg_advisory_xact_lock/.test(sql)), true);
+  assert.equal(result.db.calls.some(({ sql }) => /MAX\(attempt_no\)/.test(sql)), true);
+});
+
+test('a failed retake preserves qualification after any earlier passing attempt', async () => {
+  const failedAnswers = correctAnswers().map((answer) => ({ ...answer, a: answer.a === 'A' ? 'B' : 'A' }));
+  const result = await submit(failedAnswers, { passedBefore: true });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.passed, false);
+  assert.equal(result.body.qualified, true);
+  assert.match(result.body.message, /资格.*保留|保留.*资格/);
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { textbooks } from '../api/client'
 
@@ -10,36 +10,51 @@ export default function TextbookReader() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const chapterRequest = useRef(0)
+  const loadedChapter = useRef(null)
   const returnTo = new URLSearchParams(location.search).get('returnTo')
 
   useEffect(() => {
-    let alive = true
+    const requestId = ++chapterRequest.current
     async function loadChapter() {
+      loadedChapter.current = null
+      setData(null)
       setLoading(true)
+      setSaving(false)
       setError('')
       try {
         const res = await textbooks.chapter(slug, index)
-        if (alive) setData(res.data)
+        if (requestId !== chapterRequest.current) return
+        setData(res.data)
+        loadedChapter.current = { slug, index }
       } catch (err) {
-        if (alive) setError(err.response?.data?.error || '章节加载失败，请稍后重试')
+        if (requestId !== chapterRequest.current) return
+        setError(err.response?.data?.error || '章节加载失败，请稍后重试')
       } finally {
-        if (alive) setLoading(false)
+        if (requestId === chapterRequest.current) setLoading(false)
       }
     }
     loadChapter()
-    return () => { alive = false }
+    return () => {
+      if (requestId === chapterRequest.current) chapterRequest.current += 1
+      loadedChapter.current = null
+    }
   }, [slug, index])
 
   const markRead = async () => {
+    const chapter = loadedChapter.current
+    if (!chapter) return
     setSaving(true)
     setError('')
     try {
-      await textbooks.markRead(slug, index)
+      await textbooks.markRead(chapter.slug, chapter.index)
+      if (loadedChapter.current !== chapter) return
       setData((prev) => prev ? { ...prev, chapter: { ...prev.chapter, completed: true } } : prev)
     } catch (err) {
+      if (loadedChapter.current !== chapter) return
       setError(err.response?.data?.error || '阅读进度保存失败')
     } finally {
-      setSaving(false)
+      if (loadedChapter.current === chapter) setSaving(false)
     }
   }
 

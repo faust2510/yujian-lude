@@ -295,7 +295,7 @@ CREATE TABLE profile_views (
 CREATE INDEX idx_profile_views_viewed ON profile_views(viewed_id, viewed_at DESC);
 
 -- ============================================================
--- 9. ai_consultations — AI 咨询记录（完全免费、不限量，仅留痕）
+-- 9. ai_consultations — AI 咨询记录（免费、按用户限频，仅留痕）
 -- ============================================================
 CREATE TABLE ai_consultations (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -410,7 +410,8 @@ CREATE TABLE faith_tests (
     passed       BOOLEAN NOT NULL,                       -- score >= 15 视为通过
     answers      JSONB,                                  -- 用户答题记录 [{q:1,a:"B"},...]
     attempt_no   SMALLINT NOT NULL DEFAULT 1,            -- 第几次尝试（允许重考）
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, attempt_no)
 );
 CREATE INDEX idx_faith_tests_user ON faith_tests(user_id, created_at DESC);
 

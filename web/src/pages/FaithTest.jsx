@@ -53,7 +53,12 @@ export default function FaithTest() {
     try {
       const r = await faithTest.submit(arr)
       setResult(r.data)
-      setStatus(s => ({ ...s, attempted: true, latest: { passed: r.data.passed, score: r.data.score } }))
+      setStatus(s => ({
+        ...s,
+        attempted: true,
+        qualified: r.data.qualified,
+        latest: { passed: r.data.passed, score: r.data.score, attempt_no: r.data.attemptNo },
+      }))
     } catch (err) {
       setError(err.response?.data?.error || '提交失败，请稍后重试')
     } finally {
@@ -62,6 +67,7 @@ export default function FaithTest() {
   }
 
   const latest = status?.latest
+  const qualified = status?.qualified || latest?.passed
   const answered = questions ? Object.keys(answers).length : 0
   const total = questions?.length || 20
 
@@ -85,10 +91,15 @@ export default function FaithTest() {
 
       {!loading && status && !questions && (
         <div className="card">
-          {latest?.passed ? (
+          {qualified ? (
             <>
               <span className="badge badge-green">已通过</span>
-              <p style={{ marginTop: 12, fontSize: 14 }}>你已通过信仰测试（{latest.score}/20），可以进入匹配池。</p>
+              <p style={{ marginTop: 12, fontSize: 14 }}>
+                你已取得信仰测试资格，可以进入匹配池。最近一次得分：{latest?.score}/20。
+              </p>
+              <button className="btn btn-outline" style={{ marginTop: 16 }} onClick={start} disabled={starting}>
+                {starting ? '加载中…' : '再次测试'}
+              </button>
             </>
           ) : status.attempted ? (
             <>

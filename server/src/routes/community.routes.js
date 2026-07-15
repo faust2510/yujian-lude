@@ -1029,28 +1029,56 @@ router.post('/community/groups/:id/events', requireAuth, async (req, res) => {
 // POST /community/events/:id/rsvp — 活动报名
 router.post('/community/events/:id/rsvp', requireAuth, async (req, res) => {
   const eventId = req.params.id;
-  const { status = 'going' } = req.body;
-  const event = await one(`SELECT group_id, max_attendees FROM community_events WHERE id = $1`, [eventId]);
-  if (!event) return res.status(404).json({ error: '活动不存在' });
-  const membership = await getMembership(req.user.id, event.group_id);
-  if (membership?.state !== 'approved') {
-    return res.status(403).json({ error: '仅小组成员可报名活动' });
+  const { status = 'going' } = req.body || {};
+  if (!['going', 'interested', 'cancelled'].includes(status)) {
+    return res.status(400).json({ error: 'status 须为 going、interested 或 cancelled' });
   }
-  if (event.max_attendees && status === 'going') {
-    const count = await one(
-      `SELECT COUNT(*)::int AS c FROM community_event_rsvps WHERE event_id = $1 AND status = 'going'`,
+
+  const result = await tx(async (db) => {
+    const eventResult = await db.query(
+      `SELECT group_id, max_attendees
+         FROM community_events
+        WHERE id = $1
+        FOR UPDATE`,
       [eventId]
     );
-    if (count.c >= event.max_attendees) {
-      return res.status(409).json({ error: '名额已满' });
+    const event = eventResult.rows[0];
+    if (!event) return { httpStatus: 404, error: '活动不存在' };
+
+    const membershipResult = await db.query(
+      `SELECT state
+         FROM community_memberships
+        WHERE user_id = $1 AND group_id = $2`,
+      [req.user.id, event.group_id]
+    );
+    if (membershipResult.rows[0]?.state !== 'approved') {
+      return { httpStatus: 403, error: '仅小组成员可报名活动' };
     }
-  }
-  await query(
-    `INSERT INTO community_event_rsvps (event_id, user_id, status)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (event_id, user_id) DO UPDATE SET status = $3`,
-    [eventId, req.user.id, status]
-  );
+
+    if (event.max_attendees !== null && status === 'going') {
+      const countResult = await db.query(
+        `SELECT COUNT(*)::int AS c
+           FROM community_event_rsvps
+          WHERE event_id = $1
+            AND user_id <> $2
+            AND status = 'going'`,
+        [eventId, req.user.id]
+      );
+      if (countResult.rows[0].c >= Number(event.max_attendees)) {
+        return { httpStatus: 409, error: '名额已满' };
+      }
+    }
+
+    await db.query(
+      `INSERT INTO community_event_rsvps (event_id, user_id, status)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (event_id, user_id) DO UPDATE SET status = EXCLUDED.status`,
+      [eventId, req.user.id, status]
+    );
+    return { ok: true };
+  });
+
+  if (result.error) return res.status(result.httpStatus).json({ error: result.error });
   res.json({ ok: true, status });
 });
 

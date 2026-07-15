@@ -39,7 +39,7 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
     eligibilityFilters.push(`EXISTS(SELECT 1 FROM endorsements en WHERE en.user_id = u.id AND en.kind IN ('pastor','referrer') AND en.state='verified')`);
   }
   if (gate.requireTest) {
-    eligibilityFilters.push(`COALESCE((SELECT ft.passed FROM faith_tests ft WHERE ft.user_id = u.id ORDER BY ft.created_at DESC LIMIT 1), FALSE) = TRUE`);
+    eligibilityFilters.push(`EXISTS(SELECT 1 FROM faith_tests ft WHERE ft.user_id = u.id AND ft.passed = TRUE)`);
   }
   if (gate.requireCourse) {
     if (!gate.lightCourseId) {
@@ -187,11 +187,31 @@ router.get('/match/viewers', requireAuth, async (req, res) => {
 
 // 记录一次浏览（任何登录用户）
 router.post('/match/:targetId/view', requireAuth, async (req, res) => {
-  if (!UUID_RE.test(req.params.targetId)) return res.status(400).json({ error: '候选人不存在' });
-  if (req.params.targetId === req.user.id) return res.json({ ok: true });
+  const targetId = req.params.targetId;
+  if (!UUID_RE.test(targetId)) return res.status(400).json({ error: '候选人不存在' });
+  if (targetId === req.user.id) return res.json({ ok: true });
+  if (!(await isInMatchPool(req.user.id))) {
+    return res.status(403).json({ error: '尚未进入匹配池' });
+  }
+  const target = await one(
+    `SELECT id FROM users WHERE id = $1 AND is_banned = FALSE`,
+    [targetId]
+  );
+  if (!target || !(await isInMatchPool(targetId))) {
+    return res.status(404).json({ error: '候选人不存在' });
+  }
+  const activeRelationship = await one(
+    `SELECT 1
+       FROM relationships
+      WHERE ((user_a = $1 AND user_b = $2) OR (user_a = $2 AND user_b = $1))
+        AND state <> 'ended'
+      LIMIT 1`,
+    [req.user.id, targetId]
+  );
+  if (activeRelationship) return res.status(404).json({ error: '候选人不存在' });
   await query(
     `INSERT INTO profile_views (viewer_id, viewed_id) VALUES ($1, $2)`,
-    [req.user.id, req.params.targetId]
+    [req.user.id, targetId]
   );
   res.json({ ok: true });
 });

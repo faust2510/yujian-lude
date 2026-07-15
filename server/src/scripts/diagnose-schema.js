@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import pg from 'pg';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { REQUIRED_SCHEMA_TABLES } from '../lib/schema-requirements.js';
 
 const { Pool } = pg;
 
@@ -23,51 +24,6 @@ const requiredEnums = [
   ['relationship_state', ['chatting', 'exam_required', 'relationship_requested', 'mutual_confirmed', 'pastoral_review', 'confirmed', 'ended']],
   ['course_pastor_review_state', ['pending', 'approved', 'rejected']],
   ['vip_subscription_state', ['pending', 'approved', 'rejected', 'cancelled']],
-];
-
-const requiredTables = [
-  'schema_migrations',
-  'users',
-  'profiles',
-  'faith_profiles',
-  'endorsements',
-  'pastor_certifications',
-  'pastor_letters',
-  'courses',
-  'course_units',
-  'course_progress',
-  'course_pastor_reviews',
-  'unit_attempts',
-  'course_exam_attempts',
-  'textbooks',
-  'textbook_chapters',
-  'textbook_reading_progress',
-  'course_unit_readings',
-  'matches',
-  'chat_channels',
-  'chat_messages',
-  'app_settings',
-  'admin_audit_logs',
-  'vip_subscription_requests',
-  'sessions',
-  'login_attempts',
-  'faith_tests',
-  'relationships',
-  'community_groups',
-  'community_admin_applications',
-  'community_posts',
-  'community_reports',
-  'community_likes',
-  'community_comments',
-  'community_follows',
-  'community_hashtags',
-  'community_post_hashtags',
-  'notifications',
-  'community_memberships',
-  'community_bookmarks',
-  'community_events',
-  'community_event_rsvps',
-  'password_reset_tokens',
 ];
 
 const requiredColumns = [
@@ -127,6 +83,7 @@ const requiredUniqueIndexes = [
   ['vip_subscription_requests', ['user_id'], "state = 'pending'"],
   ['vip_subscription_requests', ['payment_confirmation_reference']],
   ['login_attempts', ['email', 'ip']],
+  ['faith_tests', ['user_id', 'attempt_no']],
   ['chat_channels', ['user_a', 'user_b']],
   ['unit_attempts', ['user_id', 'unit_id']],
   ['textbooks', ['slug']],
@@ -326,7 +283,7 @@ async function run() {
     }
   }
 
-  for (const tableName of requiredTables) {
+  for (const tableName of REQUIRED_SCHEMA_TABLES) {
     const exists = await tableExists(tableName);
     tableMap.set(tableName, exists);
     if (!exists) missing.push(`table ${tableName}`);
