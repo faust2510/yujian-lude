@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +26,10 @@ const pastorLetterMigrationPath = path.resolve(
 const pastorLetterInvariantMigrationPath = path.resolve(
   __dirname,
   '../../db/migrations/0018_enforce_pastor_letter_verification.sql'
+);
+const communityPermissionMigrationPath = path.resolve(
+  __dirname,
+  '../../db/migrations/0019_harden_community_admin_permissions.sql'
 );
 
 function connectionUrlWithDatabase(databaseUrl, databaseName) {
@@ -97,6 +101,135 @@ test('schema diagnosis checks pastor letter ownership and verification provenanc
   assert.match(source, /pastor_letters_verification_consistent/);
   assert.match(source, /pastor_letters_reset_verification_on_content_change/);
   assert.match(source, /pastor_letters_verified_by_fkey/);
+});
+
+test('schema diagnosis requires one pending community admin application per scope', () => {
+  assert.match(source, /\['community_admin_applications', \['user_id'\], "state = 'pending' AND group_id IS NULL"\]/);
+  assert.match(source, /\['community_admin_applications', \['user_id', 'group_id'\], "state = 'pending' AND group_id IS NOT NULL"\]/);
+});
+
+test('community permission migration deduplicates applications and backfills approved group members', () => {
+  assert.equal(existsSync(communityPermissionMigrationPath), true);
+  const sql = readFileSync(communityPermissionMigrationPath, 'utf8');
+  assert.match(sql, /LOCK TABLE community_admin_applications IN SHARE ROW EXCLUSIVE MODE/i);
+  assert.match(sql, /ROW_NUMBER\(\) OVER[\s\S]*PARTITION BY user_id, group_id/i);
+  assert.match(sql, /UPDATE community_memberships[\s\S]*SET role = 'admin'/i);
+  assert.match(sql, /m\.state = 'approved'[\s\S]*m\.role = 'member'/i);
+  assert.match(sql, /CREATE UNIQUE INDEX[\s\S]*community_admin_applications\(user_id\)[\s\S]*group_id IS NULL/i);
+  assert.match(sql, /CREATE UNIQUE INDEX[\s\S]*community_admin_applications\(user_id, group_id\)[\s\S]*group_id IS NOT NULL/i);
+});
+
+test('PostgreSQL community permission migration deduplicates scopes and backfills only active members', {
+  skip: !process.env.TEST_DATABASE_URL,
+  timeout: 30_000,
+}, async () => {
+  const databaseName = `codex_community_permissions_${process.pid}_${randomUUID().replace(/-/g, '')}`;
+  const maintenanceUrl = connectionUrlWithDatabase(process.env.TEST_DATABASE_URL, 'postgres');
+  const databaseUrl = connectionUrlWithDatabase(process.env.TEST_DATABASE_URL, databaseName);
+  const adminPool = new Pool({ connectionString: maintenanceUrl });
+  let databaseCreated = false;
+  let databasePool;
+
+  try {
+    await adminPool.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
+    databaseCreated = true;
+    databasePool = new Pool({ connectionString: databaseUrl });
+    await databasePool.query(readFileSync(schemaPath, 'utf8'));
+    await databasePool.query(readFileSync(seedPath, 'utf8'));
+    await databasePool.query('DROP INDEX idx_community_admin_applications_global_pending');
+    await databasePool.query('DROP INDEX idx_community_admin_applications_group_pending');
+
+    const activeUserId = 'aaaaaaaa-1000-4000-8000-000000000001';
+    const inactiveUserId = 'bbbbbbbb-1000-4000-8000-000000000001';
+    const groupId = 'cccccccc-1000-4000-8000-000000000001';
+    await databasePool.query(
+      `INSERT INTO users (id, email, password_hash)
+       VALUES ($1, 'community-active@example.test', 'test'),
+              ($2, 'community-inactive@example.test', 'test')`,
+      [activeUserId, inactiveUserId]
+    );
+    await databasePool.query(
+      `INSERT INTO community_groups (id, name, created_by) VALUES ($1, '迁移测试小组', $2)`,
+      [groupId, activeUserId]
+    );
+    await databasePool.query(
+      `INSERT INTO community_memberships (user_id, group_id, role, state)
+       VALUES ($1, $3, 'member', 'approved'),
+              ($2, $3, 'member', 'kicked')`,
+      [activeUserId, inactiveUserId, groupId]
+    );
+    await databasePool.query(
+      `INSERT INTO community_admin_applications
+         (id, user_id, group_id, reason, state, created_at)
+       VALUES
+         ('10000000-1000-4000-8000-000000000001', $1, NULL, 'global one', 'pending', '2026-01-01T00:00:00Z'),
+         ('10000000-1000-4000-8000-000000000002', $1, NULL, 'global two', 'pending', '2026-01-02T00:00:00Z'),
+         ('20000000-1000-4000-8000-000000000001', $1, $3, 'group one', 'pending', '2026-01-01T00:00:00Z'),
+         ('20000000-1000-4000-8000-000000000002', $1, $3, 'group two', 'pending', '2026-01-02T00:00:00Z'),
+         ('30000000-1000-4000-8000-000000000001', $1, $3, 'approved active', 'approved', '2026-01-03T00:00:00Z'),
+         ('30000000-1000-4000-8000-000000000002', $2, $3, 'approved inactive', 'approved', '2026-01-03T00:00:00Z')`,
+      [activeUserId, inactiveUserId, groupId]
+    );
+
+    await databasePool.query(readFileSync(communityPermissionMigrationPath, 'utf8'));
+
+    const pending = await databasePool.query(
+      `SELECT group_id::text, COUNT(*)::int AS count
+         FROM community_admin_applications
+        WHERE user_id = $1 AND state = 'pending'
+        GROUP BY group_id
+        ORDER BY group_id NULLS FIRST`,
+      [activeUserId]
+    );
+    assert.deepEqual(pending.rows, [
+      { group_id: null, count: 1 },
+      { group_id: groupId, count: 1 },
+    ]);
+
+    const memberships = await databasePool.query(
+      `SELECT user_id::text, role::text, state::text
+         FROM community_memberships
+        WHERE group_id = $1
+        ORDER BY user_id`,
+      [groupId]
+    );
+    assert.deepEqual(memberships.rows, [
+      { user_id: activeUserId, role: 'admin', state: 'approved' },
+      { user_id: inactiveUserId, role: 'member', state: 'kicked' },
+    ]);
+
+    await assert.rejects(
+      databasePool.query(
+        `INSERT INTO community_admin_applications (user_id, reason, state)
+         VALUES ($1, 'duplicate global', 'pending')`,
+        [activeUserId]
+      ),
+      (error) => error.code === '23505'
+    );
+    await assert.rejects(
+      databasePool.query(
+        `INSERT INTO community_admin_applications (user_id, group_id, reason, state)
+         VALUES ($1, $2, 'duplicate group', 'pending')`,
+        [activeUserId, groupId]
+      ),
+      (error) => error.code === '23505'
+    );
+
+    const diagnosis = await runSchemaDiagnosis(databaseUrl);
+    assert.equal(diagnosis.code, 0, diagnosisDetails(diagnosis));
+  } finally {
+    if (databasePool) await databasePool.end();
+    if (databaseCreated) {
+      await adminPool.query(
+        `SELECT pg_terminate_backend(pid)
+           FROM pg_stat_activity
+          WHERE datname = $1 AND pid <> pg_backend_pid()`,
+        [databaseName]
+      );
+      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)}`);
+    }
+    await adminPool.end();
+  }
 });
 
 test('unique index diagnosis fails when no candidate index exists', async () => {

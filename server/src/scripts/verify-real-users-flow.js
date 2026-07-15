@@ -660,7 +660,7 @@ async function verifyCommunity(users) {
   await alice.patch(`/community/groups/${applyGroup.id}/members/${bob.user.id}`, { action: 'approve' });
   const bobGroupDetail = await bob.get(`/community/groups/${applyGroup.id}`);
   assert(bobGroupDetail.group?.my_membership_state === 'approved', 'approved applicant should become group member');
-  return { postId: post.id };
+  return { postId: post.id, applyGroupId: applyGroup.id };
 }
 
 async function verifyAdminOps(admin, users, communityResult) {
@@ -729,16 +729,45 @@ async function verifyAdminOps(admin, users, communityResult) {
   const pastorAccount = await dan.get('/auth/me');
   assert(pastorAccount.user?.role === 'pastor', 'approved pastor certification should grant pastor role');
 
-  await bob.post('/community/admin-apply', { reason: '愿意协助维护社群秩序' });
-  const adminApps = await admin.get('/community/admin-applications');
-  const adminApp = adminApps.applications?.find((item) => item.user_id === bob.user.id && item.state === 'pending');
-  assert(adminApp, 'admin should see pending community admin application');
-  await admin.patch(`/community/admin-applications/${adminApp.id}`, { action: 'approve' });
+  const groupAdminApplication = {
+    group_id: communityResult.applyGroupId,
+    reason: '愿意协助维护小组秩序',
+  };
+  await bob.post('/community/admin-apply', groupAdminApplication);
+  await expectStatus(bob, 'POST', '/community/admin-apply', groupAdminApplication, 409);
+  let adminApps = await admin.get('/community/admin-applications');
+  const groupAdminApp = adminApps.applications?.find((item) => (
+    item.user_id === bob.user.id
+    && item.group_id === communityResult.applyGroupId
+    && item.state === 'pending'
+  ));
+  assert(groupAdminApp, 'admin should see pending group admin application');
+  await admin.patch(`/community/admin-applications/${groupAdminApp.id}`, { action: 'approve' });
+  const promotedGroup = await bob.get(`/community/groups/${communityResult.applyGroupId}`);
+  assert(promotedGroup.group?.my_role === 'admin', 'approved group application should promote the exact membership');
+  await expectStatus(bob, 'POST', '/community/posts', {
+    content: '组管理员不应拥有全站公告权限',
+    post_type: 'announcement',
+  }, 403);
+
+  await bob.post('/community/admin-apply', { reason: '愿意协助维护全站社群秩序' });
+  adminApps = await admin.get('/community/admin-applications');
+  const globalAdminApp = adminApps.applications?.find((item) => (
+    item.user_id === bob.user.id && item.group_id === null && item.state === 'pending'
+  ));
+  assert(globalAdminApp, 'admin should see a separate pending global community admin application');
+  await admin.patch(`/community/admin-applications/${globalAdminApp.id}`, { action: 'approve' });
+  const globalAnnouncement = await bob.post('/community/posts', {
+    content: '全站社区管理员公告',
+    post_type: 'announcement',
+  });
+  assert(globalAnnouncement.id && globalAnnouncement.moderation === 'approved', 'global community admin should publish approved announcements');
 
   const audit = await admin.get('/admin/audit-logs');
   assert(audit.auditLogs?.some((item) => item.action === 'user.ban'), 'audit log should include user ban');
   assert(audit.auditLogs?.some((item) => item.action === 'report.review'), 'audit log should include report review');
   assert(audit.auditLogs?.some((item) => item.action === 'pastor_cert.review'), 'audit log should include pastor certification review');
+  assert(audit.auditLogs?.some((item) => item.action === 'community_admin.review'), 'audit log should include community admin review');
 }
 
 async function run() {

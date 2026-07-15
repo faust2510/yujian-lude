@@ -134,6 +134,8 @@ const requiredUniqueIndexes = [
   ['textbook_reading_progress', ['user_id', 'chapter_id']],
   ['course_unit_readings', ['course_unit_id', 'chapter_id']],
   ['course_pastor_reviews', ['user_id', 'course_id'], "state = 'pending'"],
+  ['community_admin_applications', ['user_id'], "state = 'pending' AND group_id IS NULL"],
+  ['community_admin_applications', ['user_id', 'group_id'], "state = 'pending' AND group_id IS NOT NULL"],
   ['community_follows', ['follower_id', 'followee_id']],
   ['community_memberships', ['user_id', 'group_id']],
   ['community_bookmarks', ['user_id', 'post_id']],

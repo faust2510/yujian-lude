@@ -2,15 +2,24 @@ import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
 import { isInMatchPool } from '../lib/match-gate.js';
-import { normalizeReportAction, writeAdminAudit } from '../lib/admin-audit.js';
+import { normalizeReportAction, validateAdminActorStatus, writeAdminAudit } from '../lib/admin-audit.js';
 
 const router = Router();
+const POST_TYPES = new Set(['post', 'announcement']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function communityRouteError(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
 
 // ── 权限辅助 ──────────────────────────────────────────────
 
 async function isCommunityAdmin(userId) {
   const row = await one(
-    `SELECT 1 FROM community_admin_applications WHERE user_id = $1 AND state = 'approved' LIMIT 1`,
+    `SELECT 1 FROM community_admin_applications
+      WHERE user_id = $1 AND group_id IS NULL AND state = 'approved' LIMIT 1`,
     [userId]
   );
   return !!row;
@@ -257,9 +266,24 @@ router.get('/community/groups/:id/pending', requireAuth, async (req, res) => {
 router.patch('/community/groups/:id/members/:userId', requireAuth, async (req, res) => {
   const groupId = req.params.id;
   const targetId = req.params.userId;
-  const { action } = req.body; // 'approve' | 'reject' | 'kick'
-  if (!['approve', 'reject', 'kick'].includes(action)) {
-    return res.status(400).json({ error: 'action 须为 approve/reject/kick' });
+  const { action } = req.body; // 'approve' | 'reject' | 'kick' | 'promote'
+  if (!['approve', 'reject', 'kick', 'promote'].includes(action)) {
+    return res.status(400).json({ error: 'action 须为 approve/reject/kick/promote' });
+  }
+  if (action === 'promote') {
+    if (!(await isGroupOwner(req.user.id, groupId))) {
+      return res.status(403).json({ error: '仅组长可设置管理员' });
+    }
+    const { rows } = await query(
+      `UPDATE community_memberships
+          SET role = 'admin', approved_by = $1
+        WHERE user_id = $2 AND group_id = $3
+          AND state = 'approved' AND role = 'member'
+        RETURNING user_id, group_id, role`,
+      [req.user.id, targetId, groupId]
+    );
+    if (!rows[0]) return res.status(409).json({ error: '目标用户不是可提升的普通成员' });
+    return res.json({ ok: true, membership: rows[0] });
   }
   if (!(await isGroupAdmin(req.user.id, groupId))) {
     return res.status(403).json({ error: '仅组长可操作' });
@@ -438,9 +462,7 @@ router.get('/community/feed/trending', requireAuth, async (req, res) => {
 router.post('/community/posts', requireAuth, async (req, res) => {
   const { group_id, content, title, image_url, post_type = 'post' } = req.body;
   if (!content) return res.status(400).json({ error: '缺少 content' });
-  if (!(await canPost(req.user.id))) {
-    return res.status(403).json({ error: '需完成资料、信仰测试、背书审核与恋爱必修课后方可发帖' });
-  }
+  if (!POST_TYPES.has(post_type)) return res.status(400).json({ error: 'post_type 须为 post 或 announcement' });
   // 小组内发帖需检查成员身份
   if (group_id) {
     const mem = await getMembership(req.user.id, group_id);
@@ -448,8 +470,16 @@ router.post('/community/posts', requireAuth, async (req, res) => {
       return res.status(403).json({ error: '需先加入小组才能发帖' });
     }
   }
+  if (post_type === 'announcement') {
+    const canAnnounce = group_id
+      ? await isGroupAdmin(req.user.id, group_id)
+      : req.user.role === 'admin' || await isCommunityAdmin(req.user.id);
+    if (!canAnnounce) return res.status(403).json({ error: '仅社区管理员可发布公告' });
+  } else if (!(await canPost(req.user.id))) {
+    return res.status(403).json({ error: '需完成资料、信仰测试、背书审核与恋爱必修课后方可发帖' });
+  }
   // 先发后审：小组帖子默认 pending
-  const moderation = group_id ? 'pending' : 'approved';
+  const moderation = post_type === 'announcement' ? 'approved' : group_id ? 'pending' : 'approved';
 
   const hashtags = extractHashtags(content);
   const post = await tx(async (client) => {
@@ -946,7 +976,17 @@ router.post('/community/events/:id/rsvp', requireAuth, async (req, res) => {
 
 // --- 管理员申请 ---
 router.post('/community/admin-apply', requireAuth, async (req, res) => {
-  const { reason = null, group_id = null } = req.body || {};
+  const { reason: rawReason = null, group_id = null } = req.body || {};
+  if (group_id !== null && group_id !== undefined && !UUID_RE.test(group_id)) {
+    return res.status(400).json({ error: '小组 ID 格式不正确' });
+  }
+  const reason = typeof rawReason === 'string' ? rawReason.trim().slice(0, 1000) || null : null;
+  if (group_id) {
+    const membership = await getMembership(req.user.id, group_id);
+    if (!membership || membership.state !== 'approved') {
+      return res.status(403).json({ error: '仅已加入小组的成员可申请组管理员' });
+    }
+  }
   try {
     await query(
       `INSERT INTO community_admin_applications (user_id, group_id, reason, state) VALUES ($1, $2, $3, 'pending')`,
@@ -973,29 +1013,56 @@ router.get('/community/admin-applications', requireAuth, requireRole('admin'), a
 });
 
 router.patch('/community/admin-applications/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: '申请 ID 格式不正确' });
   const { action } = req.body;
   if (!['approve', 'reject'].includes(action)) {
     return res.status(400).json({ error: 'action 须为 approve 或 reject' });
   }
   const state = action === 'approve' ? 'approved' : 'rejected';
-  const row = await tx(async (db) => {
-    const { rows } = await db.query(
-      `UPDATE community_admin_applications
-          SET state = $1, reviewed_by = $2, reviewed_at = now()
-        WHERE id = $3 AND state = 'pending'
-        RETURNING id, user_id, group_id`,
-      [state, req.user.id, req.params.id]
-    );
-    if (!rows[0]) return null;
-    await writeAdminAudit(db, {
-      actorId: req.user.id,
-      action: 'community_admin.review',
-      targetType: 'community_admin_application',
-      targetId: req.params.id,
-      detail: { action, state, user_id: rows[0].user_id, group_id: rows[0].group_id },
+  let row;
+  try {
+    row = await tx(async (db) => {
+      const actor = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      const actorError = validateAdminActorStatus(actor.rows[0]);
+      if (actorError) throw communityRouteError(403, actorError);
+      const { rows } = await db.query(
+        `UPDATE community_admin_applications
+            SET state = $1, reviewed_by = $2, reviewed_at = now()
+          WHERE id = $3 AND state = 'pending'
+          RETURNING id, user_id, group_id`,
+        [state, req.user.id, req.params.id]
+      );
+      if (!rows[0]) return null;
+      if (action === 'approve' && rows[0].group_id) {
+        const membership = await db.query(
+          `UPDATE community_memberships
+              SET role = CASE WHEN role = 'member' THEN 'admin'::membership_role ELSE role END,
+                  approved_by = CASE WHEN role = 'member' THEN $1 ELSE approved_by END
+            WHERE user_id = $2 AND group_id = $3
+              AND state = 'approved' AND role IN ('member','admin','owner')
+            RETURNING user_id, group_id, role`,
+          [req.user.id, rows[0].user_id, rows[0].group_id]
+        );
+        if (!membership.rows[0]) {
+          throw communityRouteError(409, '申请人已不是该小组的有效成员');
+        }
+      }
+      await writeAdminAudit(db, {
+        actorId: req.user.id,
+        action: 'community_admin.review',
+        targetType: 'community_admin_application',
+        targetId: req.params.id,
+        detail: { action, state, user_id: rows[0].user_id, group_id: rows[0].group_id },
+      });
+      return rows[0];
     });
-    return rows[0];
-  });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    throw error;
+  }
   if (!row) return res.status(404).json({ error: '申请不存在或已处理' });
   res.json({ ok: true });
 });

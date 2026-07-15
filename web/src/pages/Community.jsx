@@ -73,6 +73,13 @@ export default function Community() {
   const [newGroup, setNewGroup] = useState({ name: '', description: '', category: 'interest', join_policy: 'apply' })
   const [creatingGroup, setCreatingGroup] = useState(false)
 
+  // ─── group admin application ───
+  const [adminApplicationReason, setAdminApplicationReason] = useState('')
+  const [adminApplicationBusy, setAdminApplicationBusy] = useState(false)
+  const [adminApplicationFeedback, setAdminApplicationFeedback] = useState('')
+  const adminApplicationRequest = useRef(0)
+  const adminApplicationGroup = useRef(null)
+
   // ─── create event modal ───
   const [showCreateEvent, setShowCreateEvent] = useState(false)
   const [newEvent, setNewEvent] = useState({ title: '', description: '', location: '', starts_at: '', ends_at: '', max_attendees: '' })
@@ -240,6 +247,11 @@ export default function Community() {
     setSearchQuery('')
     setSelectedGroup(null)
     setGroupDetail(null)
+    adminApplicationRequest.current += 1
+    adminApplicationGroup.current = null
+    setAdminApplicationReason('')
+    setAdminApplicationFeedback('')
+    setAdminApplicationBusy(false)
     loadPosts(1, { tab: 'trending' })
   }
 
@@ -247,6 +259,11 @@ export default function Community() {
     setView('groups')
     setSelectedGroup(null)
     setGroupDetail(null)
+    adminApplicationRequest.current += 1
+    adminApplicationGroup.current = null
+    setAdminApplicationReason('')
+    setAdminApplicationFeedback('')
+    setAdminApplicationBusy(false)
     setGroupCategory('')
     setGroupSearch('')
     loadGroups()
@@ -258,6 +275,11 @@ export default function Community() {
     setView('group-detail')
     setActiveTab('posts')
     setPosts([])
+    adminApplicationRequest.current += 1
+    adminApplicationGroup.current = group.id
+    setAdminApplicationReason('')
+    setAdminApplicationFeedback('')
+    setAdminApplicationBusy(false)
     loadGroupDetail(group.id)
     loadPosts(1, { groupId: group.id })
     loadMembers(group.id)
@@ -313,6 +335,27 @@ export default function Community() {
     }
   }
 
+  const submitAdminApplication = async (group) => {
+    if (adminApplicationBusy || !adminApplicationReason.trim()) return
+    const requestId = ++adminApplicationRequest.current
+    adminApplicationGroup.current = group.id
+    setAdminApplicationBusy(true)
+    setAdminApplicationFeedback('')
+    try {
+      await community.adminApply({ group_id: group.id, reason: adminApplicationReason.trim() })
+      if (requestId !== adminApplicationRequest.current || adminApplicationGroup.current !== group.id) return
+      setAdminApplicationReason('')
+      setAdminApplicationFeedback('申请已提交，等待平台审核。')
+    } catch (e) {
+      if (requestId !== adminApplicationRequest.current || adminApplicationGroup.current !== group.id) return
+      setAdminApplicationFeedback(getErrorMessage(e, '申请提交失败，请稍后重试。'))
+    } finally {
+      if (requestId === adminApplicationRequest.current && adminApplicationGroup.current === group.id) {
+        setAdminApplicationBusy(false)
+      }
+    }
+  }
+
   const moderateMember = async (userId, action) => {
     try {
       await community.moderateMember(selectedGroup.id, userId, action)
@@ -328,7 +371,7 @@ export default function Community() {
   // POST ACTIONS
   // ═══════════════════════════════════════════════════════════════
 
-  const submitPost = async () => {
+  const submitPost = async (postType = 'post') => {
     if (!content.trim()) return
     setPosting(true)
     setError('')
@@ -337,12 +380,13 @@ export default function Community() {
       if (title.trim()) payload.title = title.trim()
       if (imageUrl.trim()) payload.image_url = imageUrl.trim()
       if (selectedGroup) payload.group_id = selectedGroup.id
+      if (postType === 'announcement') payload.post_type = 'announcement'
       await community.post(payload)
       setContent('')
       setTitle('')
       setImageUrl('')
       if (selectedGroup) {
-        loadPosts(1, { groupId: selectedGroup.id })
+        loadPosts(1, { groupId: selectedGroup.id, postType: postType === 'announcement' ? 'announcement' : undefined })
       } else {
         loadPosts(1, { tab: activeTab })
       }
@@ -639,6 +683,19 @@ export default function Community() {
                 {g.my_membership_state === 'pending' ? '已申请' : g.join_policy === 'apply' ? '申请加入' : '加入'}
               </button>
             )}
+            {g.my_membership_state === 'approved' && g.my_role === 'member' && (
+              <div style={{ marginTop: 10, maxWidth: 360 }}>
+                <textarea value={adminApplicationReason} onChange={e => setAdminApplicationReason(e.target.value)}
+                  placeholder="申请成为管理员的理由" rows={2} className="com-composer-input" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                  <button className="com-action-btn" onClick={() => submitAdminApplication(g)}
+                    disabled={adminApplicationBusy || !adminApplicationReason.trim()}>
+                    {adminApplicationBusy ? '提交中…' : '申请成为管理员'}
+                  </button>
+                  {adminApplicationFeedback && <span aria-live="polite" style={{ fontSize: 12 }}>{adminApplicationFeedback}</span>}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -670,6 +727,7 @@ export default function Community() {
         )}
 
         {/* Announcements tab */}
+        {activeTab === 'announcements' && isAdmin && renderComposer('announcement')}
         {activeTab === 'announcements' && renderPostList()}
 
         {/* Members tab */}
@@ -688,7 +746,7 @@ export default function Community() {
                 </div>
                 {isAdmin && m.role !== 'owner' && m.user_id !== user.id && (
                   <div className="com-member-actions">
-                    {m.role === 'member' && (
+                    {g.my_role === 'owner' && m.role === 'member' && (
                       <button className="com-action-btn" onClick={() => moderateMember(m.user_id, 'promote')}>设为管理</button>
                     )}
                     <button className="com-action-btn" style={{ color: 'var(--danger)' }}
@@ -768,7 +826,7 @@ export default function Community() {
   // RENDER: COMPOSER
   // ═══════════════════════════════════════════════════════════════
 
-  const renderComposer = () => (
+  const renderComposer = (postType = 'post') => (
     <div className="com-composer">
       {selectedGroup && (
         <div className="com-composer-row">
@@ -779,7 +837,7 @@ export default function Community() {
       <div className="com-composer-row">
         <Avatar name={user.nickname} size={36} />
         <textarea value={content} onChange={e => setContent(e.target.value)}
-          placeholder={selectedGroup ? `在「${selectedGroup.name}」发帖…` : '分享你的想法…'}
+          placeholder={postType === 'announcement' ? `在「${selectedGroup.name}」发布公告…` : selectedGroup ? `在「${selectedGroup.name}」发帖…` : '分享你的想法…'}
           rows={2} className="com-composer-input" />
       </div>
       <div className="com-composer-image-row">
@@ -794,11 +852,15 @@ export default function Community() {
       </div>
       <div className="com-composer-footer">
         {error && <span className="com-error">{error}</span>}
-        {selectedGroup && isMember && <span className="com-composer-hint">帖子将由组长审核后可见</span>}
+        {selectedGroup && isMember && (
+          <span className="com-composer-hint">
+            {postType === 'announcement' ? '公告将直接发布' : '帖子将由组长审核后可见'}
+          </span>
+        )}
         <span className="com-char-count">{content.length}/500</span>
-        <button className="btn btn-primary" onClick={submitPost}
+        <button className="btn btn-primary" onClick={() => submitPost(postType)}
           disabled={posting || !content.trim()} style={{ padding: '5px 16px', fontSize: 13 }}>
-          {posting ? '发送中…' : '发布'}
+          {posting ? '发送中…' : postType === 'announcement' ? '发布公告' : '发布'}
         </button>
       </div>
     </div>

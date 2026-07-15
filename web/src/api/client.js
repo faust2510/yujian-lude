@@ -123,7 +123,7 @@ export const community = {
   createEvent: (groupId, data) => api.post(`/community/groups/${groupId}/events`, data),
   rsvpEvent: (eventId, status) => api.post(`/community/events/${eventId}/rsvp`, { status }),
   // 管理员
-  adminApply: () => api.post('/community/admin-apply'),
+  adminApply: (data) => api.post('/community/admin-apply', data),
 }
 
 export const chat = {

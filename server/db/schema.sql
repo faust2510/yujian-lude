@@ -594,6 +594,12 @@ CREATE TABLE community_admin_applications (
     reviewed_at TIMESTAMPTZ,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX idx_community_admin_applications_global_pending
+    ON community_admin_applications(user_id)
+    WHERE state = 'pending' AND group_id IS NULL;
+CREATE UNIQUE INDEX idx_community_admin_applications_group_pending
+    ON community_admin_applications(user_id, group_id)
+    WHERE state = 'pending' AND group_id IS NOT NULL;
 
 -- 20. pastor_certifications — 牧者认证申请
 CREATE TYPE pastor_cert_state AS ENUM ('pending', 'approved', 'rejected');
