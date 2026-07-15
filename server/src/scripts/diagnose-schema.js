@@ -39,7 +39,7 @@ const requiredColumns = [
   ['faith_profiles', ['user_id', 'church_name', 'testimony']],
   ['endorsements', ['user_id', 'endorser_user_id', 'kind', 'state', 'verified_at']],
   ['course_exam_attempts', ['user_id', 'course_id', 'score', 'passed', 'answers']],
-  ['course_pastor_reviews', ['user_id', 'course_id', 'endorsement_id', 'assigned_reviewer_id', 'state', 'reviewed_by', 'reviewed_at']],
+  ['course_pastor_reviews', ['user_id', 'course_id', 'unit_id', 'endorsement_id', 'assigned_reviewer_id', 'state', 'reviewed_by', 'reviewed_at']],
   ['textbooks', ['slug', 'title', 'visibility', 'source_filename', 'license_note']],
   ['textbook_chapters', ['textbook_id', 'chapter_index', 'title', 'body_html', 'body_text', 'word_count']],
   ['textbook_reading_progress', ['user_id', 'chapter_id', 'completed', 'completed_at', 'last_read_at']],
@@ -90,7 +90,7 @@ const requiredUniqueIndexes = [
   ['textbook_chapters', ['textbook_id', 'chapter_index']],
   ['textbook_reading_progress', ['user_id', 'chapter_id']],
   ['course_unit_readings', ['course_unit_id', 'chapter_id']],
-  ['course_pastor_reviews', ['user_id', 'course_id'], "state = 'pending'"],
+  ['course_pastor_reviews', ['user_id', 'course_id', 'unit_id'], "state = 'pending'"],
   ['community_admin_applications', ['user_id'], "state = 'pending' AND group_id IS NULL"],
   ['community_admin_applications', ['user_id', 'group_id'], "state = 'pending' AND group_id IS NOT NULL"],
   ['community_follows', ['follower_id', 'followee_id']],
@@ -126,6 +126,16 @@ const requiredSettings = [
 const requiredCourses = [
   ['christian-dating-basics', 8],
   ['keller-meaning-of-marriage', 10],
+];
+
+const requiredTextbooks = [
+  {
+    textbookSlug: 'meaning-of-marriage',
+    courseSlug: 'keller-meaning-of-marriage',
+    chapters: 16,
+    units: 10,
+    requiredBindings: 10,
+  },
 ];
 
 const pool = new Pool({
@@ -261,6 +271,21 @@ async function courseUnitCount(slug) {
   );
 }
 
+async function textbookBindingStatus(textbookSlug, courseSlug) {
+  return one(
+    `SELECT COUNT(DISTINCT chapter.id)::int AS chapters,
+            COUNT(DISTINCT CASE WHEN reading.required AND course.id IS NOT NULL THEN unit.id END)::int AS units,
+            COUNT(*) FILTER (WHERE reading.required AND course.id IS NOT NULL)::int AS required_bindings
+       FROM textbooks textbook
+       LEFT JOIN textbook_chapters chapter ON chapter.textbook_id = textbook.id
+       LEFT JOIN course_unit_readings reading ON reading.chapter_id = chapter.id
+       LEFT JOIN course_units unit ON unit.id = reading.course_unit_id
+       LEFT JOIN courses course ON course.id = unit.course_id AND course.slug = $2
+      WHERE textbook.slug = $1`,
+    [textbookSlug, courseSlug]
+  );
+}
+
 async function run() {
   const missing = [];
   const tableMap = new Map();
@@ -331,6 +356,27 @@ async function run() {
         missing.push(`course ${slug}`);
       } else if (row.units < minUnits) {
         missing.push(`course_units ${slug} >= ${minUnits}, got ${row.units}`);
+      }
+    }
+  }
+
+  if (
+    tableMap.get('textbooks')
+    && tableMap.get('textbook_chapters')
+    && tableMap.get('course_unit_readings')
+    && tableMap.get('course_units')
+    && tableMap.get('courses')
+  ) {
+    for (const requirement of requiredTextbooks) {
+      const row = await textbookBindingStatus(requirement.textbookSlug, requirement.courseSlug);
+      if ((row?.chapters ?? 0) !== requirement.chapters) {
+        missing.push(`textbook ${requirement.textbookSlug} chapters = ${requirement.chapters}, got ${row?.chapters ?? 0}`);
+      }
+      if ((row?.units ?? 0) !== requirement.units) {
+        missing.push(`textbook ${requirement.textbookSlug} bound units = ${requirement.units}, got ${row?.units ?? 0}`);
+      }
+      if ((row?.required_bindings ?? 0) < requirement.requiredBindings) {
+        missing.push(`textbook ${requirement.textbookSlug} required bindings >= ${requirement.requiredBindings}, got ${row?.required_bindings ?? 0}`);
       }
     }
   }

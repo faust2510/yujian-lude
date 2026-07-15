@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { matches, points } from '../api/client'
+import './Dashboard.css'
 
 const GATE_STEPS = [
   {
@@ -115,7 +116,6 @@ export default function Dashboard() {
   const gateDone = qualification
     ? GATE_STEPS.filter(step => !!qualification[step.key]).length
     : 0
-  const gatePct = qualification ? Math.round((gateDone / GATE_STEPS.length) * 100) : 0
   const nextStep = qualification && !qualification.inPool
     ? GATE_STEPS.find(step => !qualification[step.key])
     : null
@@ -123,166 +123,109 @@ export default function Dashboard() {
   const serverStep = serverNext
     ? GATE_STEPS.find(step => step.actionKey === serverNext.key)
     : null
-  const primaryNext = qualification && !qualification.inPool
-    ? {
-        ...(nextStep || serverStep),
-        label: serverNext?.label || nextStep?.label,
-        to: serverNext?.to || nextStep?.to,
-        action: serverNext?.label || nextStep?.action,
-        desc: nextStep?.desc || serverStep?.desc || '完成这个步骤后，系统会继续提示下一项入池任务。',
-      }
+  const primaryNext = qualification
+    ? qualification.inPool
+      ? {
+          label: '开始匿名匹配',
+          desc: '你已满足匹配资格，可以进入匹配池查看新机会。',
+          to: '/match',
+          action: '去匹配',
+        }
+      : {
+          ...(nextStep || serverStep),
+          label: serverNext?.label || nextStep?.label,
+          to: serverNext?.to || nextStep?.to,
+          action: serverNext?.label || nextStep?.action,
+          desc: nextStep?.desc || serverStep?.desc || '完成这个步骤后，系统会继续提示下一项入池任务。',
+        }
     : null
   const checkinAmount = pts?.checkinAmount
   const vipRedemption = pts?.vipRedemption
 
   return (
-    <>
+    <div className="dashboard-page">
       <h1 className="page-title">你好，{user?.nickname || user?.email?.split('@')[0]}</h1>
       <p className="page-sub">欢迎回到遇见路得</p>
 
-      <div className="grid-2" style={{marginBottom:24}}>
-        <div className="card">
-          <div style={{fontSize:12,color:'var(--legacy-muted)',marginBottom:4}}>累积积分</div>
-          <div style={{fontSize:32,fontFamily:'var(--font-serif)',color:'var(--brand)'}}>
-            {pointsLoading ? '…' : (pts?.earned ?? '—')}
+      <section className="card dashboard-next" data-dashboard-next-step aria-labelledby="dashboard-next-title">
+        <div className="dashboard-section-heading">
+          <div>
+            <div className="dashboard-eyebrow">匹配资格</div>
+            <h2 id="dashboard-next-title">下一步</h2>
           </div>
-          <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>
-            {vipRedemption ? `${vipRedemption.points} 分 = ${vipRedemption.days} 天 VIP 体验` : 'VIP 兑换比例加载中…'}
-          </div>
-          {pointsError && (
-            <div className="error-msg">
-              {pointsError}
-              <button className="btn btn-outline" style={{marginLeft:10,padding:'4px 10px',fontSize:12}} onClick={loadDashboard}>
-                重试
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="card">
-          <div style={{fontSize:12,color:'var(--legacy-muted)',marginBottom:8}}>每日签到</div>
-          <p style={{fontSize:13,marginBottom:12,color:'var(--legacy-muted)'}}>
-            {checkinAmount ? `每天签到 +${checkinAmount} 分，坚持打卡！` : '每天签到，坚持打卡！'}
-          </p>
-          <div style={{fontSize:13,color:'var(--fg)',marginBottom:12}}>
-            今日积分：<strong style={{color:'var(--brand)'}}>{pointsLoading ? '…' : (pts?.daily ?? 0)}</strong>
-          </div>
-          <button className="btn btn-primary" onClick={doCheckin} disabled={checkedIn || checkinBusy}>
-            {checkinBusy ? '签到中…' : checkedIn ? '✓ 已签到' : checkinAmount ? `签到 +${checkinAmount}` : '签到'}
-          </button>
-          {msg && <div className={msgType === 'error' ? 'error-msg' : 'success-msg'}>{msg}</div>}
-        </div>
-      </div>
-
-      {qualificationLoading && (
-        <div className="card" style={{marginBottom:24,color:'var(--legacy-muted)',fontSize:14}}>
-          正在加载入池状态…
-        </div>
-      )}
-
-      {!qualificationLoading && qualificationError && (
-        <div className="card" style={{marginBottom:24}}>
-          <h2 style={{fontFamily:'var(--font-serif)',fontSize:18,marginBottom:8}}>入池状态加载失败</h2>
-          <p style={{fontSize:14,color:'#B42318',marginBottom:14}}>{qualificationError}</p>
-          <button className="btn btn-outline" onClick={loadDashboard}>重试</button>
-        </div>
-      )}
-
-      {!qualificationLoading && qualification && (
-        <div className="card" style={{marginBottom:24}}>
-          <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start',marginBottom:14}}>
-            <div>
-              <h2 style={{fontFamily:'var(--font-serif)',fontSize:18,marginBottom:6}}>入池任务中心</h2>
-              <p style={{fontSize:13,color:'var(--legacy-muted)',margin:0}}>
-                {qualification.inPool ? '你已满足匹配池资格，可以开始匿名匹配。' : '按顺序完成这些任务，系统会自动更新入池状态。'}
-              </p>
-            </div>
+          {!qualificationLoading && qualification && (
             <span className={`badge ${qualification.inPool ? 'badge-green' : 'badge-yellow'}`}>
               {qualification.inPool ? '已入池' : `${gateDone}/${GATE_STEPS.length} 已完成`}
             </span>
-          </div>
-
-          <div style={{background:'var(--border)',borderRadius:999,height:8,overflow:'hidden',marginBottom:14}}>
-            <div style={{width:`${gatePct}%`,height:'100%',background:'var(--brand)',borderRadius:999,transition:'width 0.2s'}} />
-          </div>
-
-          {primaryNext && (
-            <div style={{border:'1px solid var(--border)',borderRadius:8,padding:14,marginBottom:14,background:'var(--bg)'}}>
-              <div style={{fontSize:12,color:'var(--legacy-muted)',marginBottom:4}}>下一步</div>
-              <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-                <div>
-                  <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{primaryNext.label}</div>
-                  <div style={{fontSize:13,color:'var(--legacy-muted)',lineHeight:1.6}}>{primaryNext.desc}</div>
-                </div>
-                <Link className="btn btn-primary" to={primaryNext.to} style={{textDecoration:'none',whiteSpace:'nowrap'}}>
-                  {primaryNext.action}
-                </Link>
-              </div>
-            </div>
           )}
+        </div>
 
-          <div style={{display:'grid',gap:10}}>
-            {GATE_STEPS.map((step, index) => {
-              const done = !!qualification[step.key]
-              return (
-                <Link key={step.key} to={step.to} style={{textDecoration:'none'}}>
-                  <div style={{
-                    display:'grid',
-                    gridTemplateColumns:'32px 1fr auto',
-                    gap:10,
-                    alignItems:'center',
-                    padding:'12px 0',
-                    borderTop:index === 0 ? 'none' : '1px solid var(--border)'
-                  }}>
-                    <div style={{
-                      width:26,height:26,borderRadius:'50%',
-                      display:'flex',alignItems:'center',justifyContent:'center',
-                      background:done ? '#F0FAF4' : 'var(--bg)',
-                      color:done ? '#1A7A3C' : 'var(--legacy-muted)',
-                      border:`1px solid ${done ? '#B8E0C8' : 'var(--border)'}`,
-                      fontSize:13,fontWeight:700
-                    }}>
-                      {done ? '✓' : index + 1}
-                    </div>
-                    <div>
-                      <div style={{fontSize:14,color:done ? 'var(--brand)' : 'var(--fg)',fontWeight:700}}>{step.label}</div>
-                      <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:2,lineHeight:1.5}}>{step.desc}</div>
-                    </div>
-                    <span className={`badge ${done ? 'badge-green' : 'badge-yellow'}`}>{done ? '已完成' : '待完成'}</span>
-                  </div>
-                </Link>
-              )
-            })}
+        {qualificationLoading && <p className="dashboard-muted">正在加载入池状态…</p>}
+
+        {!qualificationLoading && qualificationError && (
+          <div>
+            <p className="error-msg">{qualificationError}</p>
+            <button className="btn btn-outline" onClick={loadDashboard}>重试</button>
+          </div>
+        )}
+
+        {!qualificationLoading && primaryNext && (
+          <div className="dashboard-next-action">
+            <div className="dashboard-next-copy">
+              <strong>{primaryNext.label}</strong>
+              <p>{primaryNext.desc}</p>
+              {!qualification.inPool && (
+                <span className="dashboard-progress">入池进度：{gateDone}/{GATE_STEPS.length}</span>
+              )}
+            </div>
+            <Link className="btn btn-primary" to={primaryNext.to}>
+              {primaryNext.action}
+            </Link>
+          </div>
+        )}
+      </section>
+
+      <section className="dashboard-secondary" data-dashboard-secondary aria-labelledby="dashboard-secondary-title">
+        <div className="dashboard-secondary-heading">
+          <h2 id="dashboard-secondary-title">今日概览</h2>
+          <Link to="/courses">查看课程</Link>
+        </div>
+
+        <div className="dashboard-summary">
+          <div className="card dashboard-points">
+            <div className="dashboard-eyebrow">累积积分</div>
+            <div className="dashboard-points-value">{pointsLoading ? '…' : (pts?.earned ?? '—')}</div>
+            <p className="dashboard-muted">
+              {vipRedemption ? `${vipRedemption.points} 分 = ${vipRedemption.days} 天 VIP 体验` : 'VIP 兑换比例加载中…'}
+            </p>
+            {pointsError && (
+              <div className="error-msg">
+                {pointsError}
+                <button className="btn btn-outline dashboard-inline-retry" onClick={loadDashboard}>重试</button>
+              </div>
+            )}
+          </div>
+
+          <div className="card dashboard-checkin" data-checkin-status={checkedIn ? 'complete' : 'pending'}>
+            <div className="dashboard-checkin-heading">
+              <div className="dashboard-eyebrow">每日签到</div>
+              <span className={`badge ${checkedIn ? 'badge-green' : 'badge-yellow'}`}>
+                {checkedIn ? '今日已完成' : '今日待签到'}
+              </span>
+            </div>
+            <p className="dashboard-muted">
+              {checkinAmount ? `每天签到 +${checkinAmount} 分` : '每天签到可获得积分'}
+            </p>
+            <div className="dashboard-daily-points">
+              今日积分：<strong>{pointsLoading ? '…' : (pts?.daily ?? 0)}</strong>
+            </div>
+            <button className="btn btn-primary" onClick={doCheckin} disabled={checkedIn || checkinBusy}>
+              {checkinBusy ? '签到中…' : checkedIn ? '已签到' : checkinAmount ? `签到 +${checkinAmount}` : '签到'}
+            </button>
+            {msg && <div className={msgType === 'error' ? 'error-msg' : 'success-msg'}>{msg}</div>}
           </div>
         </div>
-      )}
-
-      <h2 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:12}}>下一步做什么</h2>
-      <div className="grid-3">
-        {[
-          {to:'/profile', title:'完善资料', desc:'资料越完整，曝光越高', badge:'+50 分'},
-          {to:'/faith-test', title:'信仰基础测试', desc:'通过测试才能进入匹配池', badge:'必须'},
-          {to:'/courses', title:'婚恋必修课', desc:'完课大幅提升曝光排名', badge:'+300 分'},
-        ].map(item => (
-          <Link key={item.to} to={item.to} style={{textDecoration:'none'}}>
-            <div className="card" style={{
-              cursor:'pointer', transition:'box-shadow 0.2s, transform 0.2s',
-              position: 'relative', overflow: 'hidden'
-            }}
-              onMouseEnter={e => {
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(201,123,107,0.12)'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.boxShadow = ''
-                e.currentTarget.style.transform = ''
-              }}>
-              <div style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:6}}>{item.title}</div>
-              <div style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:10}}>{item.desc}</div>
-              <span className="badge badge-rose">{item.badge}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </>
+      </section>
+    </div>
   )
 }

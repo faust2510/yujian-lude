@@ -6,6 +6,7 @@ import { awardPoints } from '../lib/rewards.js';
 import { getSetting } from '../settings.js';
 import { getMatchGateSettings, getMatchQualification, isInMatchPool } from '../lib/match-gate.js';
 import { normalizeMatchIntent, statusForIntent } from '../lib/match-intent.js';
+import { normalizeMatchFilters } from '../lib/match-filters.js';
 
 const router = Router();
 const ACTIVE_MATCH_STATUSES = ['intent_sent', 'matched', 'under_review', 'approved'];
@@ -22,12 +23,27 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
     const status = await getMatchQualification(req.user.id);
     return res.json({ candidates: [], locked: true, reason: status.gate, status });
   }
-  const { min_age, max_age, city } = req.query;
+  const normalized = normalizeMatchFilters(req.query, { isVip: req.user.is_vip === true });
+  if (!normalized.ok) {
+    return res.status(normalized.status).json({ error: normalized.error, upsell: normalized.upsell === true });
+  }
+  const candidateFilters = normalized.filters;
   const params = [req.user.id];
   const filters = [];
-  if (min_age) { params.push(new Date().getFullYear() - Number(min_age)); filters.push(`p.birth_year <= $${params.length}`); }
-  if (max_age) { params.push(new Date().getFullYear() - Number(max_age)); filters.push(`p.birth_year >= $${params.length}`); }
-  if (city)    { params.push(`%${city}%`);                                 filters.push(`p.city ILIKE $${params.length}`); }
+  const currentYear = new Date().getFullYear();
+  if (candidateFilters.minAge !== undefined) { params.push(currentYear - candidateFilters.minAge); filters.push(`p.birth_year <= $${params.length}`); }
+  if (candidateFilters.maxAge !== undefined) { params.push(currentYear - candidateFilters.maxAge); filters.push(`p.birth_year >= $${params.length}`); }
+  if (candidateFilters.city) { params.push(`%${candidateFilters.city}%`); filters.push(`p.city ILIKE $${params.length}`); }
+  if (candidateFilters.education) { params.push(`%${candidateFilters.education}%`); filters.push(`p.education ILIKE $${params.length}`); }
+  if (candidateFilters.goal) { params.push(candidateFilters.goal); filters.push(`p.goal = $${params.length}`); }
+  if (candidateFilters.denomination) { params.push(`%${candidateFilters.denomination}%`); filters.push(`fp.denomination ILIKE $${params.length}`); }
+  if (candidateFilters.presbytery) { params.push(`%${candidateFilters.presbytery}%`); filters.push(`fp.presbytery ILIKE $${params.length}`); }
+  if (candidateFilters.minFaithYears !== undefined) { params.push(candidateFilters.minFaithYears); filters.push(`fp.faith_years >= $${params.length}`); }
+  if (candidateFilters.hasBadge === true) {
+    filters.push(`EXISTS(SELECT 1 FROM course_progress cp_filter WHERE cp_filter.user_id = u.id AND cp_filter.state='completed' AND cp_filter.badge_awarded)`);
+  } else if (candidateFilters.hasBadge === false) {
+    filters.push(`NOT EXISTS(SELECT 1 FROM course_progress cp_filter WHERE cp_filter.user_id = u.id AND cp_filter.state='completed' AND cp_filter.badge_awarded)`);
+  }
   const where = filters.length ? 'AND ' + filters.join(' AND ') : '';
   const gate = await getMatchGateSettings();
   const eligibilityFilters = [
@@ -60,7 +76,8 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
 
   const { rows } = await query(
     `SELECT u.id, p.nickname, p.city, p.birth_year, p.goal, p.intro,
-            p.education, fp.church_name, e.computed_score,
+            p.education, fp.church_name, fp.presbytery, fp.denomination, fp.faith_years,
+            e.computed_score,
             EXISTS(SELECT 1 FROM course_progress cp WHERE cp.user_id = u.id AND cp.state='completed' AND cp.badge_awarded) AS has_badge
        FROM users u
        JOIN profiles p ON p.user_id = u.id

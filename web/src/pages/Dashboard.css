@@ -1,0 +1,144 @@
+.dashboard-page {
+  min-width: 0;
+}
+
+.dashboard-next {
+  margin-bottom: 28px;
+}
+
+.dashboard-section-heading,
+.dashboard-secondary-heading,
+.dashboard-checkin-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dashboard-section-heading {
+  margin-bottom: 18px;
+}
+
+.dashboard-section-heading h2,
+.dashboard-secondary-heading h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 18px;
+}
+
+.dashboard-eyebrow {
+  margin-bottom: 5px;
+  color: var(--legacy-muted);
+  font-size: 12px;
+}
+
+.dashboard-next-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+}
+
+.dashboard-next-copy {
+  min-width: 0;
+}
+
+.dashboard-next-copy strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-next-copy p,
+.dashboard-muted {
+  margin: 0;
+  color: var(--legacy-muted);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-progress {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--brand-dark);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dashboard-next-action .btn {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dashboard-secondary-heading {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.dashboard-secondary-heading a {
+  color: var(--brand-dark);
+  font-size: 13px;
+}
+
+.dashboard-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-summary .card {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.dashboard-points-value {
+  margin-bottom: 4px;
+  color: var(--brand);
+  font-family: var(--font-serif);
+  font-size: 32px;
+}
+
+.dashboard-inline-retry {
+  margin-left: 10px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.dashboard-checkin-heading {
+  margin-bottom: 8px;
+}
+
+.dashboard-daily-points {
+  margin: 12px 0;
+  color: var(--fg);
+  font-size: 13px;
+}
+
+.dashboard-daily-points strong {
+  color: var(--brand);
+}
+
+@media (max-width: 768px) {
+  .dashboard-next-action {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .dashboard-next-action .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .dashboard-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-section-heading,
+  .dashboard-checkin-heading {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+}

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Crown, Eye } from 'lucide-react'
+import { ChevronDown, ChevronUp, Crown, Eye, SlidersHorizontal } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { matches } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
-const EMPTY_FILTERS = { min_age: '', max_age: '', city: '' }
+const EMPTY_FILTERS = {
+  min_age: '', max_age: '', city: '', education: '', goal: '', denomination: '',
+  presbytery: '', min_faith_years: '', has_badge: '',
+}
 
 export default function Match() {
   const navigate = useNavigate()
@@ -12,6 +15,7 @@ export default function Match() {
   const [candidates, setCandidates] = useState([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [msg, setMsg] = useState({})
   const [mutuals, setMutuals] = useState({})
   const [lockedStatus, setLockedStatus] = useState(null)
@@ -144,19 +148,59 @@ export default function Match() {
       <div className="card" style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:8}}>
         <div className="field" style={{margin:0,minWidth:100}}>
           <label>最小年龄</label>
-          <input value={filters.min_age} onChange={e=>setFilters(p=>({...p,min_age:e.target.value}))} placeholder="20" />
+          <input type="number" min="18" max="100" value={filters.min_age} onChange={e=>setFilters(p=>({...p,min_age:e.target.value}))} placeholder="20" />
         </div>
         <div className="field" style={{margin:0,minWidth:100}}>
           <label>最大年龄</label>
-          <input value={filters.max_age} onChange={e=>setFilters(p=>({...p,max_age:e.target.value}))} placeholder="35" />
+          <input type="number" min="18" max="100" value={filters.max_age} onChange={e=>setFilters(p=>({...p,max_age:e.target.value}))} placeholder="35" />
         </div>
         <div className="field" style={{margin:0,minWidth:120}}>
           <label>城市</label>
           <input value={filters.city} onChange={e=>setFilters(p=>({...p,city:e.target.value}))} />
         </div>
+        <div className="field" style={{margin:0,minWidth:120}}>
+          <label>宗派</label>
+          <input value={filters.denomination} onChange={e=>setFilters(p=>({...p,denomination:e.target.value}))} />
+        </div>
         <button className="btn btn-outline" onClick={() => loadCandidates(filters)} disabled={loading}>
           {loading ? '筛选中…' : '筛选'}
         </button>
+        <button
+          className="btn btn-outline"
+          onClick={() => user?.is_vip ? setAdvancedOpen(open => !open) : navigate('/vip')}
+          aria-expanded={user?.is_vip ? advancedOpen : undefined}
+        >
+          {user?.is_vip ? <SlidersHorizontal size={16} aria-hidden="true" /> : <Crown size={16} aria-hidden="true" />}
+          VIP 深度筛选
+        </button>
+        {user?.is_vip && advancedOpen && (
+          <div style={{flexBasis:'100%',borderTop:'1px solid var(--border)',paddingTop:12,display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:12}}>
+            <div className="field" style={{margin:0}}>
+              <label>学历</label>
+              <input value={filters.education} onChange={e=>setFilters(p=>({...p,education:e.target.value}))} placeholder="例如 本科" />
+            </div>
+            <div className="field" style={{margin:0}}>
+              <label>婚恋目标</label>
+              <select value={filters.goal} onChange={e=>setFilters(p=>({...p,goal:e.target.value}))}>
+                <option value="">不限</option>
+                <option value="serious">认真寻找婚姻对象</option>
+                <option value="explore">先了解，慢慢来</option>
+              </select>
+            </div>
+            <div className="field" style={{margin:0}}>
+              <label>区会</label>
+              <input value={filters.presbytery} onChange={e=>setFilters(p=>({...p,presbytery:e.target.value}))} />
+            </div>
+            <div className="field" style={{margin:0}}>
+              <label>最低信主年数</label>
+              <input type="number" min="0" max="80" value={filters.min_faith_years} onChange={e=>setFilters(p=>({...p,min_faith_years:e.target.value}))} />
+            </div>
+            <label className="check-row" style={{alignSelf:'end',minHeight:40}}>
+              <input type="checkbox" checked={filters.has_badge === 'true'} onChange={e=>setFilters(p=>({...p,has_badge:e.target.checked ? 'true' : ''}))} />
+              <span>已完成婚姻装备</span>
+            </label>
+          </div>
+        )}
       </div>
 
       {user && (
@@ -257,6 +301,9 @@ export default function Match() {
             {expanded[c.id] && (
               <div style={{fontSize:12,color:'var(--legacy-muted)',lineHeight:1.7,padding:'10px 0 2px'}}>
                 {c.church_name ? `教会：${c.church_name}` : '教会信息未填写'}
+                {c.presbytery && <div>区会：{c.presbytery}</div>}
+                {c.denomination && <div>宗派：{c.denomination}</div>}
+                {c.faith_years !== null && c.faith_years !== undefined && <div>信主年数：{c.faith_years} 年</div>}
               </div>
             )}
             {mutuals[c.id] ? (

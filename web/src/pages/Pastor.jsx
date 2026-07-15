@@ -163,6 +163,9 @@ export default function Pastor() {
           {reviews.map(item => (
             <div key={item.id} style={{borderTop:'1px solid var(--border)',padding:'14px 0'}}>
               <div style={{fontWeight:700,fontSize:14}}>{item.nickname || '未命名学员'} · {item.course_title}</div>
+              <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>
+                课程节点：第 {item.unit_index || '?'} 单元 · {item.unit_title || '待确认节点'}
+              </div>
               <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>{item.church_name || '未填写教会'}</div>
               <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>
                 引荐关系：{item.endorsement_name || '管理员核验'} · {item.endorsement_kind === 'pastor' ? '牧者' : '引荐人'}

@@ -51,6 +51,15 @@ test('release verification supplies every production-only mail setting', () => {
   assert.match(source, /TEST_DATABASE_URL/);
 });
 
+test('release verification imports and diagnoses the authorized marriage textbook', () => {
+  assert.match(source, /MEANING_OF_MARRIAGE_EPUB_PATH/);
+  assert.match(source, /婚姻的意义\.epub/);
+  assert.match(source, /import:textbook/);
+  assert.match(source, /meaning-of-marriage/);
+  assert.match(source, /keller-meaning-of-marriage/);
+  assert.ok(source.indexOf('import:textbook') < source.indexOf("fresh DB schema 诊断"));
+});
+
 test('extracts verification and reset links from quoted-printable SMTP bodies', () => {
   assert.ifError(authEmailAcceptanceLoadError);
   const { extractAccountLink } = authEmailAcceptance;

@@ -45,8 +45,8 @@ export const courses = {
     api.post(`/courses/${slug}/units/${index}/submit`, data),
   exam: (slug) => api.get(`/courses/${slug}/exam`),
   submitExam: (slug, answers) => api.post(`/courses/${slug}/exam/submit`, { answers }),
-  requestPastorReview: (slug, endorsementId, note = '') =>
-    api.post(`/courses/${slug}/pastor-review`, { endorsement_id: endorsementId, note }),
+  requestPastorReview: (slug, unitId, endorsementId, note = '') =>
+    api.post(`/courses/${slug}/pastor-review`, { unit_id: unitId, endorsement_id: endorsementId, note }),
 }
 
 export const coursePastorReviews = {
@@ -171,6 +171,8 @@ export const admin = {
   users: (params) => api.get('/admin/users', { params }),
   banUser: (id, ban) => api.post(`/admin/users/${id}/ban`, { ban }),
   updateRole: (id, role) => api.post(`/admin/users/${id}/role`, { role }),
+  adjustPoints: (id, amount, reason) =>
+    api.post(`/admin/users/${id}/points`, { amount, reason }),
   settings: () => api.get('/admin/settings'),
   updateSetting: (key, value) => api.put(`/admin/settings/${key}`, { value }),
   endorsements: (state = 'pending') => api.get('/admin/endorsements', { params: { state } }),

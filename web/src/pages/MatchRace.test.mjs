@@ -41,3 +41,23 @@ test('viewer loading resets on entitlement downgrade and transient failures are 
   assert.match(source, /const viewersRequest = useRef\(0\)/)
   assert.match(source, /requestId !== viewersRequest\.current/)
 })
+
+test('VIP deep filters are discoverable, gated, and sent with candidate requests', () => {
+  assert.match(source, /VIP 深度筛选/)
+  assert.match(source, /user\?\.is_vip/)
+  assert.match(source, /filters\.denomination/)
+  assert.match(source, /filters\.presbytery/)
+  assert.match(source, /filters\.min_faith_years/)
+  assert.match(source, /filters\.education/)
+  assert.match(source, /filters\.goal/)
+  assert.match(source, /filters\.has_badge/)
+  assert.match(source, /navigate\('\/vip'\)/)
+})
+
+test('denomination remains a public filter outside the VIP panel', () => {
+  const denomination = source.indexOf('<label>宗派</label>')
+  const vipPanel = source.indexOf("{user?.is_vip && advancedOpen && (")
+  assert.ok(denomination > 0, 'denomination filter should be rendered')
+  assert.ok(vipPanel > 0, 'VIP panel should be rendered')
+  assert.ok(denomination < vipPanel, 'denomination must remain available before the VIP-only panel')
+})

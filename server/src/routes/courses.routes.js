@@ -98,15 +98,17 @@ router.get('/course-pastor-reviews', requireAuth, async (req, res) => {
   }
   const isAdmin = req.user.role === 'admin';
   const { rows } = await query(
-    `SELECT r.id, r.user_id, r.course_id, r.state, r.requested_note, r.review_note,
+    `SELECT r.id, r.user_id, r.course_id, r.unit_id, r.state, r.requested_note, r.review_note,
             r.assigned_reviewer_id, r.created_at, r.reviewed_at,
             c.slug AS course_slug, c.title AS course_title,
+            cu.unit_index, cu.title AS unit_title,
             p.nickname, fp.church_name, cp.units_done,
             e.kind AS endorsement_kind, e.name AS endorsement_name,
             e.church AS endorsement_church,
             exam.score AS exam_score, exam.passed AS exam_passed
        FROM course_pastor_reviews r
        JOIN courses c ON c.id = r.course_id
+       LEFT JOIN course_units cu ON cu.id = r.unit_id
        JOIN course_progress cp ON cp.user_id = r.user_id AND cp.course_id = r.course_id
        LEFT JOIN endorsements e ON e.id = r.endorsement_id
        LEFT JOIN profiles p ON p.user_id = r.user_id
@@ -161,6 +163,16 @@ router.patch('/course-pastor-reviews/:id', requireAuth, async (req, res) => {
       if (review.progress_state !== 'pastor_review') {
         return { conflict: true, state: review.progress_state };
       }
+    }
+
+    await db.query(
+      `UPDATE course_pastor_reviews
+          SET state = $2, review_note = $3, reviewed_by = $4, reviewed_at = now(), updated_at = now()
+        WHERE id = $1`,
+      [review.id, nextState, note, req.user.id]
+    );
+
+    if (nextState === 'approved') {
       const totals = await db.query(
         `SELECT count(*)::int AS total_units,
                 count(*) FILTER (WHERE is_pastor_node = TRUE)::int AS pastor_nodes
@@ -169,10 +181,18 @@ router.patch('/course-pastor-reviews/:id', requireAuth, async (req, res) => {
       );
       const totalUnits = totals.rows[0]?.total_units ?? 0;
       const pastorNodes = totals.rows[0]?.pastor_nodes ?? 0;
+      const approved = await db.query(
+        `SELECT COUNT(DISTINCT unit_id)::int AS confirmed
+           FROM course_pastor_reviews
+          WHERE user_id = $1 AND course_id = $2
+            AND state = 'approved' AND unit_id IS NOT NULL`,
+        [review.user_id, review.course_id]
+      );
+      const confirmedNodes = Math.min(approved.rows[0]?.confirmed ?? 0, pastorNodes);
       await db.query(
         `UPDATE course_progress SET pastor_confirmed = $3, updated_at = now()
           WHERE user_id = $1 AND course_id = $2`,
-        [review.user_id, review.course_id, pastorNodes]
+        [review.user_id, review.course_id, confirmedNodes]
       );
       completion = await applyCourseCompletion(db, {
         userId: review.user_id,
@@ -182,12 +202,6 @@ router.patch('/course-pastor-reviews/:id', requireAuth, async (req, res) => {
       });
     }
 
-    await db.query(
-      `UPDATE course_pastor_reviews
-          SET state = $2, review_note = $3, reviewed_by = $4, reviewed_at = now(), updated_at = now()
-        WHERE id = $1`,
-      [review.id, nextState, note, req.user.id]
-    );
     await writeAdminAudit(db, {
       actorId: req.user.id,
       action: 'course.pastor_review',
@@ -197,6 +211,7 @@ router.patch('/course-pastor-reviews/:id', requireAuth, async (req, res) => {
         state: nextState,
         user_id: review.user_id,
         course_id: review.course_id,
+        unit_id: review.unit_id,
         endorsement_id: review.endorsement_id,
         review_note: note,
       },
@@ -246,13 +261,15 @@ router.get('/courses/:slug', async (req, res) => {
         ORDER BY created_at DESC LIMIT 1`,
       [req.user.id, course.id]
     );
-    const pastorReview = await one(
-      `SELECT r.id, r.state, r.requested_note, r.review_note, r.reviewed_at, r.created_at,
-              r.endorsement_id, e.kind AS endorsement_kind, e.name AS endorsement_name
+    const { rows: pastorReviews } = await query(
+      `SELECT r.id, r.unit_id, r.state, r.requested_note, r.review_note, r.reviewed_at, r.created_at,
+              r.endorsement_id, e.kind AS endorsement_kind, e.name AS endorsement_name,
+              cu.unit_index, cu.title AS unit_title
          FROM course_pastor_reviews r
          LEFT JOIN endorsements e ON e.id = r.endorsement_id
+         LEFT JOIN course_units cu ON cu.id = r.unit_id
         WHERE r.user_id = $1 AND r.course_id = $2
-        ORDER BY r.created_at DESC LIMIT 1`,
+        ORDER BY cu.unit_index, r.created_at DESC`,
       [req.user.id, course.id]
     );
     const reviewOptionResult = await query(
@@ -267,7 +284,12 @@ router.get('/courses/:slug', async (req, res) => {
     );
     reviewOptions = reviewOptionResult.rows;
     progress = progress
-      ? { ...progress, latest_exam: latestExam ?? null, pastor_review: pastorReview ?? null }
+      ? {
+          ...progress,
+          latest_exam: latestExam ?? null,
+          pastor_review: pastorReviews[0] ?? null,
+          pastor_reviews: pastorReviews,
+        }
       : progress;
   }
   res.json({ course, units: unitsWithReadings, progress, attempts, review_options: reviewOptions });
@@ -430,8 +452,12 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
   );
   if (!course) return res.status(404).json({ error: '课程不存在' });
   const endorsementId = String(req.body?.endorsement_id || '');
+  const unitId = String(req.body?.unit_id || '');
   if (!UUID_RE.test(endorsementId)) {
     return res.status(400).json({ error: '请选择一位已通过审核的牧者或引荐人' });
+  }
+  if (!UUID_RE.test(unitId)) {
+    return res.status(400).json({ error: '请选择需要确认的课程节点' });
   }
   const requestedNote = String(req.body?.note || '').trim().slice(0, 1000) || null;
 
@@ -454,6 +480,15 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
     })) {
       return { blocked: true };
     }
+
+    const nodeResult = await db.query(
+      `SELECT id, unit_index, title
+         FROM course_units
+        WHERE id = $1 AND course_id = $2 AND is_pastor_node = TRUE`,
+      [unitId, course.id]
+    );
+    const node = nodeResult.rows[0];
+    if (!node) return { invalidNode: true };
 
     const endorsementResult = await db.query(
       `SELECT e.id, e.kind, e.name,
@@ -485,24 +520,35 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
     const endorsement = endorsementResult.rows[0];
     if (!endorsement) return { invalidEndorsement: true };
 
+    const active = await db.query(
+      `SELECT id, unit_id, state, endorsement_id, assigned_reviewer_id,
+              requested_note, review_note, reviewed_at, created_at
+         FROM course_pastor_reviews
+        WHERE user_id = $1 AND course_id = $2 AND unit_id = $3
+          AND state IN ('pending', 'approved')
+        ORDER BY (state = 'approved') DESC, created_at DESC LIMIT 1`,
+      [req.user.id, course.id, node.id]
+    );
+    if (active.rows[0]) return { review: active.rows[0], already: true };
+
     const inserted = await db.query(
       `INSERT INTO course_pastor_reviews
-         (user_id, course_id, endorsement_id, assigned_reviewer_id, state, requested_note)
-       VALUES ($1, $2, $3, $4, 'pending', $5)
-       ON CONFLICT (user_id, course_id) WHERE state = 'pending' DO NOTHING
-       RETURNING id, state, endorsement_id, assigned_reviewer_id,
+         (user_id, course_id, unit_id, endorsement_id, assigned_reviewer_id, state, requested_note)
+       VALUES ($1, $2, $3, $4, $5, 'pending', $6)
+       ON CONFLICT (user_id, course_id, unit_id) WHERE state = 'pending' DO NOTHING
+       RETURNING id, unit_id, state, endorsement_id, assigned_reviewer_id,
                  requested_note, review_note, reviewed_at, created_at`,
-      [req.user.id, course.id, endorsement.id, endorsement.assigned_reviewer_id, requestedNote]
+      [req.user.id, course.id, node.id, endorsement.id, endorsement.assigned_reviewer_id, requestedNote]
     );
     if (inserted.rows[0]) return { review: inserted.rows[0], already: false };
 
     const existing = await db.query(
-      `SELECT id, state, endorsement_id, assigned_reviewer_id,
+      `SELECT id, unit_id, state, endorsement_id, assigned_reviewer_id,
               requested_note, review_note, reviewed_at, created_at
          FROM course_pastor_reviews
-        WHERE user_id = $1 AND course_id = $2 AND state = 'pending'
+        WHERE user_id = $1 AND course_id = $2 AND unit_id = $3 AND state = 'pending'
         ORDER BY created_at DESC LIMIT 1`,
-      [req.user.id, course.id]
+      [req.user.id, course.id, node.id]
     );
     return { review: existing.rows[0], already: true };
   });
@@ -512,6 +558,9 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
   }
   if (out.invalidEndorsement) {
     return res.status(400).json({ error: '所选背书不存在、尚未通过审核或不能由本人背书' });
+  }
+  if (out.invalidNode) {
+    return res.status(400).json({ error: '所选课程节点不存在或无需确认' });
   }
   res.status(out.already ? 200 : 201).json({ ok: true, already: out.already, pastorReview: out.review });
 });

@@ -6,6 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { existsSync } from 'node:fs';
+import os from 'node:os';
 import { verifyAuthEmailTokenFlow } from './auth-email-acceptance.js';
 
 const { Pool } = pg;
@@ -18,6 +20,8 @@ dotenv.config({ path: path.join(serverRoot, '.env') });
 const baseDatabaseUrl = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/yujian_lude';
 const tempDbName = `yujian_lude_release_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
 const releasePort = Number(process.env.RELEASE_VERIFY_PORT || 8092);
+const meaningOfMarriageEpubPath = process.env.MEANING_OF_MARRIAGE_EPUB_PATH
+  || path.join(os.homedir(), 'Downloads', '婚姻的意义.epub');
 
 let serverProcess = null;
 let smtpServer = null;
@@ -331,6 +335,24 @@ async function run() {
   await runCommand('fresh DB 迁移和 seed', 'npm', ['run', 'migrate', '--prefix', 'server'], {
     env: { DATABASE_URL: tempDatabaseUrl },
   });
+  if (!existsSync(meaningOfMarriageEpubPath)) {
+    throw new Error('缺少《婚姻的意义》EPUB；请通过 MEANING_OF_MARRIAGE_EPUB_PATH 指定授权文件');
+  }
+  await runCommand('fresh DB 导入《婚姻的意义》教材', 'npm', [
+    'run',
+    'import:textbook',
+    '--prefix',
+    'server',
+    '--',
+    '--file',
+    meaningOfMarriageEpubPath,
+    '--slug',
+    'meaning-of-marriage',
+    '--course',
+    'keller-meaning-of-marriage',
+    '--license-note',
+    '用户确认拥有平台登录用户阅读授权',
+  ], { env: { DATABASE_URL: tempDatabaseUrl } });
   await runCommand('fresh DB schema 诊断', 'npm', ['run', 'diagnose:schema', '--prefix', 'server'], {
     env: { DATABASE_URL: tempDatabaseUrl },
   });

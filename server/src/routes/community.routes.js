@@ -6,6 +6,8 @@ import { normalizeReportAction, validateAdminActorStatus, writeAdminAudit } from
 
 const router = Router();
 const POST_TYPES = new Set(['post', 'announcement']);
+const REPORT_TARGET_TYPES = new Set(['post', 'comment', 'user']);
+const REPORT_REASONS = new Set(['spam', 'inappropriate', 'fraud', 'harassment', 'other']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const VISIBLE_NOTIFICATION_FILTER = `(
   n.post_id IS NULL
@@ -926,17 +928,108 @@ router.post('/community/reports', requireAuth, async (req, res) => {
   if (!target_type || !target_id || !reason) {
     return res.status(400).json({ error: '缺少 target_type / target_id / reason' });
   }
-  try {
-    await query(
-      `INSERT INTO community_reports (reporter_id, target_type, target_id, reason, detail)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [req.user.id, target_type, target_id, reason, detail || null]
-    );
-    res.json({ ok: true });
-  } catch (e) {
-    if (e.code === '23503') return res.status(404).json({ error: '举报对象不存在' });
-    throw e;
+  if (!REPORT_TARGET_TYPES.has(target_type)) {
+    return res.status(400).json({ error: 'target_type 须为 post、comment 或 user' });
   }
+  if (!UUID_RE.test(target_id)) {
+    return res.status(400).json({ error: '举报对象 ID 格式不正确' });
+  }
+  if (!REPORT_REASONS.has(reason)) {
+    return res.status(400).json({ error: '举报原因不受支持' });
+  }
+  if (detail !== undefined && detail !== null && typeof detail !== 'string') {
+    return res.status(400).json({ error: '举报补充说明格式不正确' });
+  }
+  const normalizedDetail = typeof detail === 'string' ? detail.trim() : '';
+  if (normalizedDetail.length > 2000) {
+    return res.status(400).json({ error: '举报补充说明不能超过 2000 字' });
+  }
+  if (target_type === 'user' && String(target_id) === String(req.user.id)) {
+    return res.status(400).json({ error: '不能举报自己或自己的内容' });
+  }
+
+  try {
+    await tx(async (client) => {
+      let target;
+      if (target_type === 'post') {
+        const { rows } = await client.query(
+          `SELECT p.id, p.author_id, p.group_id
+             FROM community_posts p
+            WHERE p.id = $1
+              AND p.state IN ('visible','pinned','featured')
+              AND p.moderation = 'approved'
+              AND (
+                p.group_id IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM community_memberships cm
+                   WHERE cm.group_id = p.group_id
+                     AND cm.user_id = $2
+                     AND cm.state = 'approved'
+                )
+              )
+            FOR SHARE OF p`,
+          [target_id, req.user.id]
+        );
+        target = rows[0];
+      } else if (target_type === 'comment') {
+        const { rows } = await client.query(
+          `SELECT c.id, c.author_id, c.post_id, p.group_id
+             FROM community_comments c
+             JOIN community_posts p ON p.id = c.post_id
+            WHERE c.id = $1
+              AND p.state IN ('visible','pinned','featured')
+              AND p.moderation = 'approved'
+              AND (
+                p.group_id IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM community_memberships cm
+                   WHERE cm.group_id = p.group_id
+                     AND cm.user_id = $2
+                     AND cm.state = 'approved'
+                )
+              )
+            FOR SHARE OF c, p`,
+          [target_id, req.user.id]
+        );
+        target = rows[0];
+      } else {
+        const { rows } = await client.query(
+          'SELECT id FROM users WHERE id = $1 FOR SHARE',
+          [target_id]
+        );
+        target = rows[0];
+      }
+
+      if (!target) throw communityRouteError(404, '举报对象不存在或不可见');
+      if (target.group_id) {
+        const { rows } = await client.query(
+          `SELECT user_id
+             FROM community_memberships
+            WHERE group_id = $1
+              AND user_id = $2
+              AND state = 'approved'
+            FOR SHARE`,
+          [target.group_id, req.user.id]
+        );
+        if (!rows[0]) throw communityRouteError(404, '举报对象不存在或不可见');
+      }
+
+      const targetOwnerId = target.author_id ?? target.id;
+      if (String(targetOwnerId) === String(req.user.id)) {
+        throw communityRouteError(400, '不能举报自己或自己的内容');
+      }
+
+      await client.query(
+        `INSERT INTO community_reports (reporter_id, target_type, target_id, reason, detail)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [req.user.id, target_type, target_id, reason, normalizedDetail || null]
+      );
+    });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    throw error;
+  }
+  res.json({ ok: true });
 });
 
 // GET /community/reports — 管理员查看举报列表

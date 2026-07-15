@@ -210,18 +210,25 @@ async function completeDeepMarriageCourse(client, reviewer, endorsementId) {
     expectedState: 'pastor_review',
     isMatchGateCourse: false,
   });
-  const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
-    endorsement_id: endorsementId,
-    note: '请核对结课考试与课程反思记录。',
-  });
-  assert(request.pastorReview?.id, 'deep marriage course should create a pastor review request');
-  const pending = await reviewer.get('/course-pastor-reviews');
-  assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the request');
-  const reviewed = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, { action: 'approve' });
-  assert(reviewed.courseState === 'completed', `pastor approval should complete course, got ${reviewed.courseState}`);
+  const beforeReview = await client.get('/courses/keller-meaning-of-marriage');
+  const pastorNodes = beforeReview.units?.filter((unit) => unit.is_pastor_node) || [];
+  assert(pastorNodes.length === 2, `deep marriage course expected 2 pastor nodes, got ${pastorNodes.length}`);
+  for (const [index, node] of pastorNodes.entries()) {
+    const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+      unit_id: node.id,
+      endorsement_id: endorsementId,
+      note: `请核对第 ${node.unit_index} 单元与课程反思记录。`,
+    });
+    assert(request.pastorReview?.id, 'deep marriage course should create a pastor review request');
+    const pending = await reviewer.get('/course-pastor-reviews');
+    assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the request');
+    const reviewed = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, { action: 'approve' });
+    const expected = index === pastorNodes.length - 1 ? 'completed' : 'pastor_review';
+    assert(reviewed.courseState === expected, `pastor node ${node.unit_index} expected ${expected}, got ${reviewed.courseState}`);
+  }
   const detail = await client.get('/courses/keller-meaning-of-marriage');
-  assert(detail.progress?.state === 'completed', 'deep marriage course should be completed after pastor approval');
-  assert(detail.progress?.pastor_review?.state === 'approved', 'course detail should expose approved pastor review');
+  assert(detail.progress?.state === 'completed', 'deep marriage course should be completed after both pastor approvals');
+  assert(detail.progress?.pastor_reviews?.filter((review) => review.state === 'approved').length === 2, 'course detail should expose both approved pastor nodes');
 }
 
 async function assertInPool(client, label) {

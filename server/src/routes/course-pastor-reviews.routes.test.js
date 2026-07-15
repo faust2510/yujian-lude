@@ -34,3 +34,11 @@ test('course review requests keep rejected history instead of overwriting it', (
   assert.doesNotMatch(source, /ON CONFLICT \(user_id, course_id\) DO UPDATE/);
   assert.match(source, /state\s*=\s*'pending'/);
 });
+
+test('each pastor node is requested and approved independently', () => {
+  assert.match(source, /unit_id/);
+  assert.match(source, /pastor_reviews:/);
+  assert.match(source, /COUNT\(DISTINCT unit_id\)/i);
+  assert.match(source, /is_pastor_node\s*=\s*TRUE/i);
+  assert.doesNotMatch(source, /pastor_confirmed\s*=\s*\$3[\s\S]{0,180}\[review\.user_id, review\.course_id, pastorNodes\]/);
+});

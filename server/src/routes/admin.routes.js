@@ -7,6 +7,7 @@ import { awardPoints, grantVipDays, recomputeExposure } from '../lib/rewards.js'
 import { buildEndorsementReviewPatch, canReviewEndorsement, validateEndorsementDecision } from '../lib/endorsement-review.js';
 import { isAllowedAdminRole, isAssignableAdminRole, validateAdminActorStatus, validateAdminUserAction, writeAdminAudit } from '../lib/admin-audit.js';
 import { normalizeVipSubscriptionReview } from '../lib/vip-subscription.js';
+import { adjustAdminPoints } from '../lib/admin-points.js';
 
 const router = Router();
 router.use(requireAuth, requireRole('admin'));
@@ -105,13 +106,30 @@ router.get('/users', async (req, res) => {
   const { rows } = await query(
     `SELECT u.id, u.email, u.role, u.email_verified, u.vip_until, u.is_banned, u.created_at,
             p.nickname, p.city,
+            COALESCE(pb.earned_total, 0)::int AS earned_points,
             (SELECT count(*)::int FROM endorsements e WHERE e.user_id = u.id AND e.state='verified') AS verified_endorsements
-       FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN points_balance pb ON pb.user_id = u.id
       ${where}
       ORDER BY u.created_at DESC LIMIT 100`,
     params
   );
   res.json({ users: rows });
+});
+
+router.post('/users/:id/points', async (req, res) => {
+  try {
+    const result = await adjustAdminPoints(tx, {
+      actorId: req.user.id,
+      targetUserId: req.params.id,
+      amount: req.body?.amount,
+      reason: req.body?.reason,
+    });
+    return res.json({ ok: true, balance: result.balance });
+  } catch (err) {
+    return sendRouteError(res, err);
+  }
 });
 
 router.post('/users/:id/ban', async (req, res) => {

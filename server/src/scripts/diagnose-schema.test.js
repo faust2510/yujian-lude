@@ -79,6 +79,31 @@ function catalogWithRows(rows) {
   };
 }
 
+async function seedRequiredTextbook(databasePool) {
+  const textbook = await databasePool.query(
+    `INSERT INTO textbooks (slug, title, visibility, source_filename, license_note)
+     VALUES ('meaning-of-marriage', '婚姻的意义', 'login_required', 'fixture.epub', 'test fixture')
+     RETURNING id`
+  );
+  await databasePool.query(
+    `INSERT INTO textbook_chapters
+       (textbook_id, chapter_index, title, body_html, body_text, word_count)
+     SELECT $1, chapter_index, '章节 ' || chapter_index, '<p>测试正文</p>', '测试正文', 4
+       FROM generate_series(1, 16) AS chapter_index`,
+    [textbook.rows[0].id]
+  );
+  await databasePool.query(
+    `INSERT INTO course_unit_readings (course_unit_id, chapter_id, required, sort_order)
+     SELECT unit.id, chapter.id, TRUE, 0
+       FROM course_units unit
+       JOIN courses course ON course.id = unit.course_id
+       JOIN textbook_chapters chapter
+         ON chapter.textbook_id = $1 AND chapter.chapter_index = unit.unit_index
+      WHERE course.slug = 'keller-meaning-of-marriage'`,
+    [textbook.rows[0].id]
+  );
+}
+
 test('schema diagnosis checks community post state enum values used by feeds', () => {
   assert.match(source, /\['post_state', \['visible', 'pinned', 'removed', 'featured'\]\]/);
 });
@@ -94,7 +119,7 @@ test('schema diagnosis checks course exam attempts used by relationship gates', 
 
 test('schema diagnosis checks course pastor review workflow', () => {
   assert.match(source, /'course_pastor_reviews'/);
-  assert.match(source, /\['course_pastor_reviews', \['user_id', 'course_id', 'endorsement_id', 'assigned_reviewer_id', 'state', 'reviewed_by', 'reviewed_at'\]\]/);
+  assert.match(source, /\['course_pastor_reviews', \['user_id', 'course_id', 'unit_id', 'endorsement_id', 'assigned_reviewer_id', 'state', 'reviewed_by', 'reviewed_at'\]\]/);
   assert.match(source, /\['endorsements', \['user_id', 'endorser_user_id', 'kind', 'state', 'verified_at'\]\]/);
 });
 
@@ -154,6 +179,7 @@ test('PostgreSQL community permission migration deduplicates scopes and backfill
     databasePool = new Pool({ connectionString: databaseUrl });
     await databasePool.query(readFileSync(schemaPath, 'utf8'));
     await databasePool.query(readFileSync(seedPath, 'utf8'));
+    await seedRequiredTextbook(databasePool);
     await databasePool.query('DROP INDEX idx_community_admin_applications_global_pending');
     await databasePool.query('DROP INDEX idx_community_admin_applications_group_pending');
 
@@ -268,6 +294,7 @@ test('PostgreSQL comment parent migration detaches invalid legacy links and enfo
     databasePool = new Pool({ connectionString: databaseUrl });
     await databasePool.query(readFileSync(schemaPath, 'utf8'));
     await databasePool.query(readFileSync(seedPath, 'utf8'));
+    await seedRequiredTextbook(databasePool);
     await databasePool.query('DROP TRIGGER community_comments_enforce_parent ON community_comments');
     await databasePool.query('DROP FUNCTION enforce_community_comment_parent()');
 
@@ -523,6 +550,7 @@ test('PostgreSQL diagnosis and migration enforce one pending pastor certificatio
     databasePool = new Pool({ connectionString: databaseUrl });
     await databasePool.query(readFileSync(schemaPath, 'utf8'));
     await databasePool.query(readFileSync(seedPath, 'utf8'));
+    await seedRequiredTextbook(databasePool);
 
     await databasePool.query('DROP INDEX idx_pastor_certifications_one_pending');
     const withoutIndex = await runSchemaDiagnosis(databaseUrl);
@@ -652,6 +680,7 @@ test('PostgreSQL pastor letter migration deduplicates legacy rows and enables ro
     databasePool = new Pool({ connectionString: databaseUrl });
     await databasePool.query(readFileSync(schemaPath, 'utf8'));
     await databasePool.query(readFileSync(seedPath, 'utf8'));
+    await seedRequiredTextbook(databasePool);
 
     const freshColumns = await databasePool.query(
       `SELECT column_name, data_type
@@ -837,7 +866,7 @@ test('schema diagnosis checks VIP subscription operations', () => {
   assert.match(source, /i\.indisvalid = TRUE/);
   assert.match(source, /i\.indisready = TRUE/);
   assert.match(source, /\['relationships', \['user_a', 'user_b'\], "state <> 'ended'"\]/);
-  assert.match(source, /\['course_pastor_reviews', \['user_id', 'course_id'\], "state = 'pending'"\]/);
+  assert.match(source, /\['course_pastor_reviews', \['user_id', 'course_id', 'unit_id'\], "state = 'pending'"\]/);
 });
 
 test('schema diagnosis checks textbook reading system tables and constraints', () => {
@@ -852,4 +881,9 @@ test('schema diagnosis checks textbook reading system tables and constraints', (
   assert.match(source, /\['textbook_chapters', \['textbook_id', 'chapter_index'\]\]/);
   assert.match(source, /\['textbook_reading_progress', \['user_id', 'chapter_id'\]\]/);
   assert.match(source, /\['course_unit_readings', \['course_unit_id', 'chapter_id'\]\]/);
+  assert.match(source, /meaning-of-marriage/);
+  assert.match(source, /keller-meaning-of-marriage/);
+  assert.match(source, /chapters:\s*16/);
+  assert.match(source, /units:\s*10/);
+  assert.match(source, /requiredBindings/);
 });

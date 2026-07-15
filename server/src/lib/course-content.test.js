@@ -52,6 +52,7 @@ test('course pastor review schema is available to fresh and upgraded databases',
   const schema = readProjectFile('db/schema.sql');
   const migration = readProjectFile('db/migrations/0010_course_pastor_reviews.sql');
   const hardeningMigration = readProjectFile('db/migrations/0011_harden_course_pastor_reviews.sql');
+  const nodeMigration = readProjectFile('db/migrations/0023_split_course_pastor_review_nodes.sql');
 
   for (const source of [schema, migration]) {
     assert.match(source, /course_pastor_reviews/);
@@ -67,4 +68,9 @@ test('course pastor review schema is available to fresh and upgraded databases',
   assert.match(hardeningMigration, /DROP CONSTRAINT IF EXISTS course_pastor_reviews_user_id_course_id_key/);
   assert.match(hardeningMigration, /WHERE state = 'pending'/);
   assert.match(hardeningMigration, /points\.course_complete/);
+  for (const source of [schema, nodeMigration]) {
+    assert.match(source, /unit_id/);
+    assert.match(source, /course_units/);
+    assert.match(source, /user_id, course_id, unit_id/);
+  }
 });

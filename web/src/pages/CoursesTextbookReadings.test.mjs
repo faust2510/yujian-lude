@@ -36,3 +36,27 @@ test('deep courses expose an endorsement-scoped review workflow', () => {
   assert.match(userMenuSource, /to="\/pastor"/)
   assert.match(userMenuSource, /引荐工作台/)
 })
+
+test('deep course pastor nodes are requested and displayed independently', () => {
+  assert.match(clientSource, /requestPastorReview:\s*\(slug, unitId, endorsementId/)
+  assert.match(clientSource, /unit_id:\s*unitId/)
+  assert.match(source, /pastor_reviews/)
+  assert.match(source, /unit\.unit_index/)
+  assert.match(source, /申请该节点确认/)
+  assert.match(pastorSource, /item\.unit_index/)
+  assert.match(pastorSource, /item\.unit_title/)
+})
+
+test('course summary ignores superseded rejected pastor reviews', () => {
+  const statusFunction = source.match(/function statusText\(progress, latestExam\) \{[\s\S]*?\n\}/)?.[0]
+  assert.ok(statusFunction, 'statusText should remain directly testable')
+  const statusText = Function(`${statusFunction}; return statusText`)()
+  const status = statusText({
+    state: 'pastor_review',
+    pastor_reviews: [
+      { id: 'new-approved', unit_id: 'unit-1', state: 'approved' },
+      { id: 'old-rejected', unit_id: 'unit-1', state: 'rejected' },
+    ],
+  })
+  assert.equal(status, '待申请引荐确认')
+})

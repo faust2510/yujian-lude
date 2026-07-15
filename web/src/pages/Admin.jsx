@@ -315,6 +315,51 @@ function EndorsementsTab() {
   )
 }
 
+function PointsAdjuster({ user, onBalanceChange }) {
+  const [amount, setAmount] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [feedback, setFeedback] = useState('')
+
+  const submit = async (direction) => {
+    const value = Number(amount)
+    const normalizedReason = reason.trim()
+    if (!Number.isSafeInteger(value) || value <= 0 || value > 1_000_000) {
+      setFeedback('请输入 1 至 1000000 的整数')
+      return
+    }
+    if (!normalizedReason) {
+      setFeedback('请填写调整原因')
+      return
+    }
+    try {
+      setBusy(true)
+      setFeedback('')
+      const response = await admin.adjustPoints(user.id, direction * value, normalizedReason)
+      onBalanceChange(user.id, response.data.balance)
+      setAmount('')
+      setReason('')
+      setFeedback(`积分已更新：${response.data.balance}`)
+    } catch (err) {
+      setFeedback(getErrorMessage(err, '积分调整失败'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{display:'grid',gridTemplateColumns:'70px minmax(100px,160px) auto auto',gap:6,alignItems:'center',maxWidth:'100%'}}>
+      <input type="number" min="1" max="1000000" step="1" aria-label={`${user.email} 积分数量`}
+        value={amount} onChange={event => setAmount(event.target.value)} placeholder="积分" style={{width:'100%'}} />
+      <input value={reason} maxLength={200} onChange={event => setReason(event.target.value)}
+        placeholder="原因（必填）" style={{width:'100%'}} />
+      <ActionButton primary disabled={busy} onClick={() => submit(1)}>加分</ActionButton>
+      <ActionButton disabled={busy} onClick={() => submit(-1)}>扣分</ActionButton>
+      {feedback && <div role="status" style={{gridColumn:'1 / -1',fontSize:12,color:feedback.startsWith('积分已更新')?'#287A4B':'#C0392B'}}>{feedback}</div>}
+    </div>
+  )
+}
+
 function UsersTab() {
   const [users, setUsers] = useState([])
   const [filters, setFilters] = useState({ q: '', role: '', banned: '', email_verified: '' })
@@ -347,6 +392,10 @@ function UsersTab() {
     }
   }
 
+  const updateBalance = (id, balance) => {
+    setUsers(current => current.map(user => user.id === id ? {...user, earned_points: balance} : user))
+  }
+
   return (
     <div className="card">
       <h3 style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:12}}>用户治理</h3>
@@ -366,10 +415,10 @@ function UsersTab() {
       <ErrorLine>{error}</ErrorLine>
       {users.length === 0 && !loading && <Empty>暂无用户</Empty>}
       {users.map(u => (
-        <div key={u.id} style={{display:'grid',gridTemplateColumns:'minmax(180px,1fr) auto',gap:12,alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+        <div key={u.id} style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:12,alignItems:'center',padding:'10px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
           <div>
             <div style={{fontFamily:'var(--font-serif)'}}>{u.nickname || u.email}</div>
-            <div style={{color:'var(--legacy-muted)'}}>{u.email} · {u.city || '未知城市'} · 背书 {u.verified_endorsements}</div>
+            <div style={{color:'var(--legacy-muted)'}}>{u.email} · {u.city || '未知城市'} · 背书 {u.verified_endorsements} · earned 积分 {u.earned_points}</div>
             <div style={{display:'flex',gap:6,marginTop:6,flexWrap:'wrap'}}>
               <span className="badge badge-soft">{u.role}</span>
               <span className="badge badge-soft">{u.email_verified ? '邮箱已验证' : '邮箱未验证'}</span>
@@ -377,6 +426,7 @@ function UsersTab() {
             </div>
           </div>
           <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
+            <PointsAdjuster user={u} onBalanceChange={updateBalance} />
             <select value={u.role} onChange={e=>updateUser(()=>admin.updateRole(u.id, e.target.value))}>
               <option value="free">free</option><option value="pastor">pastor</option><option value="admin">admin</option>
             </select>

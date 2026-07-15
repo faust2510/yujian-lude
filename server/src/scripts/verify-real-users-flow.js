@@ -206,7 +206,12 @@ async function completeDeepMarriageCourse(client, reviewer, endorsementId, outsi
     expectedState: 'pastor_review',
     isMatchGateCourse: false,
   });
+  const beforeReview = await client.get('/courses/keller-meaning-of-marriage');
+  const pastorNodes = beforeReview.units?.filter((unit) => unit.is_pastor_node) || [];
+  assert(pastorNodes.length === 2, `${client.label} expected 2 pastor nodes, got ${pastorNodes.length}`);
+  const [firstNode, secondNode] = pastorNodes;
   const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+    unit_id: firstNode.id,
     endorsement_id: endorsementId,
     note: '请核对结课考试与课程反思记录。',
   });
@@ -230,6 +235,7 @@ async function completeDeepMarriageCourse(client, reviewer, endorsementId, outsi
   assert(afterReject.progress?.pastor_review?.review_note?.includes('冲突反思'), 'student should see the rejection reason');
 
   const reapplied = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+    unit_id: firstNode.id,
     endorsement_id: endorsementId,
     note: '已补充第十单元反思，请再次确认。',
   });
@@ -246,10 +252,21 @@ async function completeDeepMarriageCourse(client, reviewer, endorsementId, outsi
   assert(approvals.length === 1, `concurrent approval expected one success, got ${approvals.length}`);
   assert(conflicts.length === 4, `concurrent approval expected four conflicts, got ${conflicts.length}`);
   const reviewed = approvals[0].value;
-  assert(reviewed.courseState === 'completed', `pastor approval should complete course, got ${reviewed.courseState}`);
+  assert(reviewed.courseState === 'pastor_review', `first pastor node should keep course in review, got ${reviewed.courseState}`);
+
+  const secondRequest = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+    unit_id: secondNode.id,
+    endorsement_id: endorsementId,
+    note: '请核对第二个课程关键节点。',
+  });
+  const secondReviewed = await reviewer.patch(`/course-pastor-reviews/${secondRequest.pastorReview.id}`, {
+    action: 'approve',
+    note: '第二个课程节点已核对。',
+  });
+  assert(secondReviewed.courseState === 'completed', `second pastor node should complete course, got ${secondReviewed.courseState}`);
   const detail = await client.get('/courses/keller-meaning-of-marriage');
-  assert(detail.progress?.state === 'completed', `${client.label} deep course should complete after pastor approval`);
-  assert(detail.progress?.pastor_review?.state === 'approved', `${client.label} course detail should expose approved review`);
+  assert(detail.progress?.state === 'completed', `${client.label} deep course should complete after both pastor approvals`);
+  assert(detail.progress?.pastor_reviews?.filter((review) => review.state === 'approved').length === 2, `${client.label} course detail should expose both approved nodes`);
   const pointsAfter = await client.get('/me/points');
   assert(pointsAfter.earned === pointsBefore.earned + 300, `deep course should grant exactly 300 points once, got ${pointsAfter.earned - pointsBefore.earned}`);
   const accountAfter = await client.get('/auth/me');

@@ -156,6 +156,7 @@ CREATE TABLE course_pastor_reviews (
     id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     course_id      UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    unit_id        UUID REFERENCES course_units(id) ON DELETE CASCADE,
     endorsement_id UUID REFERENCES endorsements(id) ON DELETE SET NULL,
     assigned_reviewer_id UUID REFERENCES users(id) ON DELETE SET NULL,
     state          course_pastor_review_state NOT NULL DEFAULT 'pending',
@@ -170,7 +171,7 @@ CREATE INDEX idx_course_pastor_reviews_state ON course_pastor_reviews(state, cre
 CREATE INDEX idx_course_pastor_reviews_reviewer ON course_pastor_reviews(reviewed_by, reviewed_at DESC);
 CREATE INDEX idx_course_pastor_reviews_assigned ON course_pastor_reviews(assigned_reviewer_id, state, created_at);
 CREATE UNIQUE INDEX idx_course_pastor_reviews_one_pending
-    ON course_pastor_reviews(user_id, course_id) WHERE state = 'pending';
+    ON course_pastor_reviews(user_id, course_id, unit_id) WHERE state = 'pending';
 
 -- 单元级答题记录（AI 出题问答判定）
 CREATE TABLE unit_attempts (
