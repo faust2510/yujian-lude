@@ -8,10 +8,49 @@ import {
   validateCoursePastorReviewNote,
 } from './course-pastor-review.js';
 
-test('course review requests require a passed exam and pastor-review state', () => {
-  assert.equal(canRequestCoursePastorReview({ progressState: 'pastor_review', examPassed: true }), true);
-  assert.equal(canRequestCoursePastorReview({ progressState: 'in_progress', examPassed: true }), false);
-  assert.equal(canRequestCoursePastorReview({ progressState: 'pastor_review', examPassed: false }), false);
+test('the first pastor node can be requested after its unit is completed without an exam', () => {
+  assert.equal(canRequestCoursePastorReview({
+    progressState: 'pastor_review',
+    nodeIndex: 5,
+    firstPastorNodeIndex: 5,
+    unitsDone: 5,
+    totalUnits: 10,
+    midtermApproved: false,
+    examPassed: false,
+  }), true);
+});
+
+test('legacy in-progress data can request the first pastor node once unit five is already done', () => {
+  assert.equal(canRequestCoursePastorReview({
+    progressState: 'in_progress',
+    nodeIndex: 5,
+    firstPastorNodeIndex: 5,
+    unitsDone: 5,
+    totalUnits: 10,
+    midtermApproved: false,
+    examPassed: false,
+  }), true);
+});
+
+test('the graduation pastor node requires all units, midterm approval, and a passed exam', () => {
+  assert.equal(canRequestCoursePastorReview({
+    progressState: 'pastor_review',
+    nodeIndex: 10,
+    firstPastorNodeIndex: 5,
+    unitsDone: 9,
+    totalUnits: 10,
+    midtermApproved: true,
+    examPassed: true,
+  }), false);
+  assert.equal(canRequestCoursePastorReview({
+    progressState: 'pastor_review',
+    nodeIndex: 10,
+    firstPastorNodeIndex: 5,
+    unitsDone: 10,
+    totalUnits: 10,
+    midtermApproved: true,
+    examPassed: true,
+  }), true);
 });
 
 test('course pastor review actions map to stored states', () => {

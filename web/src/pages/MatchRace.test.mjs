@@ -42,9 +42,9 @@ test('viewer loading resets on entitlement downgrade and transient failures are 
   assert.match(source, /requestId !== viewersRequest\.current/)
 })
 
-test('VIP deep filters are discoverable, gated, and sent with candidate requests', () => {
-  assert.match(source, /VIP 深度筛选/)
-  assert.match(source, /user\?\.is_vip/)
+test('Pro deep filters are discoverable, gated, and sent with candidate requests', () => {
+  assert.match(source, /Pro 深度筛选/)
+  assert.match(source, /user\?\.vip_plan === 'pro'/)
   assert.match(source, /filters\.denomination/)
   assert.match(source, /filters\.presbytery/)
   assert.match(source, /filters\.min_faith_years/)
@@ -54,10 +54,16 @@ test('VIP deep filters are discoverable, gated, and sent with candidate requests
   assert.match(source, /navigate\('\/vip'\)/)
 })
 
+test('candidate requests strip stale deep keys unless the current plan is Pro', () => {
+  assert.match(source, /const DEEP_FILTER_KEYS = \[/)
+  assert.match(source, /if \(user\?\.vip_plan === 'pro'\) return nextFilters/)
+  assert.match(source, /delete publicFilters\[key\]/)
+})
+
 test('denomination remains a public filter outside the VIP panel', () => {
   const denomination = source.indexOf('<label>宗派</label>')
-  const vipPanel = source.indexOf("{user?.is_vip && advancedOpen && (")
+  const vipPanel = source.indexOf("{user?.vip_plan === 'pro' && advancedOpen && (")
   assert.ok(denomination > 0, 'denomination filter should be rendered')
-  assert.ok(vipPanel > 0, 'VIP panel should be rendered')
-  assert.ok(denomination < vipPanel, 'denomination must remain available before the VIP-only panel')
+  assert.ok(vipPanel > 0, 'Pro panel should be rendered')
+  assert.ok(denomination < vipPanel, 'denomination must remain available before the Pro-only panel')
 })

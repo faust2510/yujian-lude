@@ -90,14 +90,14 @@ test('parallel intents cannot exceed the free daily quota', {
         [id, `intent-user-${index}@example.test`]
       );
       await pool.query(
-        `INSERT INTO profiles (user_id, nickname, birth_year, privacy_ok, completion)
-         VALUES ($1, $2, 1990, TRUE, 100)`,
+        `INSERT INTO profiles (user_id, nickname, birth_date, birth_year, privacy_ok, completion)
+         VALUES ($1, $2, DATE '1990-01-01', 1990, TRUE, 100)`,
         [id, `用户${index}`]
       );
       await pool.query(
         `INSERT INTO faith_profiles
-           (user_id, church_name, presbytery, baptism_date, faith_years, testimony)
-         VALUES ($1, '测试教会', '测试区会', DATE '2020-01-01', 5, '测试见证')`,
+           (user_id, church_name, presbytery, region, denomination, baptism_date, faith_years, testimony)
+         VALUES ($1, '测试教会', '测试区会', '上海', '长老会', DATE '2020-01-01', 5, '测试见证')`,
         [id]
       );
     }

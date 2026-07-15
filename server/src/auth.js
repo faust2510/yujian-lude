@@ -23,6 +23,14 @@ export function currentSessionToken(req) {
   return req.cookies?.[COOKIE_NAME] || null;
 }
 
+export function resolveVipPlan(user, now = new Date()) {
+  const nowTime = now.getTime();
+  const vipUntil = user?.vip_until ? new Date(user.vip_until).getTime() : 0;
+  if (!Number.isFinite(vipUntil) || vipUntil <= nowTime) return null;
+  const vipProUntil = user?.vip_pro_until ? new Date(user.vip_pro_until).getTime() : 0;
+  return Number.isFinite(vipProUntil) && vipProUntil > nowTime ? 'pro' : 'basic';
+}
+
 // 创建会话并写 cookie
 export async function createSession(res, userId) {
   const token = newToken();
@@ -53,17 +61,19 @@ export async function attachUser(req, _res, next) {
     const token = req.cookies?.[COOKIE_NAME];
     if (!token) return next();
     const row = await one(
-      `SELECT u.id, u.email, u.role, u.email_verified, u.vip_until, u.is_banned
+      `SELECT u.id, u.email, u.role, u.email_verified, u.vip_until, u.vip_pro_until, u.is_banned
          FROM sessions s JOIN users u ON u.id = s.user_id
         WHERE s.token = $1 AND s.expires_at > now()`,
       [token]
     );
     if (row && !row.is_banned) {
-      row.is_vip = row.vip_until && new Date(row.vip_until) > new Date();
+      row.vip_plan = resolveVipPlan(row);
+      row.is_vip = row.vip_plan !== null;
       req.user = row;
     }
   } catch (err) {
     console.warn('[auth] attachUser 失败：', err.message);
+    return next(err);
   }
   next();
 }

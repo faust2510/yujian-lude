@@ -65,8 +65,8 @@ test('comment refresh uses returned total to synchronize each post count after m
 test('approved feeds without moderation remain interactive while pending posts stay locked', () => {
   assert.match(community, /const canInteract = post\.moderation !== 'pending'/)
   assert.match(community, /\{canInteract && \(\s*<>[\s\S]{0,1600}toggleLike\(post\.id\)[\s\S]{0,1600}toggleBookmark\(post\.id\)/)
-  assert.match(community, /\(user\.id === post\.author_id \|\| isAdmin\) && \(/)
-  assert.match(community, /isAdmin && post\.moderation === 'pending'/)
+  assert.match(community, /\(user\.id === post\.author_id \|\| canModeratePosts\) && \(/)
+  assert.match(community, /canModeratePosts && post\.moderation === 'pending'/)
 })
 
 test('self timeline still fetches profile and posts, while hiding only the self-follow action', () => {

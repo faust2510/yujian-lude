@@ -25,7 +25,14 @@ set -a
 set +a
 
 export RELEASE_ID="$(date -u +%Y%m%dT%H%M%SZ)-$(git rev-parse --short HEAD)"
-export BACKUP_DIR="/opt/yujian-lude/backups/$RELEASE_ID"
+export BACKUP_ROOT="${BACKUP_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/yujian-lude/backups}"
+export BACKUP_DIR="${BACKUP_DIR:-$BACKUP_ROOT/$RELEASE_ID}"
+case "$BACKUP_DIR" in
+  /opt/yujian-lude|/opt/yujian-lude/*)
+    echo "拒绝将备份写入 Web 根目录：$BACKUP_DIR" >&2
+    exit 1
+    ;;
+esac
 mkdir -p "$BACKUP_DIR"
 git rev-parse HEAD > "$BACKUP_DIR/git-revision.txt"
 pg_dump --format=custom --file="$BACKUP_DIR/database.dump" "$DATABASE_URL"
@@ -71,6 +78,14 @@ pm2 restart yujian-lude
 curl -fsS http://127.0.0.1:8090/api/live
 curl -fsS http://127.0.0.1:8090/api/ready
 curl -fsS http://127.0.0.1:8090/app/login >/dev/null
+
+for sensitive_path in /server/package.json /server/db/schema.sql /ops/deploy-runbook.md /backups/release-verify.dump; do
+  status="$(curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:8090${sensitive_path}")"
+  if [ "$status" = 200 ]; then
+    echo "敏感路径被公开下载：$sensitive_path" >&2
+    exit 1
+  fi
+done
 ```
 
 如果服务器走 nginx 和域名，再从公网探测一次 `/api/ready`、`/app` 和 `/app/login`。
@@ -82,7 +97,8 @@ curl -fsS http://127.0.0.1:8090/app/login >/dev/null
 ```bash
 set -euo pipefail
 cd /opt/yujian-lude
-export BACKUP_DIR="/opt/yujian-lude/backups/<release-id>"
+export BACKUP_ROOT="${BACKUP_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/yujian-lude/backups}"
+export BACKUP_DIR="${BACKUP_DIR:-$BACKUP_ROOT/<release-id>}"
 git reset --hard "$(cat "$BACKUP_DIR/git-revision.txt")"
 tar -xzf "$BACKUP_DIR/web-dist.tgz" -C .
 npm ci --prefix server

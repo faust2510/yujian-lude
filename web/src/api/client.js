@@ -171,8 +171,8 @@ export const admin = {
   users: (params) => api.get('/admin/users', { params }),
   banUser: (id, ban) => api.post(`/admin/users/${id}/ban`, { ban }),
   updateRole: (id, role) => api.post(`/admin/users/${id}/role`, { role }),
-  adjustPoints: (id, amount, reason) =>
-    api.post(`/admin/users/${id}/points`, { amount, reason }),
+  adjustPoints: (id, amount, reason, operationId) =>
+    api.post(`/admin/users/${id}/points`, { amount, reason, operation_id: operationId }),
   settings: () => api.get('/admin/settings'),
   updateSetting: (key, value) => api.put(`/admin/settings/${key}`, { value }),
   endorsements: (state = 'pending') => api.get('/admin/endorsements', { params: { state } }),

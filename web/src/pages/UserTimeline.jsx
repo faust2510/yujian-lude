@@ -37,14 +37,22 @@ export default function UserTimeline() {
   const [error, setError] = useState('')
   const [profileError, setProfileError] = useState('')
   const [openComments, setOpenComments] = useState(new Set())
+  const [showReport, setShowReport] = useState(null)
+  const [reportReason, setReportReason] = useState('spam')
+  const [reportDetail, setReportDetail] = useState('')
+  const [reporting, setReporting] = useState(false)
   const profileRequest = useRef(0)
   const postsRequest = useRef(0)
   const followRequest = useRef(0)
+  const reportRequest = useRef(0)
 
   useEffect(() => {
     if (!userId) return
     const requestId = ++profileRequest.current
     followRequest.current += 1
+    reportRequest.current += 1
+    setShowReport(null)
+    setReporting(false)
     setProfile(null)
     setFollowed(false)
     setProfileError('')
@@ -138,6 +146,37 @@ export default function UserTimeline() {
 
   const handleCommentError = useCallback((message) => setError(message), [])
 
+  const openReport = (target) => {
+    reportRequest.current += 1
+    setReporting(false)
+    setShowReport(target)
+  }
+
+  const closeReport = () => {
+    reportRequest.current += 1
+    setReporting(false)
+    setShowReport(null)
+  }
+
+  const submitReport = async () => {
+    if (!showReport || reporting) return
+    const requestId = ++reportRequest.current
+    const target = showReport
+    setReporting(true)
+    try {
+      await community.report({ ...target, reason: reportReason, detail: reportDetail.trim() })
+      if (requestId !== reportRequest.current) return
+      setShowReport(null)
+      setReportReason('spam')
+      setReportDetail('')
+    } catch (e) {
+      if (requestId !== reportRequest.current) return
+      setError(e.response?.data?.error || '举报失败')
+    } finally {
+      if (requestId === reportRequest.current) setReporting(false)
+    }
+  }
+
   const openUser = (authorId) => {
     navigate(`/community/user/${authorId}`)
   }
@@ -191,6 +230,7 @@ export default function UserTimeline() {
                 {followed ? '已关注' : '关注'}
               </button>
             )}
+            {!isSelf && <button className="com-action-btn" onClick={() => openReport({ target_type: 'user', target_id: userId })}>举报用户</button>}
           </div>
         </div>
 
@@ -225,6 +265,7 @@ export default function UserTimeline() {
                       onError={handleCommentError}
                       onOpenUser={openUser}
                       onTotalChange={updateCommentCount}
+                      onReport={commentId => openReport({ target_type: 'comment', target_id: commentId })}
                     />
                   )}
                 </div>
@@ -238,6 +279,31 @@ export default function UserTimeline() {
           )}
         </div>
       </div>
+      {showReport && (
+        <div className="com-modal-overlay" onClick={closeReport}>
+          <div className="com-modal" onClick={event => event.stopPropagation()}>
+            <h3 className="com-modal-title">举报</h3>
+            <div className="com-modal-field">
+              <label htmlFor="timeline-report-reason">原因</label>
+              <select id="timeline-report-reason" value={reportReason} onChange={event => setReportReason(event.target.value)} className="com-modal-input">
+                <option value="spam">垃圾信息</option>
+                <option value="inappropriate">不当内容</option>
+                <option value="fraud">欺诈</option>
+                <option value="harassment">骚扰</option>
+                <option value="other">其他</option>
+              </select>
+            </div>
+            <div className="com-modal-field">
+              <label htmlFor="timeline-report-detail">详情</label>
+              <textarea id="timeline-report-detail" value={reportDetail} onChange={event => setReportDetail(event.target.value)} className="com-modal-input" />
+            </div>
+            <div className="com-modal-actions">
+              <button className="btn btn-secondary" onClick={closeReport}>取消</button>
+              <button className="btn btn-primary" onClick={submitReport} disabled={reporting}>{reporting ? '提交中…' : '提交举报'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

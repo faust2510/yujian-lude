@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { mkdir, rm, rmdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import net from 'node:net';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 const serverRoot = new URL('../..', import.meta.url);
+const projectRoot = path.resolve(fileURLToPath(serverRoot), '..');
 
 async function availablePort() {
   const server = net.createServer();
@@ -130,4 +134,50 @@ test('async route rejection reaches error middleware and keeps the process healt
     assert.equal(result.body.error, '服务器内部错误');
     await assertHealthy(baseUrl, child);
   });
+});
+
+test('production auth middleware returns a generic 5xx for session database failures', async () => {
+  await withServer(async (baseUrl, child) => {
+    const result = await jsonRequest(`${baseUrl}/api/auth/me`, {
+      headers: { cookie: 'yl_session=valid-looking-token' },
+    });
+
+    assert.equal(result.response.status, 500);
+    assert.deepEqual(result.body, { error: '服务器内部错误' });
+    await assertHealthy(baseUrl, child);
+  });
+});
+
+test('static HTTP routes do not expose repository files or database backups', async () => {
+  const backupFile = path.join(
+    projectRoot,
+    'backups',
+    `static-exposure-${process.pid}-${Date.now()}.dump`,
+  );
+  await mkdir(path.dirname(backupFile), { recursive: true });
+  await writeFile(backupFile, 'test database backup');
+
+  try {
+    await withServer(async (baseUrl) => {
+      const protectedPaths = [
+        '/server/package.json',
+        '/server/db/schema.sql',
+        '/ops/deploy-runbook.md',
+        `/${path.relative(projectRoot, backupFile).split(path.sep).join('/')}`,
+      ];
+
+      for (const protectedPath of protectedPaths) {
+        const response = await fetch(`${baseUrl}${protectedPath}`);
+        assert.notEqual(response.status, 200, `${protectedPath} must not be publicly downloadable`);
+      }
+
+      assert.equal((await fetch(`${baseUrl}/`)).status, 200);
+      assert.equal((await fetch(`${baseUrl}/app/login`)).status, 200);
+    });
+  } finally {
+    await rm(backupFile, { force: true });
+    await rmdir(path.dirname(backupFile)).catch((error) => {
+      if (error.code !== 'ENOENT' && error.code !== 'ENOTEMPTY') throw error;
+    });
+  }
 });

@@ -23,6 +23,23 @@ test('VIP page submits and displays a real manual-payment subscription request',
   assert.doesNotMatch(vip, /付费渠道建设中/)
 })
 
+test('VIP page offers both tiers and submits the selected tier', () => {
+  assert.match(vip, /const \[selectedTier, setSelectedTier\] = useState\('basic'\)/)
+  assert.match(vip, /plans\.map\(plan =>/)
+  assert.match(vip, /tier: selectedTier/)
+  assert.match(vip, /基础 VIP/)
+  assert.match(vip, /进阶 VIP/)
+  assert.match(vip, /积分兑换与课程赠送均为 Basic/)
+  assert.doesNotMatch(vip, /进阶套餐暂未开放/)
+})
+
+test('VIP page renders the active plan and Pro expiry returned by auth me', () => {
+  assert.match(vip, /user\?\.vip_plan/)
+  assert.match(vip, /user\.vip_pro_until/)
+  assert.match(vip, /Pro/)
+  assert.match(vip, /Basic/)
+})
+
 test('VIP page refreshes subscriptions and current user together on window focus', () => {
   assert.match(vip, /Promise\.all\(\[vipApi\.subscriptions\(\), refreshMe\(\)\]\)/)
   assert.match(vip, /setSubscriptions\(subscriptionsResult\.data\.subscriptions \|\| \[\]\)/)
@@ -40,4 +57,10 @@ test('admin console exposes VIP request review and does not assign VIP as a role
   assert.doesNotMatch(admin, /¥\{\(item\.amount_minor/)
   assert.match(api, /payment_confirmation_reference:/)
   assert.doesNotMatch(admin, /<option value="vip">vip<\/option><option value="pastor">/)
+})
+
+test('admin console identifies the requested Basic or Pro tier', () => {
+  assert.match(admin, /item\.tier === 'pro'/)
+  assert.match(admin, /进阶 VIP/)
+  assert.match(admin, /基础 VIP/)
 })

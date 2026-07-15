@@ -8,6 +8,7 @@ import {
   destroySession,
   hashPassword,
   requireAuth,
+  resolveVipPlan,
   verifyPassword,
 } from '../auth.js';
 import { canExposeDevTokens, config } from '../config.js';
@@ -107,6 +108,10 @@ router.post('/register', async (req, res) => {
       email: user.email,
       role: user.role,
       email_verified: user.email_verified,
+      vip_until: null,
+      vip_pro_until: null,
+      vip_plan: null,
+      is_vip: false,
       nickname: user.nickname,
     },
   });
@@ -123,7 +128,7 @@ router.post('/login', async (req, res) => {
     return res.status(429).json({ error: '登录失败次数过多，请稍后再试' });
   }
   const u = await one(
-    `SELECT u.id, u.email, u.role, u.email_verified, u.vip_until,
+    `SELECT u.id, u.email, u.role, u.email_verified, u.vip_until, u.vip_pro_until,
             u.password_hash, u.is_banned, p.nickname
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
@@ -147,7 +152,9 @@ router.post('/login', async (req, res) => {
       role: u.role,
       email_verified: u.email_verified,
       vip_until: u.vip_until,
-      is_vip: Boolean(u.vip_until && new Date(u.vip_until) > new Date()),
+      vip_pro_until: u.vip_pro_until,
+      vip_plan: resolveVipPlan(u),
+      is_vip: resolveVipPlan(u) !== null,
       nickname: u.nickname,
     },
   });
@@ -162,7 +169,7 @@ router.post('/logout', async (req, res) => {
 // 当前登录用户
 router.get('/me', async (req, res) => {
   if (!req.user) return res.json({ user: null });
-  const { id, email, role, email_verified, vip_until, is_vip } = req.user;
+  const { id, email, role, email_verified, vip_until, vip_pro_until, vip_plan, is_vip } = req.user;
   const profile = await one('SELECT nickname FROM profiles WHERE user_id = $1', [id]);
   res.json({
     user: {
@@ -171,6 +178,8 @@ router.get('/me', async (req, res) => {
       role,
       email_verified,
       vip_until,
+      vip_pro_until,
+      vip_plan,
       is_vip,
       nickname: profile?.nickname ?? null,
     },

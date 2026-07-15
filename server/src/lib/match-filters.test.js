@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { normalizeMatchFilters } from './match-filters.js';
+
+const routesRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'routes');
 
 test('normalizes valid public age city and denomination filters', () => {
   const result = normalizeMatchFilters({
@@ -9,7 +14,7 @@ test('normalizes valid public age city and denomination filters', () => {
     max_age: '38',
     city: ' 上海 ',
     denomination: ' 长老会 ',
-  }, { isVip: false });
+  }, { vipPlan: null });
   assert.deepEqual(result, {
     ok: true,
     filters: { minAge: 25, maxAge: 38, city: '上海', denomination: '长老会' },
@@ -23,23 +28,29 @@ test('rejects malformed, out-of-range, or reversed age filters', () => {
     { max_age: '101' },
     { min_age: '40', max_age: '30' },
   ]) {
-    const result = normalizeMatchFilters(query, { isVip: false });
+    const result = normalizeMatchFilters(query, { vipPlan: null });
     assert.equal(result.ok, false);
     assert.equal(result.status, 400);
   }
 });
 
-test('non-VIP users cannot activate deep filters through crafted query strings', () => {
-  const result = normalizeMatchFilters({ education: '本科' }, { isVip: false });
+test('Basic users cannot activate deep filters through crafted query strings', () => {
+  const result = normalizeMatchFilters({ education: '本科' }, { vipPlan: 'basic' });
   assert.deepEqual(result, {
     ok: false,
     status: 403,
-    error: '深度筛选仅向 VIP 开放',
+    error: '深度筛选仅向 Pro 开放',
     upsell: true,
   });
 });
 
-test('VIP deep filters normalize supported faith and profile fields', () => {
+test('legacy isVip flags cannot unlock Pro deep filters', () => {
+  const result = normalizeMatchFilters({ education: '本科' }, { isVip: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 403);
+});
+
+test('Pro deep filters normalize supported faith and profile fields', () => {
   const result = normalizeMatchFilters({
     education: ' 本科 ',
     goal: 'marriage',
@@ -47,7 +58,7 @@ test('VIP deep filters normalize supported faith and profile fields', () => {
     presbytery: ' 华东区会 ',
     min_faith_years: '5',
     has_badge: 'true',
-  }, { isVip: true });
+  }, { vipPlan: 'pro' });
 
   assert.deepEqual(result, {
     ok: true,
@@ -69,8 +80,14 @@ test('rejects invalid deep filter values instead of leaking database errors', ()
     { has_badge: 'yes' },
     { education: 'x'.repeat(101) },
   ]) {
-    const result = normalizeMatchFilters(query, { isVip: true });
+    const result = normalizeMatchFilters(query, { vipPlan: 'pro' });
     assert.equal(result.ok, false);
     assert.equal(result.status, 400);
   }
+});
+
+test('candidate route authorizes deep filters with vip_plan instead of the legacy VIP flag', () => {
+  const source = readFileSync(path.join(routesRoot, 'match.routes.js'), 'utf8');
+  assert.match(source, /normalizeMatchFilters\(req\.query, \{ vipPlan: req\.user\.vip_plan \}\)/);
+  assert.doesNotMatch(source, /normalizeMatchFilters\(req\.query, \{ isVip:/);
 });

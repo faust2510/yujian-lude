@@ -86,6 +86,11 @@ test('two pastor nodes require two independent approvals before course completio
        VALUES ($1, $2, 'pastor_review', 10, 0)`,
       [MEMBER_ID, courseId]
     );
+    await pool.query(
+      `INSERT INTO course_exam_attempts (user_id, course_id, score, passed, answers)
+       VALUES ($1, $2, 10, TRUE, '[]'::jsonb)`,
+      [MEMBER_ID, courseId]
+    );
     const reviewRows = [];
     for (const node of nodes.rows) {
       const inserted = await pool.query(
@@ -100,7 +105,9 @@ test('two pastor nodes require two independent approvals before course completio
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
-      req.user = { id: REVIEWER_ID, role: 'pastor', is_banned: false };
+      req.user = req.headers['x-test-user'] === 'member'
+        ? { id: MEMBER_ID, role: 'free', is_banned: false }
+        : { id: REVIEWER_ID, role: 'pastor', is_banned: false };
       next();
     });
     app.use(courseRoutes);
@@ -142,6 +149,31 @@ test('two pastor nodes require two independent approvals before course completio
       [MEMBER_ID]
     );
     assert.equal(rewards.rowCount, 1);
+
+    const completedSnapshot = await pool.query(
+      `SELECT state, units_done, pastor_confirmed, completed_at, badge_awarded
+         FROM course_progress WHERE user_id = $1 AND course_id = $2`,
+      [MEMBER_ID, courseId]
+    );
+    const resubmitted = await fetch(`${baseUrl}/courses/keller-meaning-of-marriage/units/1/submit`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-test-user': 'member' },
+      body: JSON.stringify({ readConfirmed: true }),
+    });
+    assert.equal(resubmitted.status, 200);
+    assert.equal((await resubmitted.json()).state, 'completed');
+    const progressAfterResubmit = await pool.query(
+      `SELECT state, units_done, pastor_confirmed, completed_at, badge_awarded
+         FROM course_progress WHERE user_id = $1 AND course_id = $2`,
+      [MEMBER_ID, courseId]
+    );
+    assert.deepEqual(progressAfterResubmit.rows[0], completedSnapshot.rows[0]);
+    const rewardsAfterResubmit = await pool.query(
+      `SELECT amount FROM points_ledger
+        WHERE user_id = $1 AND reason = 'points.course_complete'`,
+      [MEMBER_ID]
+    );
+    assert.equal(rewardsAfterResubmit.rowCount, 1);
   } finally {
     await close(server);
     if (appPool) await appPool.end();

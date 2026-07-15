@@ -58,12 +58,15 @@ test('profile views are recorded only for an existing visible match candidate', 
         user_id UUID PRIMARY KEY REFERENCES users(id),
         completion SMALLINT NOT NULL,
         privacy_ok BOOLEAN NOT NULL,
+        birth_date DATE,
         birth_year INTEGER
       );
       CREATE TABLE faith_profiles (
         user_id UUID PRIMARY KEY REFERENCES users(id),
         church_name TEXT,
         presbytery TEXT,
+        region TEXT,
+        denomination TEXT,
         baptism_date DATE,
         faith_years SMALLINT,
         testimony TEXT
@@ -92,14 +95,14 @@ test('profile views are recorded only for an existing visible match candidate', 
         ('${BANNED_ID}', TRUE),
         ('${HIDDEN_ID}', FALSE),
         ('${OUTSIDER_ID}', FALSE);
-      INSERT INTO profiles (user_id, completion, privacy_ok, birth_year) VALUES
-        ('${VIEWER_ID}', 100, TRUE, 1990),
-        ('${VISIBLE_ID}', 100, TRUE, 1990),
-        ('${BANNED_ID}', 100, TRUE, 1990),
-        ('${HIDDEN_ID}', 40, FALSE, 1990),
-        ('${OUTSIDER_ID}', 40, FALSE, 1990);
-      INSERT INTO faith_profiles (user_id, church_name, presbytery, baptism_date, faith_years, testimony)
-      SELECT id, '测试教会', '测试区会', DATE '2020-01-01', 5, '测试见证'
+      INSERT INTO profiles (user_id, completion, privacy_ok, birth_date, birth_year) VALUES
+        ('${VIEWER_ID}', 100, TRUE, DATE '1990-01-01', 1990),
+        ('${VISIBLE_ID}', 100, TRUE, DATE '1990-01-01', 1990),
+        ('${BANNED_ID}', 100, TRUE, DATE '1990-01-01', 1990),
+        ('${HIDDEN_ID}', 40, FALSE, DATE '1990-01-01', 1990),
+        ('${OUTSIDER_ID}', 40, FALSE, DATE '1990-01-01', 1990);
+      INSERT INTO faith_profiles (user_id, church_name, presbytery, region, denomination, baptism_date, faith_years, testimony)
+      SELECT id, '测试教会', '测试区会', '上海', '长老会', DATE '2020-01-01', 5, '测试见证'
         FROM users;
     `);
 
@@ -143,9 +146,16 @@ test('profile views are recorded only for an existing visible match candidate', 
       [VIEWER_ID, VISIBLE_ID],
     );
     const relatedCandidate = await view(VISIBLE_ID);
-    assert.equal(relatedCandidate.status, 404);
+    assert.equal(relatedCandidate.status, 403);
     const afterRelationship = await pool.query('SELECT 1 FROM profile_views');
     assert.equal(afterRelationship.rowCount, 0);
+
+    await pool.query("UPDATE relationships SET state = 'confirmed' WHERE user_a = $1", [VIEWER_ID]);
+    const statusResponse = await fetch(`${baseUrl}/match/status`, {
+      headers: { 'x-user-id': VIEWER_ID },
+    });
+    assert.equal(statusResponse.status, 200);
+    assert.equal((await statusResponse.json()).inPool, false);
   } finally {
     await close(server);
     if (appPool) await appPool.end();

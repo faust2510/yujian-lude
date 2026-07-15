@@ -14,7 +14,7 @@ function errorMessage(error, fallback) {
   return error?.response?.data?.error || fallback
 }
 
-export default function PostComments({ postId, currentUserId, onError, onOpenUser, onTotalChange }) {
+export default function PostComments({ postId, currentUserId, onError, onOpenUser, onTotalChange, onReport }) {
   const [comments, setComments] = useState(null)
   const [body, setBody] = useState('')
   const [replyTo, setReplyTo] = useState(null)
@@ -114,6 +114,9 @@ export default function PostComments({ postId, currentUserId, onError, onOpenUse
               {comment.author_id === currentUserId && (
                 <button type="button" className="com-comment-reply-btn" onClick={() => deleteComment(comment.id)}>删除</button>
               )}
+              {comment.author_id !== currentUserId && (
+                <button type="button" className="com-comment-reply-btn" onClick={() => onReport?.(comment.id)}>举报</button>
+              )}
             </div>
             {(comment.replies ?? []).map(reply => (
               <div key={reply.id} className="com-comment com-comment-reply">
@@ -127,6 +130,11 @@ export default function PostComments({ postId, currentUserId, onError, onOpenUse
                 {reply.author_id === currentUserId && (
                   <div className="com-comment-actions">
                     <button type="button" className="com-comment-reply-btn" onClick={() => deleteComment(reply.id)}>删除</button>
+                  </div>
+                )}
+                {reply.author_id !== currentUserId && (
+                  <div className="com-comment-actions">
+                    <button type="button" className="com-comment-reply-btn" onClick={() => onReport?.(reply.id)}>举报</button>
                   </div>
                 )}
               </div>

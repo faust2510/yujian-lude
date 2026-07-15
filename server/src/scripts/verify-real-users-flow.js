@@ -75,7 +75,10 @@ async function register(client, email, nickname) {
 }
 
 async function makeAdmin(userId) {
-  await pool.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [userId]);
+  await pool.query(
+    `UPDATE users SET role = 'admin', email_verified = TRUE WHERE id = $1`,
+    [userId],
+  );
 }
 
 async function markEmailVerified(userId) {
@@ -86,7 +89,7 @@ async function completeProfile(client, index) {
   const profile = await client.put('/me/profile', {
     nickname: `实战用户${index}`,
     city: index % 2 === 0 ? '上海' : '杭州',
-    birth_year: 1990 + index,
+    birth_date: `199${index}-01-15`,
     education: index === 4 ? '本科' : '硕士',
     goal: 'serious',
     preference: '愿意在教会群体中认真认识，预备进入婚姻。',
@@ -138,6 +141,7 @@ async function completeCourse(client, {
   expectedPassThreshold,
   expectedState,
   isMatchGateCourse,
+  afterUnit,
 }) {
   const list = await client.get('/courses');
   const course = list.courses.find((item) => item.slug === slug);
@@ -170,6 +174,7 @@ async function completeCourse(client, {
     await client.post(`/courses/${course.slug}/units/${unit.unit_index}/submit`, {
       readConfirmed: true,
     });
+    if (afterUnit) await afterUnit({ course, unit });
   }
   const exam = await client.get(`/courses/${course.slug}/exam`);
   assert(exam.questions?.length === expectedQuestions, `${client.label} ${label} expected ${expectedQuestions} exam questions, got ${exam.questions?.length || 0}`);
@@ -197,6 +202,7 @@ async function completeLightCourse(client) {
 
 async function completeDeepMarriageCourse(client, reviewer, endorsementId, outsider) {
   const pointsBefore = await client.get('/me/points');
+  let midtermReviewId = null;
   await completeCourse(client, {
     slug: 'keller-meaning-of-marriage',
     label: 'deep marriage course',
@@ -205,59 +211,64 @@ async function completeDeepMarriageCourse(client, reviewer, endorsementId, outsi
     expectedPassThreshold: 8,
     expectedState: 'pastor_review',
     isMatchGateCourse: false,
+    afterUnit: async ({ unit }) => {
+      if (!unit.is_pastor_node || Number(unit.unit_index) !== 5) return;
+      const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+        unit_id: unit.id,
+        endorsement_id: endorsementId,
+        note: '请核对期中课程反思记录。',
+      });
+      assert(request.pastorReview?.id, `${client.label} should create a midterm pastor review request`);
+      const pending = await reviewer.get('/course-pastor-reviews');
+      assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the request');
+      const outsiderPending = await outsider.get('/course-pastor-reviews');
+      assert(!outsiderPending.reviews?.some((item) => item.id === request.pastorReview.id), 'unassigned users must not see the review');
+      await expectStatus(outsider, 'PATCH', `/course-pastor-reviews/${request.pastorReview.id}`, {
+        action: 'approve',
+      }, 404);
+      await expectStatus(reviewer, 'PATCH', `/course-pastor-reviews/${request.pastorReview.id}`, {
+        action: 'reject',
+      }, 400);
+      const rejected = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, {
+        action: 'reject',
+        note: '请补充第五单元的冲突反思记录。',
+      });
+      assert(rejected.state === 'rejected', 'reviewer should be able to reject with a reason');
+      const afterReject = await client.get('/courses/keller-meaning-of-marriage');
+      assert(afterReject.progress?.pastor_review?.review_note?.includes('冲突反思'), 'student should see the rejection reason');
+
+      const reapplied = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+        unit_id: unit.id,
+        endorsement_id: endorsementId,
+        note: '已补充第五单元反思，请再次确认。',
+      });
+      assert(reapplied.pastorReview?.id && reapplied.pastorReview.id !== request.pastorReview.id, 'reapplication should create a new review row');
+
+      const approvalAttempts = await Promise.allSettled(
+        Array.from({ length: 5 }, () => reviewer.patch(
+          `/course-pastor-reviews/${reapplied.pastorReview.id}`,
+          { action: 'approve', note: '期中课程记录已核对。' },
+        )),
+      );
+      const approvals = approvalAttempts.filter(result => result.status === 'fulfilled');
+      const conflicts = approvalAttempts.filter(result => result.status === 'rejected' && result.reason?.status === 409);
+      assert(approvals.length === 1, `concurrent approval expected one success, got ${approvals.length}`);
+      assert(conflicts.length === 4, `concurrent approval expected four conflicts, got ${conflicts.length}`);
+      assert(approvals[0].value.courseState === 'in_progress', `midterm approval should resume course progress, got ${approvals[0].value.courseState}`);
+      midtermReviewId = reapplied.pastorReview.id;
+    },
   });
   const beforeReview = await client.get('/courses/keller-meaning-of-marriage');
   const pastorNodes = beforeReview.units?.filter((unit) => unit.is_pastor_node) || [];
   assert(pastorNodes.length === 2, `${client.label} expected 2 pastor nodes, got ${pastorNodes.length}`);
-  const [firstNode, secondNode] = pastorNodes;
-  const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
-    unit_id: firstNode.id,
-    endorsement_id: endorsementId,
-    note: '请核对结课考试与课程反思记录。',
-  });
-  assert(request.pastorReview?.id, `${client.label} should create a pastor review request`);
-  const pending = await reviewer.get('/course-pastor-reviews');
-  assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the request');
-  const outsiderPending = await outsider.get('/course-pastor-reviews');
-  assert(!outsiderPending.reviews?.some((item) => item.id === request.pastorReview.id), 'unassigned users must not see the review');
-  await expectStatus(outsider, 'PATCH', `/course-pastor-reviews/${request.pastorReview.id}`, {
-    action: 'approve',
-  }, 404);
-  await expectStatus(reviewer, 'PATCH', `/course-pastor-reviews/${request.pastorReview.id}`, {
-    action: 'reject',
-  }, 400);
-  const rejected = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, {
-    action: 'reject',
-    note: '请补充第十单元的冲突反思记录。',
-  });
-  assert(rejected.state === 'rejected', 'reviewer should be able to reject with a reason');
-  const afterReject = await client.get('/courses/keller-meaning-of-marriage');
-  assert(afterReject.progress?.pastor_review?.review_note?.includes('冲突反思'), 'student should see the rejection reason');
-
-  const reapplied = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
-    unit_id: firstNode.id,
-    endorsement_id: endorsementId,
-    note: '已补充第十单元反思，请再次确认。',
-  });
-  assert(reapplied.pastorReview?.id && reapplied.pastorReview.id !== request.pastorReview.id, 'reapplication should create a new review row');
-
-  const approvalAttempts = await Promise.allSettled(
-    Array.from({ length: 5 }, () => reviewer.patch(
-      `/course-pastor-reviews/${reapplied.pastorReview.id}`,
-      { action: 'approve', note: '课程记录与考试均已核对。' },
-    )),
-  );
-  const approvals = approvalAttempts.filter(result => result.status === 'fulfilled');
-  const conflicts = approvalAttempts.filter(result => result.status === 'rejected' && result.reason?.status === 409);
-  assert(approvals.length === 1, `concurrent approval expected one success, got ${approvals.length}`);
-  assert(conflicts.length === 4, `concurrent approval expected four conflicts, got ${conflicts.length}`);
-  const reviewed = approvals[0].value;
-  assert(reviewed.courseState === 'pastor_review', `first pastor node should keep course in review, got ${reviewed.courseState}`);
-
+  const secondNode = pastorNodes.find((node) => Number(node.unit_index) === 10);
+  assert(midtermReviewId, `${client.label} should approve the midterm review before unit six`);
+  assert(secondNode, `${client.label} should expose the final pastor node`);
+  assert(beforeReview.progress?.pastor_reviews?.some((review) => review.id === midtermReviewId && review.state === 'approved'), 'course detail should expose the approved midterm review');
   const secondRequest = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
     unit_id: secondNode.id,
     endorsement_id: endorsementId,
-    note: '请核对第二个课程关键节点。',
+    note: '请核对第十单元结业记录。',
   });
   const secondReviewed = await reviewer.patch(`/course-pastor-reviews/${secondRequest.pastorReview.id}`, {
     action: 'approve',

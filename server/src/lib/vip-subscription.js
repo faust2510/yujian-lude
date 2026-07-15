@@ -2,8 +2,10 @@ function cleanText(value, maxLength) {
   return String(value || '').trim().slice(0, maxLength);
 }
 
+const VIP_TIERS = new Set(['basic', 'pro']);
+
 export function buildVipPlanSnapshot(tier, plan) {
-  if (tier !== 'basic') return { ok: false, error: '该套餐暂未开放申请' };
+  if (!VIP_TIERS.has(tier)) return { ok: false, error: '该套餐暂未开放申请' };
   if (!plan || plan.available !== true) return { ok: false, error: '该套餐暂未开放申请' };
 
   const price = Number(plan.price);
@@ -48,7 +50,7 @@ export function normalizeVipSubscriptionRequest({
   paymentReference,
   applicantNote,
 } = {}) {
-  if (tier !== 'basic') return { ok: false, error: '该套餐暂未开放申请' };
+  if (!VIP_TIERS.has(tier)) return { ok: false, error: '该套餐暂未开放申请' };
   const reference = cleanText(paymentReference, 32);
   if (reference.length < 4 || reference.length > 32) {
     return { ok: false, error: '付款流水尾号需为 4 至 32 个字符' };

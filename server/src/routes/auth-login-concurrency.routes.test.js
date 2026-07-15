@@ -55,6 +55,7 @@ test('parallel failed logins atomically reach lockout without losing attempts', 
         role TEXT NOT NULL DEFAULT 'free',
         email_verified BOOLEAN NOT NULL DEFAULT FALSE,
         vip_until TIMESTAMPTZ,
+        vip_pro_until TIMESTAMPTZ,
         is_banned BOOLEAN NOT NULL DEFAULT FALSE
       );
       CREATE TABLE profiles (

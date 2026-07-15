@@ -130,6 +130,8 @@
   .dashboard-next-action .btn {
     width: 100%;
     text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .dashboard-summary {

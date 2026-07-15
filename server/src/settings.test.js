@@ -1,7 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getDefaultSetting, settingStorageValue, settingsToAdminRows, validateSettingUpdate } from './settings.js';
+import { pool } from './db.js';
+import {
+  getDefaultSetting,
+  invalidateSettings,
+  loadSettings,
+  setSetting,
+  settingStorageValue,
+  settingsToAdminRows,
+  validateSettingUpdate,
+} from './settings.js';
 
 test('rejects unknown setting keys', () => {
   assert.deepEqual(validateSettingUpdate('unknown.setting', true), {
@@ -130,4 +139,75 @@ test('daily check-in points are cumulative by default', () => {
     amount: 10,
     pool: 'earned',
   });
+});
+
+test('default VIP pricing launches Basic and Pro as configurable plans', () => {
+  assert.deepEqual(getDefaultSetting('pricing.vip_basic'), {
+    price: 29,
+    currency: 'CNY',
+    period: 'month',
+    name: '基础 VIP',
+    duration_days: 30,
+    available: true,
+    payment_instructions: '请联系平台运营获取收款方式，付款后填写流水尾号。',
+  });
+  assert.equal(getDefaultSetting('pricing.vip_pro').price, 59);
+  assert.equal(getDefaultSetting('pricing.vip_pro').available, true);
+});
+
+test('transactional setting writes defer cache invalidation until the caller commits', async () => {
+  const originalQuery = pool.query;
+  let databaseReads = 0;
+  pool.query = async () => {
+    databaseReads += 1;
+    return { rows: [{ key: 'points.daily_checkin', value: { amount: 10, pool: 'earned' } }] };
+  };
+  invalidateSettings();
+
+  try {
+    await loadSettings(true);
+    databaseReads = 0;
+    await setSetting(
+      'points.daily_checkin',
+      { amount: 12, pool: 'earned' },
+      '11111111-1111-4111-8111-111111111111',
+      { query: async () => ({ rows: [] }) },
+    );
+
+    const duringTransaction = await loadSettings();
+    assert.equal(databaseReads, 0);
+    assert.deepEqual(duringTransaction['points.daily_checkin'], { amount: 10, pool: 'earned' });
+  } finally {
+    pool.query = originalQuery;
+    invalidateSettings();
+  }
+});
+
+test('a database read started before invalidation cannot repopulate the cache afterward', async () => {
+  const originalQuery = pool.query;
+  let releaseStaleRead;
+  let databaseReads = 0;
+  pool.query = async () => {
+    databaseReads += 1;
+    if (databaseReads === 1) {
+      return new Promise((resolve) => { releaseStaleRead = resolve; });
+    }
+    return { rows: [{ key: 'points.daily_checkin', value: { amount: 12, pool: 'earned' } }] };
+  };
+  invalidateSettings();
+
+  try {
+    const staleLoad = loadSettings(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    invalidateSettings();
+    releaseStaleRead({ rows: [{ key: 'points.daily_checkin', value: { amount: 10, pool: 'earned' } }] });
+    await staleLoad;
+
+    const current = await loadSettings();
+    assert.equal(databaseReads, 2);
+    assert.deepEqual(current['points.daily_checkin'], { amount: 12, pool: 'earned' });
+  } finally {
+    pool.query = originalQuery;
+    invalidateSettings();
+  }
 });

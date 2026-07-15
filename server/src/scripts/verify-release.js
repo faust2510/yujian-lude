@@ -232,8 +232,24 @@ async function smokeRoute(url) {
   if (!res.ok) throw new Error(`${url} returned HTTP ${res.status}`);
 }
 
+async function assertSensitivePathsAreNotPublic(baseUrl) {
+  const sensitivePaths = [
+    '/server/package.json',
+    '/server/db/schema.sql',
+    '/ops/deploy-runbook.md',
+    '/backups/release-verify.dump',
+  ];
+
+  for (const sensitivePath of sensitivePaths) {
+    const response = await fetch(`${baseUrl}${sensitivePath}`);
+    if (response.status === 200) {
+      throw new Error(`sensitive path is publicly downloadable: ${sensitivePath}`);
+    }
+  }
+}
+
 async function smokeRoutes(baseUrl, apiBase) {
-  console.log('\n[verify:release] 探测首页、应用区和健康检查');
+  console.log('\n[verify:release] 探测首页、应用区、健康检查和敏感路径');
   await waitForHealth(apiBase);
   await smokeRoute(`${apiBase}/health`);
   await smokeRoute(`${apiBase}/live`);
@@ -241,6 +257,7 @@ async function smokeRoutes(baseUrl, apiBase) {
   await smokeRoute(`${baseUrl}/`);
   await smokeRoute(`${baseUrl}/app`);
   await smokeRoute(`${baseUrl}/app/login`);
+  await assertSensitivePathsAreNotPublic(baseUrl);
 }
 
 async function startServer(tempDatabaseUrl, port, smtpPort) {

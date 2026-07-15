@@ -11,7 +11,7 @@ import * as profileInputs from './profile-inputs.js';
 const completeProfile = {
   nickname: '路得',
   city: '上海',
-  birth_year: 1994,
+  birth_date: '1994-07-16',
   education: '本科',
   goal: 'serious',
   preference: '愿意共同成长',
@@ -65,19 +65,30 @@ test('rejects faith years that cannot be stored as an integer', () => {
   );
 });
 
-test('normalizes only adult four-digit birth years', () => {
-  assert.equal(typeof profileInputs.normalizeBirthYear, 'function');
-  const now = new Date('2026-07-15T00:00:00.000Z');
+test('strictly normalizes complete adult birth dates using the Asia Shanghai day boundary', () => {
+  assert.equal(typeof profileInputs.normalizeBirthDate, 'function');
+  const now = new Date('2026-07-14T16:00:00.000Z');
 
-  assert.equal(profileInputs.normalizeBirthYear('1994', now), 1994);
-  assert.equal(profileInputs.normalizeBirthYear(2008, now), 2008);
-  assert.equal(profileInputs.normalizeBirthYear('', now), null);
-  assert.equal(profileInputs.normalizeBirthYear(null, now), null);
+  assert.equal(profileInputs.normalizeBirthDate('2008-07-15', now), '2008-07-15');
+  assert.equal(profileInputs.normalizeBirthDate('1994-02-28', now), '1994-02-28');
+  assert.equal(profileInputs.normalizeBirthDate('', now), null);
+  assert.equal(profileInputs.normalizeBirthDate(null, now), null);
 
-  for (const value of ['2009', '1939', '94', '1994.5', 'not-a-year']) {
+  for (const value of [
+    '2008-07-16',
+    '2026-07-16',
+    '1939-12-31',
+    '2008-02-30',
+    '2008-7-15',
+    '2008',
+  ]) {
     assert.throws(
-      () => profileInputs.normalizeBirthYear(value, now),
-      /出生年份/
+      () => profileInputs.normalizeBirthDate(value, now),
+      /出生日期|年满 18 周岁/
     );
   }
+});
+
+test('profile completion requires a complete birth date rather than a compatible birth year', () => {
+  assert.equal(calculateProfileCompletion({ ...completeProfile, birth_date: null, birth_year: 1994 }), 88);
 });

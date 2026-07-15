@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
-import { isInMatchPool } from '../lib/match-gate.js';
+import { hasCompletedMatchGates } from '../lib/match-gate.js';
 import { normalizeReportAction, validateAdminActorStatus, writeAdminAudit } from '../lib/admin-audit.js';
 
 const router = Router();
@@ -94,7 +94,7 @@ async function canViewPost(userId, postId) {
 }
 
 async function canPost(userId) {
-  return isInMatchPool(userId);
+  return hasCompletedMatchGates(userId);
 }
 
 function extractHashtags(body) {
@@ -334,7 +334,8 @@ router.get('/community/posts/search', requireAuth, async (req, res) => {
             COALESCE(pr.nickname, '匿名') AS author_nickname,
             (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id)::int AS like_count,
             (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id)::int AS comment_count,
-            EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me
+            EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me,
+            EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $1) AS bookmarked_by_me
       FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
       WHERE p.state IN ('visible','pinned')
@@ -359,12 +360,13 @@ router.get('/community/posts', requireAuth, async (req, res) => {
 
   if (req.query.group_id) {
     const membership = await getMembership(userId, req.query.group_id);
-    if (!membership || membership.state !== 'approved') {
+    const isPlatformAdmin = req.user.role === 'admin';
+    if ((!membership || membership.state !== 'approved') && !isPlatformAdmin) {
       return res.json({ posts: [], page });
     }
     params.push(req.query.group_id);
     where += ` AND p.group_id = $${params.length}`;
-    if (['owner', 'admin'].includes(membership.role)) {
+    if (isPlatformAdmin || ['owner', 'admin'].includes(membership?.role)) {
       where += ` AND p.moderation IN ('approved','pending')`;
     } else {
       where += ` AND p.moderation = 'approved'`;
@@ -413,7 +415,8 @@ router.get('/community/feed/following', requireAuth, async (req, res) => {
             COALESCE(pr.nickname, '匿名') AS author_nickname,
             (SELECT COUNT(*) FROM community_likes WHERE post_id = p.id)::int AS like_count,
             (SELECT COUNT(*) FROM community_comments WHERE post_id = p.id)::int AS comment_count,
-            EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me
+            EXISTS(SELECT 1 FROM community_likes WHERE post_id = p.id AND user_id = $1) AS liked_by_me,
+            EXISTS(SELECT 1 FROM community_bookmarks WHERE post_id = p.id AND user_id = $1) AS bookmarked_by_me
        FROM community_posts p
        LEFT JOIN profiles pr ON pr.user_id = p.author_id
        WHERE p.state IN ('visible','pinned')
@@ -791,7 +794,7 @@ router.delete('/community/posts/:id', requireAuth, async (req, res) => {
   if (!post) return res.status(404).json({ error: '帖子不存在' });
   const isAuthor = post.author_id === req.user.id;
   const isGroupMod = post.group_id && await isGroupAdmin(req.user.id, post.group_id);
-  const isGlobalAdmin = await isCommunityAdmin(req.user.id);
+  const isGlobalAdmin = req.user.role === 'admin' || await isCommunityAdmin(req.user.id);
   if (!isAuthor && !isGroupMod && !isGlobalAdmin) {
     return res.status(403).json({ error: '无权删除' });
   }
@@ -820,7 +823,7 @@ router.patch('/community/posts/:id/feature', requireAuth, async (req, res) => {
   const post = await one(`SELECT group_id FROM community_posts WHERE id = $1`, [req.params.id]);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
   const isGroupMod = post.group_id && await isGroupAdmin(req.user.id, post.group_id);
-  const isGlobalAdmin = await isCommunityAdmin(req.user.id);
+  const isGlobalAdmin = req.user.role === 'admin' || await isCommunityAdmin(req.user.id);
   if (!isGroupMod && !isGlobalAdmin) return res.status(403).json({ error: '无权操作' });
 
   if (action === 'pin') {
@@ -846,7 +849,7 @@ router.patch('/community/posts/:id/moderate', requireAuth, async (req, res) => {
   const post = await one(`SELECT author_id, group_id FROM community_posts WHERE id = $1`, [req.params.id]);
   if (!post) return res.status(404).json({ error: '帖子不存在' });
   if (!post.group_id) return res.status(400).json({ error: '全站帖子无需审核' });
-  if (!(await isGroupAdmin(req.user.id, post.group_id))) {
+  if (req.user.role !== 'admin' && !(await isGroupAdmin(req.user.id, post.group_id))) {
     return res.status(403).json({ error: '仅组长可审核' });
   }
   const newMod = action === 'approve' ? 'approved' : 'rejected';

@@ -1,10 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  getCourseRequiredTextbookBindingIssue,
   getChapterForUser,
   incompleteRequiredReadings,
   readingsForCourseUnits,
 } from './textbook-reading.js';
+
+test('configured deep course fails closed when a unit has no expected required textbook binding', async () => {
+  const issue = await getCourseRequiredTextbookBindingIssue(
+    { query: async () => ({ rows: [{ expected_required_bindings: 0 }] }) },
+    { courseSlug: 'keller-meaning-of-marriage', unitId: 'unit-1' }
+  );
+
+  assert.equal(issue?.textbookSlug, 'meaning-of-marriage');
+  assert.match(issue?.error || '', /课程必读教材绑定缺失/);
+});
+
+test('courses without a configured required textbook keep their no-reading behavior', async () => {
+  const issue = await getCourseRequiredTextbookBindingIssue(
+    { query: async () => { throw new Error('should not query'); } },
+    { courseSlug: 'christian-dating-basics', unitId: 'unit-1' }
+  );
+
+  assert.equal(issue, null);
+});
 
 test('incompleteRequiredReadings returns required unread chapters', async () => {
   const db = {

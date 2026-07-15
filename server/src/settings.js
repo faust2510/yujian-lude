@@ -4,6 +4,7 @@ import { query, one } from './db.js';
 
 let cache = null;
 let cacheAt = 0;
+let cacheEpoch = 0;
 const TTL_MS = 30_000; // 30 秒缓存，改设置后会主动失效
 
 // 锁定 plan v1 的兜底默认值（数据库缺失时使用）
@@ -23,8 +24,8 @@ const DEFAULTS = {
     period: 'month',
     name: '进阶 VIP',
     duration_days: 30,
-    available: false,
-    payment_instructions: '进阶套餐暂未开放。',
+    available: true,
+    payment_instructions: '请联系平台运营获取收款方式，付款后填写流水尾号。',
   },
   'points.daily_checkin': { amount: 10, pool: 'earned' },
   'points.profile_complete': { amount: 50, pool: 'earned', once: true },
@@ -143,6 +144,7 @@ export function settingsToAdminRows(settings) {
 export async function loadSettings(force = false) {
   const now = Date.now();
   if (!force && cache && now - cacheAt < TTL_MS) return cache;
+  const requestEpoch = cacheEpoch;
   const merged = { ...DEFAULTS };
   try {
     const { rows } = await query('SELECT key, value FROM app_settings');
@@ -150,8 +152,10 @@ export async function loadSettings(force = false) {
   } catch (err) {
     console.warn('[settings] 读取 app_settings 失败，使用默认值：', err.message);
   }
-  cache = merged;
-  cacheAt = now;
+  if (requestEpoch === cacheEpoch) {
+    cache = merged;
+    cacheAt = now;
+  }
   return merged;
 }
 
@@ -160,16 +164,20 @@ export async function getSetting(key) {
   return s[key];
 }
 
-export async function setSetting(key, value, adminId) {
-  await query(
+export async function setSetting(key, value, adminId, db = query) {
+  const usesSharedQuery = typeof db === 'function';
+  const runQuery = usesSharedQuery ? db : db.query.bind(db);
+  await runQuery(
     `INSERT INTO app_settings (key, value, updated_by, updated_at)
      VALUES ($1, $2, $3, now())
      ON CONFLICT (key) DO UPDATE SET value = $2, updated_by = $3, updated_at = now()`,
     [key, settingStorageValue(value), adminId ?? null]
   );
-  cache = null; // 失效缓存
+  if (usesSharedQuery) invalidateSettings();
 }
 
 export function invalidateSettings() {
   cache = null;
+  cacheAt = 0;
+  cacheEpoch += 1;
 }

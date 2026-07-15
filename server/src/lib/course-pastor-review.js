@@ -1,5 +1,19 @@
-export function canRequestCoursePastorReview({ progressState, examPassed }) {
-  return progressState === 'pastor_review' && examPassed === true;
+export function canRequestCoursePastorReview({
+  progressState,
+  nodeIndex,
+  firstPastorNodeIndex,
+  unitsDone,
+  totalUnits,
+  midtermApproved,
+  examPassed,
+}) {
+  if (progressState === 'completed') return false;
+  if (Number(nodeIndex) === Number(firstPastorNodeIndex)) {
+    return Number(unitsDone) >= Number(firstPastorNodeIndex) && midtermApproved !== true;
+  }
+  return midtermApproved === true
+    && Number(unitsDone) >= Number(totalUnits)
+    && examPassed === true;
 }
 
 export function normalizeCoursePastorReviewAction(action) {

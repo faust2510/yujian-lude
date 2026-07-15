@@ -28,8 +28,8 @@ router.get('/vip/plans', async (_req, res) => {
   const redemption = await getSetting('redeem.vip_per_day');
   res.json({
     plans: [
-      { tier: 'basic', ...basic, perks: ['每日主动次数提升至 15 次'] },
-      { tier: 'pro', ...pro, available: false, perks: [] },
+      { tier: 'basic', ...basic, perks: ['每日主动次数提升至 15 次', '查看谁看过我'] },
+      { tier: 'pro', ...pro, perks: ['包含 Basic 全部权益', '使用学历、婚恋目标、区会等深度筛选'] },
     ],
     redemption: redemption ?? { points: 100, days: 1 },
     note: 'VIP 只提供便利，不影响曝光排序。曝光只靠完成课程 + 牧者背书赢得。',

@@ -20,8 +20,10 @@ test('saving either profile section recomputes and returns exposure', () => {
   assert.match(source, /res\.json\(\{ ok: true, exposure \}\)/);
 });
 
-test('profile save normalizes birth year and returns validation errors as 400', () => {
-  assert.match(source, /normalizeBirthYear\(birth_year\)/);
+test('profile save normalizes the complete birth date, derives birth year, and returns validation errors as 400', () => {
+  assert.match(source, /normalizeBirthDate\(birth_date\)/);
+  assert.match(source, /birth_date:\s*normalizedBirthDate/);
+  assert.match(source, /const normalizedBirthYear = normalizedBirthDate \? Number\(normalizedBirthDate\.slice\(0, 4\)\) : null/);
   assert.match(source, /birth_year:\s*normalizedBirthYear/);
   assert.match(source, /err instanceof ProfileInputError/);
   assert.match(source, /res\.status\(400\)\.json\(\{ error: err\.message \}\)/);

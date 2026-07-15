@@ -9,7 +9,7 @@ function messageClass(text) {
 export default function Profile() {
   const { user, refreshMe } = useAuth()
   const [form, setForm] = useState({
-    nickname:'', city:'', birth_year:'', education:'',
+    nickname:'', city:'', birth_date:'', education:'',
     goal:'', preference:'', intro:'', privacy_ok: false
   })
   const [faith, setFaith] = useState({
@@ -24,6 +24,7 @@ export default function Profile() {
   const [pastorLetterLoadState, setPastorLetterLoadState] = useState('loading')
   const [pastorLetterExists, setPastorLetterExists] = useState(false)
   const [exposure, setExposure] = useState(null)
+  const [badges, setBadges] = useState([])
   const [msg, setMsg] = useState('')
   const [faithMsg, setFaithMsg] = useState('')
   const [pastorLetterMsg, setPastorLetterMsg] = useState('')
@@ -50,6 +51,7 @@ export default function Profile() {
       if (r.data.profile) setForm(p => ({...p, ...r.data.profile}))
       if (r.data.faith) setFaith(p => ({...p, ...r.data.faith}))
       setEndorsements(r.data.endorsements || [])
+      setBadges(r.data.badges || [])
       setExposure(r.data.exposure ?? null)
       setProfileLoadState('ready')
     } catch {
@@ -207,6 +209,21 @@ export default function Profile() {
           当前曝光分：<strong style={{color:'var(--brand)'}}>{exposure}</strong>
         </p>
       )}
+      {badges.length > 0 && (
+        <section className="card" aria-labelledby="course-badges-title">
+          <h3 id="course-badges-title" style={{fontSize:15,marginBottom:12}}>我的课程徽章</h3>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+            {badges.map(badge => (
+              <div key={`${badge.title}-${badge.completed_at}`} className="badge badge-green" style={{padding:'8px 12px'}}>
+                <strong>{badge.title}</strong>
+                <span style={{marginLeft:6,fontWeight:400}}>
+                  {new Date(badge.completed_at).toLocaleDateString('zh-CN')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       {busy.initial && <div className="card" style={{fontSize:14,color:'var(--legacy-muted)',marginBottom:16}}>正在加载你的资料…</div>}
       {profileLoadState === 'error' && (
         <div className="card" style={{marginBottom:16}}>
@@ -231,7 +248,8 @@ export default function Profile() {
         <div className="grid-2">
           <div className="field"><label>昵称</label><input value={form.nickname||''} onChange={set('nickname')} /></div>
           <div className="field"><label>所在城市</label><input value={form.city||''} onChange={set('city')} /></div>
-          <div className="field"><label>出生年份</label><input value={form.birth_year||''} onChange={set('birth_year')} placeholder="例如 1995" /></div>
+          <div className="field"><label>出生日期</label><input type="date" value={form.birth_date||''} onChange={set('birth_date')} /></div>
+          <div className="field"><small>请填写完整出生日期，仅年满 18 周岁可参与匹配。</small></div>
           <div className="field"><label>学历</label><input value={form.education||''} onChange={set('education')} /></div>
           <div className="field"><label>婚恋目标</label>
             <select value={form.goal||''} onChange={set('goal')}>

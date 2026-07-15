@@ -153,6 +153,45 @@ test('小组公告仅允许组管理员发布并直接通过审核', async () =>
   assert.equal(insert.params[6], 'approved');
 });
 
+test('已完成全部准入项的关系用户仍可发布社区帖子', async () => {
+  const result = await requestRoute({
+    method: 'POST',
+    path: '/community/posts',
+    body: { content: '关系建立后仍然参与社区。' },
+    dbRows: async (sql) => {
+      if (/SELECT key, value FROM app_settings/i.test(sql)) {
+        return [
+          { key: 'match.require_faith_test', value: false },
+          { key: 'match.require_verified_pastor', value: false },
+          { key: 'match.require_light_course', value: false },
+        ];
+      }
+      if (/FROM relationships/i.test(sql)) return [{ ok: 1 }];
+      if (/FROM profiles/i.test(sql)) {
+        return [{ completion: 100, privacy_ok: true, birth_date: new Date('1990-01-01') }];
+      }
+      if (/FROM faith_profiles/i.test(sql)) {
+        return [{
+          church_name: '恩典堂',
+          presbytery: '华东区会',
+          region: '上海',
+          denomination: '长老会',
+          baptism_date: new Date('2020-01-01'),
+          faith_years: 6,
+          testimony: '稳定参与教会生活',
+        }];
+      }
+      if (/FROM faith_tests/i.test(sql) || /FROM endorsements/i.test(sql)) return [];
+      if (/INSERT INTO community_posts/i.test(sql)) return [{ id: POST_ID }];
+      if (/INSERT INTO community_post_hashtags/i.test(sql)) return [];
+      throw new Error(`Unexpected SQL: ${sql}`);
+    },
+  });
+
+  assert.equal(result.status, 200);
+  assert.equal(result.body.id, POST_ID);
+});
+
 test('非小组成员不能申请组管理员', async () => {
   const result = await requestRoute({
     method: 'POST',

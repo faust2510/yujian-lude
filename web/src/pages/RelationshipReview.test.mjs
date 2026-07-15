@@ -28,3 +28,12 @@ test('relationship participants can observe review state but cannot self-review 
   assert.match(relationships, /我方引荐人 \/ 管理员已确认/)
   assert.match(relationships, /对方引荐人 \/ 管理员已确认/)
 })
+
+test('confirmed relationships still expose the end action', () => {
+  const relationshipCard = relationships.match(/function RelationshipCard\([\s\S]*?\n\}/)?.[0] || ''
+  const endAction = relationshipCard.match(/\{rel\.state\s*!==\s*'ended'[\s\S]*?结束关系[\s\S]*?\)\}/)?.[0] || ''
+
+  assert.match(relationshipCard, /rel\.state\s*!==\s*'ended'/)
+  assert.doesNotMatch(endAction, /!\['confirmed', 'ended'\]\.includes\(rel\.state\)/)
+  assert.match(endAction, />\s*结束关系\s*</)
+})

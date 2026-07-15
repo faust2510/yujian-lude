@@ -23,16 +23,21 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
     const status = await getMatchQualification(req.user.id);
     return res.json({ candidates: [], locked: true, reason: status.gate, status });
   }
-  const normalized = normalizeMatchFilters(req.query, { isVip: req.user.is_vip === true });
+  const normalized = normalizeMatchFilters(req.query, { vipPlan: req.user.vip_plan });
   if (!normalized.ok) {
     return res.status(normalized.status).json({ error: normalized.error, upsell: normalized.upsell === true });
   }
   const candidateFilters = normalized.filters;
   const params = [req.user.id];
   const filters = [];
-  const currentYear = new Date().getFullYear();
-  if (candidateFilters.minAge !== undefined) { params.push(currentYear - candidateFilters.minAge); filters.push(`p.birth_year <= $${params.length}`); }
-  if (candidateFilters.maxAge !== undefined) { params.push(currentYear - candidateFilters.maxAge); filters.push(`p.birth_year >= $${params.length}`); }
+  if (candidateFilters.minAge !== undefined) {
+    params.push(candidateFilters.minAge);
+    filters.push(`p.birth_date <= ((now() AT TIME ZONE 'Asia/Shanghai')::date - ($${params.length} * INTERVAL '1 year'))::date`);
+  }
+  if (candidateFilters.maxAge !== undefined) {
+    params.push(candidateFilters.maxAge + 1);
+    filters.push(`p.birth_date > ((now() AT TIME ZONE 'Asia/Shanghai')::date - ($${params.length} * INTERVAL '1 year'))::date`);
+  }
   if (candidateFilters.city) { params.push(`%${candidateFilters.city}%`); filters.push(`p.city ILIKE $${params.length}`); }
   if (candidateFilters.education) { params.push(`%${candidateFilters.education}%`); filters.push(`p.education ILIKE $${params.length}`); }
   if (candidateFilters.goal) { params.push(candidateFilters.goal); filters.push(`p.goal = $${params.length}`); }
@@ -49,12 +54,14 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
   const eligibilityFilters = [
     'p.privacy_ok = TRUE',
     'p.completion >= 100',
-    'p.birth_year BETWEEN 1940 AND EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER - 18',
+    "p.birth_date <= ((now() AT TIME ZONE 'Asia/Shanghai')::date - INTERVAL '18 years')::date",
     `EXISTS(
       SELECT 1 FROM faith_profiles fp
        WHERE fp.user_id = u.id
          AND NULLIF(BTRIM(fp.church_name), '') IS NOT NULL
          AND NULLIF(BTRIM(fp.presbytery), '') IS NOT NULL
+         AND NULLIF(BTRIM(fp.region), '') IS NOT NULL
+         AND NULLIF(BTRIM(fp.denomination), '') IS NOT NULL
          AND fp.baptism_date IS NOT NULL
          AND fp.faith_years >= 0
          AND NULLIF(BTRIM(fp.testimony), '') IS NOT NULL
@@ -75,7 +82,9 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
   }
 
   const { rows } = await query(
-    `SELECT u.id, p.nickname, p.city, p.birth_year, p.goal, p.intro,
+    `SELECT u.id, p.nickname, p.city, p.birth_year,
+            EXTRACT(YEAR FROM age((now() AT TIME ZONE 'Asia/Shanghai')::date, p.birth_date))::int AS age,
+            p.goal, p.intro,
             p.education, fp.church_name, fp.presbytery, fp.denomination, fp.faith_years,
             e.computed_score,
             EXISTS(SELECT 1 FROM course_progress cp WHERE cp.user_id = u.id AND cp.state='completed' AND cp.badge_awarded) AS has_badge
@@ -85,7 +94,7 @@ router.get('/match/candidates', requireAuth, async (req, res) => {
        LEFT JOIN exposure e ON e.user_id = u.id
       WHERE u.id <> $1 AND u.is_banned = FALSE
         AND NOT EXISTS(SELECT 1 FROM relationships r
-              WHERE ((r.user_a=$1 AND r.user_b=u.id) OR (r.user_b=$1 AND r.user_a=u.id))
+              WHERE (r.user_a = u.id OR r.user_b = u.id)
                 AND r.state <> 'ended')
         AND ${eligibilityFilters.join('\n        AND ')}
         ${where}
@@ -119,6 +128,25 @@ router.post('/match/:targetId/intent', requireAuth, async (req, res) => {
     : null;
 
   const outcome = await tx(async (db) => {
+    await db.query(
+      `SELECT pg_advisory_xact_lock(lock_id)
+         FROM unnest(ARRAY[
+           hashtextextended($1::text, 0),
+           hashtextextended($2::text, 0)
+         ]) AS participant_locks(lock_id)
+        ORDER BY lock_id`,
+      [req.user.id, targetId]
+    );
+    const activeRelationship = await db.query(
+      `SELECT 1
+         FROM relationships
+        WHERE state <> 'ended'
+          AND (user_a IN ($1, $2) OR user_b IN ($1, $2))
+        LIMIT 1`,
+      [req.user.id, targetId]
+    );
+    if (activeRelationship.rows.length) return { unavailable: true, limited: false, mutual: false };
+
     if (intent === 'like') {
       await db.query('SELECT pg_advisory_xact_lock(hashtext($1))', [req.user.id]);
       const existing = await db.query(
@@ -198,6 +226,9 @@ router.post('/match/:targetId/intent', requireAuth, async (req, res) => {
     }
     return { limited: false, mutual };
   });
+  if (outcome.unavailable) {
+    return res.status(409).json({ error: '你或对方已有进行中的关系' });
+  }
   if (outcome.limited) {
     return res.status(429).json({ error: `今日主动次数已用完（${limit} 次）`, isVip: req.user.is_vip });
   }

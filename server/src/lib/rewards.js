@@ -87,7 +87,7 @@ export async function recomputeExposure(db, userId) {
     `SELECT
       (CASE WHEN NULLIF(BTRIM(p.nickname), '') IS NOT NULL THEN 5 ELSE 0 END +
        CASE WHEN NULLIF(BTRIM(p.city), '') IS NOT NULL THEN 5 ELSE 0 END +
-       CASE WHEN p.birth_year    IS NOT NULL THEN 5 ELSE 0 END +
+       CASE WHEN p.birth_date    IS NOT NULL THEN 5 ELSE 0 END +
        CASE WHEN NULLIF(BTRIM(p.education), '') IS NOT NULL THEN 5 ELSE 0 END +
        CASE WHEN NULLIF(BTRIM(p.goal), '') IS NOT NULL THEN 5 ELSE 0 END +
        CASE WHEN NULLIF(BTRIM(fp.church_name), '') IS NOT NULL THEN 5 ELSE 0 END +
@@ -130,6 +130,56 @@ export async function recomputeExposure(db, userId) {
   return computed;
 }
 
+export async function recomputeAllExposure(db) {
+  const keys = ['exposure.base', 'exposure.endorsement_bonus', 'course.exposure_multiplier'];
+  const settingRows = await db.query('SELECT key, value FROM app_settings WHERE key = ANY($1::text[])', [keys]);
+  const settings = new Map(settingRows.rows.map((row) => [row.key, row.value]));
+  const numberSetting = (key, fallback) => {
+    const value = Number(settings.get(key)?.value);
+    return Number.isFinite(value) ? value : fallback;
+  };
+  const base = numberSetting('exposure.base', 100);
+  const bonusPer = numberSetting('exposure.endorsement_bonus', 50);
+  const courseMul = numberSetting('course.exposure_multiplier', 2);
+
+  await db.query(
+    `WITH scores AS (
+       SELECT u.id AS user_id,
+              (CASE WHEN NULLIF(BTRIM(p.nickname), '') IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN NULLIF(BTRIM(p.city), '') IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN p.birth_date IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN NULLIF(BTRIM(p.education), '') IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN NULLIF(BTRIM(p.goal), '') IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN NULLIF(BTRIM(fp.church_name), '') IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN NULLIF(BTRIM(fp.presbytery), '') IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN fp.baptism_date IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN fp.faith_years IS NOT NULL THEN 5 ELSE 0 END +
+               CASE WHEN NULLIF(BTRIM(fp.testimony), '') IS NOT NULL THEN 5 ELSE 0 END) AS profile_score,
+              EXISTS(SELECT 1 FROM endorsements en
+                       WHERE en.user_id = u.id AND en.kind IN ('pastor', 'referrer') AND en.state = 'verified') AS has_endorsement,
+              EXISTS(SELECT 1 FROM course_progress cp
+                       WHERE cp.user_id = u.id AND cp.state = 'completed' AND cp.badge_awarded = TRUE) AS has_badge
+         FROM users u
+         LEFT JOIN profiles p ON p.user_id = u.id
+         LEFT JOIN faith_profiles fp ON fp.user_id = u.id
+     )
+     INSERT INTO exposure (user_id, base_score, endorsement_bonus, course_multiplier, computed_score)
+     SELECT user_id,
+            $1,
+            CASE WHEN has_endorsement THEN $2 ELSE 0 END,
+            CASE WHEN has_badge THEN $3 ELSE 1 END,
+            ROUND(($1 + profile_score + CASE WHEN has_endorsement THEN $2 ELSE 0 END) *
+                  CASE WHEN has_badge THEN $3 ELSE 1 END)::int
+       FROM scores
+     ON CONFLICT (user_id) DO UPDATE SET
+       base_score = EXCLUDED.base_score,
+       endorsement_bonus = EXCLUDED.endorsement_bonus,
+       course_multiplier = EXCLUDED.course_multiplier,
+       computed_score = EXCLUDED.computed_score`,
+    [base, bonusPer, courseMul]
+  );
+}
+
 // 发 VIP 天数（在现有 vip_until 基础上叠加；已过期则从现在起算）
 export async function grantVipDays(db, userId, days) {
   const { rows } = await db.query(
@@ -141,4 +191,21 @@ export async function grantVipDays(db, userId, days) {
     [userId, String(days)]
   );
   return rows[0]?.vip_until ?? null;
+}
+
+// 付费审批按套餐发放：Pro 同时延长总 VIP 期限与深筛期限。
+export async function grantVipTierDays(db, userId, tier, days) {
+  if (tier === 'basic') return grantVipDays(db, userId, days);
+  if (tier !== 'pro') throw new Error('不支持的 VIP 套餐');
+
+  const { rows } = await db.query(
+    `UPDATE users SET
+       vip_until = GREATEST(COALESCE(vip_until, now()), now()) + ($2 || ' days')::interval,
+       vip_pro_until = GREATEST(COALESCE(vip_pro_until, now()), now()) + ($2 || ' days')::interval,
+       updated_at = now()
+     WHERE id=$1
+     RETURNING vip_until, vip_pro_until`,
+    [userId, String(days)]
+  );
+  return rows[0]?.vip_pro_until ?? null;
 }

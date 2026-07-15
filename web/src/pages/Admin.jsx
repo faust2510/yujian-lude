@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { admin } from '../api/client'
 import { formatCurrencyAmount } from '../lib/currency'
+import './Admin.css'
 
 const tabs = [
   ['overview', '概览'],
@@ -177,7 +178,10 @@ function VipSubscriptionsTab() {
       {items.length === 0 && <Empty>暂无 VIP 申请</Empty>}
       {items.map(item => (
         <div key={item.id} style={{padding:'12px 0',borderBottom:'1px solid var(--border)'}}>
-          <div style={{fontSize:14,fontWeight:600}}>{item.nickname || item.email} · {item.plan_snapshot?.name || '基础 VIP'}</div>
+          <div style={{fontSize:14,fontWeight:600}}>
+            {item.nickname || item.email} · {item.plan_snapshot?.name || (item.tier === 'pro' ? '进阶 VIP' : '基础 VIP')}
+          </div>
+          <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>套餐等级：{item.tier === 'pro' ? 'Pro' : 'Basic'}</div>
           <div style={{fontSize:13,color:'var(--legacy-muted)',marginTop:4}}>
             {formatCurrencyAmount(item.amount_minor / 100, item.currency)} · {item.duration_days} 天 · 流水尾号 {item.payment_reference}
           </div>
@@ -320,6 +324,7 @@ function PointsAdjuster({ user, onBalanceChange }) {
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState('')
+  const operationRef = useRef(null)
 
   const submit = async (direction) => {
     const value = Number(amount)
@@ -332,13 +337,19 @@ function PointsAdjuster({ user, onBalanceChange }) {
       setFeedback('请填写调整原因')
       return
     }
+    const operationKey = `${direction}:${value}:${normalizedReason}`
+    if (operationRef.current?.key !== operationKey) {
+      operationRef.current = { key: operationKey, id: crypto.randomUUID() }
+    }
+    const operationId = operationRef.current.id
     try {
       setBusy(true)
       setFeedback('')
-      const response = await admin.adjustPoints(user.id, direction * value, normalizedReason)
+      const response = await admin.adjustPoints(user.id, direction * value, normalizedReason, operationId)
       onBalanceChange(user.id, response.data.balance)
       setAmount('')
       setReason('')
+      operationRef.current = null
       setFeedback(`积分已更新：${response.data.balance}`)
     } catch (err) {
       setFeedback(getErrorMessage(err, '积分调整失败'))
@@ -348,10 +359,10 @@ function PointsAdjuster({ user, onBalanceChange }) {
   }
 
   return (
-    <div style={{display:'grid',gridTemplateColumns:'70px minmax(100px,160px) auto auto',gap:6,alignItems:'center',maxWidth:'100%'}}>
+    <div className="admin-points-adjuster">
       <input type="number" min="1" max="1000000" step="1" aria-label={`${user.email} 积分数量`}
-        value={amount} onChange={event => setAmount(event.target.value)} placeholder="积分" style={{width:'100%'}} />
-      <input value={reason} maxLength={200} onChange={event => setReason(event.target.value)}
+        value={amount} onChange={event => { operationRef.current = null; setAmount(event.target.value) }} placeholder="积分" style={{width:'100%'}} />
+      <input value={reason} maxLength={200} onChange={event => { operationRef.current = null; setReason(event.target.value) }}
         placeholder="原因（必填）" style={{width:'100%'}} />
       <ActionButton primary disabled={busy} onClick={() => submit(1)}>加分</ActionButton>
       <ActionButton disabled={busy} onClick={() => submit(-1)}>扣分</ActionButton>
@@ -365,22 +376,29 @@ function UsersTab() {
   const [filters, setFilters] = useState({ q: '', role: '', banned: '', email_verified: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const usersRequest = useRef(0)
 
   const load = useCallback(async () => {
+    const requestId = ++usersRequest.current
     try {
       setLoading(true)
       setError('')
       const params = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''))
       const r = await admin.users(params)
+      if (requestId !== usersRequest.current) return
       setUsers(r.data.users || [])
     } catch (err) {
+      if (requestId !== usersRequest.current) return
       setError(getErrorMessage(err, '用户列表加载失败'))
     } finally {
-      setLoading(false)
+      if (requestId === usersRequest.current) setLoading(false)
     }
   }, [filters])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+    return () => { usersRequest.current += 1 }
+  }, [load])
 
   const updateUser = async (fn) => {
     try {

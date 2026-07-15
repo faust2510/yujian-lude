@@ -26,10 +26,10 @@ function integerValue(value, { label, min, max }) {
   return { value: normalized };
 }
 
-export function normalizeMatchFilters(input = {}, { isVip = false } = {}) {
+export function normalizeMatchFilters(input = {}, { vipPlan = null } = {}) {
   const deepRequested = DEEP_KEYS.some((key) => hasValue(input[key]));
-  if (deepRequested && !isVip) {
-    return { ok: false, status: 403, error: '深度筛选仅向 VIP 开放', upsell: true };
+  if (deepRequested && vipPlan !== 'pro') {
+    return { ok: false, status: 403, error: '深度筛选仅向 Pro 开放', upsell: true };
   }
 
   const minAge = integerValue(input.min_age, { label: '最小年龄', min: 18, max: 100 });

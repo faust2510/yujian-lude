@@ -46,6 +46,7 @@ CREATE TABLE users (
     email_verified  BOOLEAN NOT NULL DEFAULT FALSE,
     role            user_role NOT NULL DEFAULT 'free',
     vip_until       TIMESTAMPTZ,                         -- VIP 到期时间；NULL=非VIP。完课送14天体验写这里
+    vip_pro_until   TIMESTAMPTZ,                         -- Pro 深度筛选到期时间；旧 VIP 为 NULL，自动视为 Basic
     is_banned       BOOLEAN NOT NULL DEFAULT FALSE,
     last_checkin_on DATE,                                -- 最近签到日期（判定当天是否已签）
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -59,7 +60,8 @@ CREATE TABLE profiles (
     user_id      UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     nickname     TEXT,
     city         TEXT,
-    birth_year   INTEGER,                                -- 前端 birthYear，只允许成年年份
+    birth_date   DATE,                                   -- YYYY-MM-DD，匹配资格的唯一年龄事实源
+    birth_year   INTEGER,                                -- 从 birth_date 派生，供现有展示兼容
     education    TEXT,                                   -- 本科/硕士/博士...
     goal         TEXT,                                   -- 婚恋目标
     preference   TEXT,                                   -- 期望对象
@@ -67,9 +69,10 @@ CREATE TABLE profiles (
     privacy_ok   BOOLEAN NOT NULL DEFAULT FALSE,         -- 隐私授权
     completion   SMALLINT NOT NULL DEFAULT 0,            -- 资料完整度 0-100（服务端计算）
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT profiles_birth_year_adult_check CHECK (
-        birth_year IS NULL OR
-        birth_year BETWEEN 1940 AND EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER - 18
+    CONSTRAINT profiles_birth_date_adult_check CHECK (
+        birth_date IS NULL OR
+        birth_date BETWEEN DATE '1940-01-01'
+          AND ((now() AT TIME ZONE 'Asia/Shanghai')::date - INTERVAL '18 years')::date
     )
 );
 
@@ -266,6 +269,9 @@ CREATE INDEX idx_points_ledger_user ON points_ledger(user_id, created_at DESC);
 CREATE UNIQUE INDEX idx_points_course_completion_once
     ON points_ledger(user_id, reason, ref_id)
     WHERE direction = 'credit' AND reason = 'points.course_complete' AND ref_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_points_admin_adjustment_operation
+    ON points_ledger(reason, ref_id)
+    WHERE reason = 'points.admin_adjustment' AND ref_id IS NOT NULL;
 
 -- 用户当前积分余额（缓存表，避免每次聚合）
 CREATE TABLE points_balance (
@@ -342,7 +348,7 @@ CREATE INDEX idx_admin_audit_logs_actor ON admin_audit_logs(actor_id, created_at
 CREATE TABLE vip_subscription_requests (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id           UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-    tier              TEXT NOT NULL CHECK (tier = 'basic'),
+    tier              TEXT NOT NULL CHECK (tier IN ('basic', 'pro')),
     plan_snapshot     JSONB NOT NULL,
     amount_minor      INTEGER NOT NULL CHECK (amount_minor > 0),
     currency          TEXT NOT NULL CHECK (char_length(currency) BETWEEN 3 AND 12),
@@ -411,8 +417,8 @@ CREATE INDEX idx_login_attempts_locked ON login_attempts(locked_until);
 CREATE TABLE faith_tests (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    score        SMALLINT NOT NULL,                      -- 答对题数（满分 20）
-    passed       BOOLEAN NOT NULL,                       -- score >= 15 视为通过
+    score        SMALLINT NOT NULL CONSTRAINT faith_tests_score_range_check CHECK (score BETWEEN 0 AND 20),
+    passed       BOOLEAN NOT NULL CONSTRAINT faith_tests_passed_score_check CHECK (passed = (score >= 15)),
     answers      JSONB,                                  -- 用户答题记录 [{q:1,a:"B"},...]
     attempt_no   SMALLINT NOT NULL DEFAULT 1,            -- 第几次尝试（允许重考）
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -518,6 +524,47 @@ CREATE INDEX idx_relationships_users ON relationships(user_a, user_b);
 CREATE UNIQUE INDEX idx_relationships_one_active_pair
     ON relationships(user_a, user_b)
     WHERE state <> 'ended';
+
+CREATE OR REPLACE FUNCTION enforce_single_active_relationship_per_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    first_lock BIGINT;
+    second_lock BIGINT;
+BEGIN
+    IF NEW.state = 'ended' THEN
+        RETURN NEW;
+    END IF;
+
+    first_lock := LEAST(hashtextextended(NEW.user_a::text, 0), hashtextextended(NEW.user_b::text, 0));
+    second_lock := GREATEST(hashtextextended(NEW.user_a::text, 0), hashtextextended(NEW.user_b::text, 0));
+    PERFORM pg_advisory_xact_lock(first_lock);
+    PERFORM pg_advisory_xact_lock(second_lock);
+
+    IF EXISTS (
+        SELECT 1
+          FROM relationships active
+         WHERE active.state <> 'ended'
+           AND active.id IS DISTINCT FROM NEW.id
+           AND (
+               active.user_a IN (NEW.user_a, NEW.user_b)
+               OR active.user_b IN (NEW.user_a, NEW.user_b)
+           )
+           AND NOT (active.user_a = NEW.user_a AND active.user_b = NEW.user_b)
+    ) THEN
+        RAISE EXCEPTION 'a relationship participant already has an active relationship'
+            USING ERRCODE = '23505', CONSTRAINT = 'idx_relationships_one_active_user';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_relationships_one_active_user
+BEFORE INSERT OR UPDATE OF user_a, user_b, state ON relationships
+FOR EACH ROW
+EXECUTE FUNCTION enforce_single_active_relationship_per_user();
 
 -- 15. chat_channels — 匹配后的私聊通道
 CREATE TABLE chat_channels (

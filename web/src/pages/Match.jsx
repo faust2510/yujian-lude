@@ -8,6 +8,7 @@ const EMPTY_FILTERS = {
   min_age: '', max_age: '', city: '', education: '', goal: '', denomination: '',
   presbytery: '', min_faith_years: '', has_badge: '',
 }
+const DEEP_FILTER_KEYS = ['education', 'goal', 'presbytery', 'min_faith_years', 'has_badge']
 
 export default function Match() {
   const navigate = useNavigate()
@@ -30,11 +31,18 @@ export default function Match() {
   const viewersRequest = useRef(0)
   const viewedCandidates = useRef(new Set())
 
+  const allowedCandidateFilters = useCallback((nextFilters) => {
+    if (user?.vip_plan === 'pro') return nextFilters
+    const publicFilters = { ...nextFilters }
+    for (const key of DEEP_FILTER_KEYS) delete publicFilters[key]
+    return publicFilters
+  }, [user?.vip_plan])
+
   const loadCandidates = useCallback((nextFilters) => {
     const requestId = ++candidatesRequest.current
     setLoading(true)
     setError('')
-    matches.candidates(nextFilters)
+    matches.candidates(allowedCandidateFilters(nextFilters))
       .then(r => {
         if (requestId !== candidatesRequest.current) return
         setCandidates(r.data.candidates || [])
@@ -49,7 +57,7 @@ export default function Match() {
       .finally(() => {
         if (requestId === candidatesRequest.current) setLoading(false)
       })
-  }, [])
+  }, [allowedCandidateFilters])
 
   useEffect(() => {
     loadCandidates(EMPTY_FILTERS)
@@ -167,13 +175,13 @@ export default function Match() {
         </button>
         <button
           className="btn btn-outline"
-          onClick={() => user?.is_vip ? setAdvancedOpen(open => !open) : navigate('/vip')}
-          aria-expanded={user?.is_vip ? advancedOpen : undefined}
+          onClick={() => user?.vip_plan === 'pro' ? setAdvancedOpen(open => !open) : navigate('/vip')}
+          aria-expanded={user?.vip_plan === 'pro' ? advancedOpen : undefined}
         >
-          {user?.is_vip ? <SlidersHorizontal size={16} aria-hidden="true" /> : <Crown size={16} aria-hidden="true" />}
-          VIP 深度筛选
+          {user?.vip_plan === 'pro' ? <SlidersHorizontal size={16} aria-hidden="true" /> : <Crown size={16} aria-hidden="true" />}
+          Pro 深度筛选
         </button>
-        {user?.is_vip && advancedOpen && (
+        {user?.vip_plan === 'pro' && advancedOpen && (
           <div style={{flexBasis:'100%',borderTop:'1px solid var(--border)',paddingTop:12,display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:12}}>
             <div className="field" style={{margin:0}}>
               <label>学历</label>
@@ -251,16 +259,24 @@ export default function Match() {
 
       {!loading && !error && lockedStatus && (
         <div className="card" style={{padding:28,marginBottom:16}}>
-          <div style={{fontFamily:'var(--font-serif)',fontSize:20,marginBottom:8}}>还没有进入匹配池</div>
-          <p style={{color:'var(--legacy-muted)',fontSize:14,marginBottom:18,lineHeight:1.7}}>{lockedStatus.gate}</p>
-          <div className="grid-2" style={{marginBottom:16}}>
-            {(lockedStatus.nextActions || []).map(action => (
-              <button key={action.key} className="btn btn-outline" onClick={() => navigate(action.to)}>
-                {action.label}
-              </button>
-            ))}
+          <div style={{fontFamily:'var(--font-serif)',fontSize:20,marginBottom:8}}>
+            {lockedStatus.relationshipBlocked ? '关系进行中' : '还没有进入匹配池'}
           </div>
-          <div style={{fontSize:12,color:'var(--legacy-muted)'}}>这是为了让进入匹配池的人都经过基本资料、信仰与背书确认。</div>
+          <p style={{color:'var(--legacy-muted)',fontSize:14,marginBottom:18,lineHeight:1.7}}>{lockedStatus.gate}</p>
+          {lockedStatus.relationshipBlocked ? (
+            <button className="btn btn-primary" onClick={() => navigate('/relationships')}>查看关系</button>
+          ) : (
+            <>
+              <div className="grid-2" style={{marginBottom:16}}>
+                {(lockedStatus.nextActions || []).map(action => (
+                  <button key={action.key} className="btn btn-outline" onClick={() => navigate(action.to)}>
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{fontSize:12,color:'var(--legacy-muted)'}}>这是为了让进入匹配池的人都经过基本资料、信仰与背书确认。</div>
+            </>
+          )}
         </div>
       )}
 
@@ -285,7 +301,7 @@ export default function Match() {
             <div style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:4}}>{c.nickname || '匿名用户'}</div>
             <div style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:8}}>
               {c.city && `${c.city} · `}
-              {c.birth_year && `${new Date().getFullYear() - c.birth_year}岁 · `}
+              {c.age !== null && c.age !== undefined && `${c.age}岁 · `}
               {c.education}
             </div>
             {c.church_name && (

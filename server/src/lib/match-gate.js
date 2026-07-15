@@ -17,9 +17,16 @@ export async function getMatchGateSettings() {
 
 export async function getMatchQualification(userId) {
   const gate = await getMatchGateSettings();
-  const profile = await one('SELECT completion, privacy_ok, birth_year FROM profiles WHERE user_id=$1', [userId]);
+  const activeRelationship = !!(await one(
+    `SELECT 1
+       FROM relationships
+      WHERE (user_a = $1 OR user_b = $1) AND state <> 'ended'
+      LIMIT 1`,
+    [userId]
+  ));
+  const profile = await one('SELECT completion, privacy_ok, birth_date, birth_year FROM profiles WHERE user_id=$1', [userId]);
   const faith = await one(
-    'SELECT church_name, presbytery, baptism_date, faith_years, testimony FROM faith_profiles WHERE user_id=$1',
+    'SELECT church_name, presbytery, region, denomination, baptism_date, faith_years, testimony FROM faith_profiles WHERE user_id=$1',
     [userId]
   );
   const testRow = await one(
@@ -43,15 +50,27 @@ export async function getMatchQualification(userId) {
     }
   }
 
-  return buildMatchQualification({
+  const qualification = buildMatchQualification({
     profile,
     faith,
     faithTestPassed: gate.requireTest ? !!testRow?.passed : true,
     endorsements: gate.requireEndorsement ? endorsements : [{ kind: 'pastor', state: 'verified' }],
     lightCourseCompleted,
+    relationshipBlocked: activeRelationship,
   });
+  return {
+    ...qualification,
+    activeRelationship,
+    relationshipBlocked: activeRelationship,
+    inPool: qualification.inPool && !activeRelationship,
+  };
 }
 
 export async function isInMatchPool(userId) {
   return (await getMatchQualification(userId)).inPool;
+}
+
+export async function hasCompletedMatchGates(userId) {
+  const qualification = await getMatchQualification(userId);
+  return qualification.missing.every((item) => item === 'relationship');
 }

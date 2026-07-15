@@ -7,7 +7,7 @@ import {
   calculateProfileCompletion,
   ProfileInputError,
   normalizeBaptismDate,
-  normalizeBirthYear,
+  normalizeBirthDate,
   normalizeFaithYears,
 } from '../lib/profile-inputs.js';
 
@@ -37,12 +37,14 @@ router.get('/me/profile', requireAuth, async (req, res) => {
 // 更新婚恋资料（完整填写发一次性积分）
 router.put('/me/profile', requireAuth, async (req, res) => {
   const uid = req.user.id;
-  const { nickname, city, birth_year, education, goal, preference, intro, privacy_ok } = req.body || {};
+  const { nickname, city, birth_date, education, goal, preference, intro, privacy_ok } = req.body || {};
   try {
-    const normalizedBirthYear = normalizeBirthYear(birth_year);
+    const normalizedBirthDate = normalizeBirthDate(birth_date);
+    const normalizedBirthYear = normalizedBirthDate ? Number(normalizedBirthDate.slice(0, 4)) : null;
     const merged = {
       nickname,
       city,
+      birth_date: normalizedBirthDate,
       birth_year: normalizedBirthYear,
       education,
       goal,
@@ -54,12 +56,12 @@ router.put('/me/profile', requireAuth, async (req, res) => {
 
     const exposure = await tx(async (db) => {
       await db.query(
-        `INSERT INTO profiles (user_id, nickname, city, birth_year, education, goal, preference, intro, privacy_ok, completion, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, now())
+        `INSERT INTO profiles (user_id, nickname, city, birth_date, birth_year, education, goal, preference, intro, privacy_ok, completion, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now())
          ON CONFLICT (user_id) DO UPDATE SET
-           nickname=$2, city=$3, birth_year=$4, education=$5, goal=$6,
-           preference=$7, intro=$8, privacy_ok=$9, completion=$10, updated_at=now()`,
-        [uid, nickname, city, normalizedBirthYear, education, goal, preference, intro, !!privacy_ok, completion]
+           nickname=$2, city=$3, birth_date=$4, birth_year=$5, education=$6, goal=$7,
+           preference=$8, intro=$9, privacy_ok=$10, completion=$11, updated_at=now()`,
+        [uid, nickname, city, normalizedBirthDate, normalizedBirthYear, education, goal, preference, intro, !!privacy_ok, completion]
       );
       if (completion >= 100) await awardPoints(db, uid, 'points.profile_complete');
       return recomputeExposure(db, uid);

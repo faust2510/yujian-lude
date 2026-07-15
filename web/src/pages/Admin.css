@@ -1,0 +1,25 @@
+.admin-points-adjuster {
+  display: grid;
+  grid-template-columns: 70px minmax(100px, 160px) auto auto;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-points-adjuster {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .admin-points-adjuster input {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .admin-points-adjuster .btn {
+    width: 100%;
+    white-space: normal;
+  }
+}

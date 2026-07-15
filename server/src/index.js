@@ -31,6 +31,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const projectRoot = path.resolve(__dirname, '../../');
 const appRoot = path.join(projectRoot, 'web-dist');
+const publicHomepageFiles = new Map([
+  ['/favicon.svg', 'favicon.svg'],
+  ['/styles.css', 'styles.css'],
+  ['/app.js', 'app.js'],
+  ['/public-home-product.png', 'public-home-product.png'],
+]);
+const publicHomepageAssets = new Set([
+  'romantic-editorial-couple-v1.webp',
+  'rose-editorial-couple.webp',
+  'rose-editorial-growth.webp',
+]);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
@@ -74,7 +85,18 @@ app.get('/app/*', (_req, res) => {
   res.sendFile(path.join(appRoot, 'index.html'));
 });
 
-app.use(express.static(projectRoot, { index: 'index.html', extensions: ['html'] }));
+app.get(['/', '/index.html'], (_req, res) => {
+  res.sendFile(path.join(projectRoot, 'index.html'));
+});
+for (const [urlPath, fileName] of publicHomepageFiles) {
+  app.get(urlPath, (_req, res) => {
+    res.sendFile(path.join(projectRoot, fileName));
+  });
+}
+app.get('/assets/:asset', (req, res, next) => {
+  if (!publicHomepageAssets.has(req.params.asset)) return next();
+  res.sendFile(path.join(projectRoot, 'assets', req.params.asset));
+});
 
 // 兜底错误处理
 app.use((err, _req, res, _next) => {

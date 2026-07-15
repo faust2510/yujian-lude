@@ -18,7 +18,7 @@ function compactSql(sql) {
   return sql.replace(/\s+/g, ' ').trim();
 }
 
-async function postMessage(dbRows) {
+async function postMessage(dbRows, { channelId = CHANNEL_ID, body = { body: '越权消息' } } = {}) {
   const calls = [];
   const originalQuery = pool.query;
   pool.query = async (sql, params = []) => {
@@ -43,11 +43,11 @@ async function postMessage(dbRows) {
   });
   try {
     const response = await fetch(
-      `http://127.0.0.1:${server.address().port}/chat/channels/${CHANNEL_ID}/messages`,
+      `http://127.0.0.1:${server.address().port}/chat/channels/${channelId}/messages`,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ body: '越权消息' }),
+        body: JSON.stringify(body),
       }
     );
     return { status: response.status, body: await response.json(), calls };
@@ -58,6 +58,21 @@ async function postMessage(dbRows) {
     });
   }
 }
+
+test('非法频道 ID 和非字符串消息在查询数据库前返回 400', async () => {
+  for (const request of [
+    { channelId: 'not-a-uuid', body: { body: '消息' } },
+    { channelId: CHANNEL_ID, body: { body: { nested: true } } },
+    { channelId: CHANNEL_ID, body: { body: 'x'.repeat(2001) } },
+  ]) {
+    const result = await postMessage(
+      async (sql) => { throw new Error(`Unexpected SQL: ${sql}`); },
+      request,
+    );
+    assert.equal(result.status, 400);
+    assert.equal(result.calls.length, 0);
+  }
+});
 
 test('第三方用户向他人频道发送消息时返回 403 且不落库', async () => {
   let persistedMessages = 0;

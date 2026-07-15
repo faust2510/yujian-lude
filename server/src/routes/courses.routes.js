@@ -12,7 +12,11 @@ import {
   validateCoursePastorReviewNote,
 } from '../lib/course-pastor-review.js';
 import { gradeCourseExam, publicCourseExam } from '../lib/course-exams.js';
-import { incompleteRequiredReadings, readingsForCourseUnits } from '../lib/textbook-reading.js';
+import {
+  getCourseRequiredTextbookBindingIssue,
+  incompleteRequiredReadings,
+  readingsForCourseUnits,
+} from '../lib/textbook-reading.js';
 import { writeAdminAudit } from '../lib/admin-audit.js';
 
 const router = Router();
@@ -20,16 +24,35 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 async function applyCourseCompletion(db, { userId, courseId, unitsDone, totalUnits }) {
   const pastorNodeTotal = await db.query(
-    'SELECT count(*)::int AS n FROM course_units WHERE course_id = $1 AND is_pastor_node = TRUE',
+    `SELECT unit_index
+       FROM course_units
+      WHERE course_id = $1 AND is_pastor_node = TRUE
+      ORDER BY unit_index`,
     [courseId]
   );
-  const pastorNodeCount = pastorNodeTotal.rows[0].n;
+  const pastorNodeIndexes = pastorNodeTotal.rows.map((row) => row.unit_index);
+  const pastorNodeCount = pastorNodeIndexes.length;
   const prog = await db.query(
-    'SELECT pastor_confirmed, badge_awarded FROM course_progress WHERE user_id = $1 AND course_id = $2 FOR UPDATE',
+    'SELECT state, pastor_confirmed, badge_awarded FROM course_progress WHERE user_id = $1 AND course_id = $2 FOR UPDATE',
     [userId, courseId]
   );
   const pastorConfirmed = prog.rows[0]?.pastor_confirmed ?? 0;
-  const state = computeCourseState({ unitsDone, totalUnits, pastorConfirmed, pastorNodeCount });
+  const passedExam = await db.query(
+    `SELECT EXISTS(
+       SELECT 1 FROM course_exam_attempts
+        WHERE user_id = $1 AND course_id = $2 AND passed = TRUE
+     ) AS passed`,
+    [userId, courseId]
+  );
+  const state = computeCourseState({
+    currentState: prog.rows[0]?.state,
+    unitsDone,
+    totalUnits,
+    pastorConfirmed,
+    pastorNodeCount,
+    pastorNodeIndexes,
+    examPassed: passedExam.rows[0]?.passed === true,
+  });
 
   await db.query(
     `UPDATE course_progress SET units_done = $3, state = $4::course_state,
@@ -309,55 +332,114 @@ router.post('/courses/:slug/enroll', requireAuth, async (req, res) => {
 });
 
 // 标记单元阅读完成。最终完课由结课考试决定，不能只靠打卡完成课程。
-router.post('/courses/:slug/units/:index/submit', requireAuth, async (req, res) => {
+export function createCourseUnitSubmitHandler({ db = { one, tx } } = {}) {
+  return async (req, res) => {
   const { readConfirmed = false } = req.body ?? {};
   if (readConfirmed !== true) return res.status(400).json({ error: '请先阅读本单元文本，再确认已阅读' });
-  const course = await one('SELECT id FROM courses WHERE slug = $1', [req.params.slug]);
+  const course = await db.one('SELECT id, slug FROM courses WHERE slug = $1', [req.params.slug]);
   if (!course) return res.status(404).json({ error: '课程不存在' });
-  const unit = await one(
-    'SELECT id, is_pastor_node FROM course_units WHERE course_id = $1 AND unit_index = $2',
+  const unit = await db.one(
+    'SELECT id, unit_index, is_pastor_node FROM course_units WHERE course_id = $1 AND unit_index = $2',
     [course.id, Number(req.params.index)]
   );
   if (!unit) return res.status(404).json({ error: '单元不存在' });
 
-  const out = await tx(async (db) => {
-    await db.query(
+  const out = await db.tx(async (transaction) => {
+    await transaction.query(
       `INSERT INTO course_progress (user_id, course_id, state, units_done)
        VALUES ($1, $2, 'in_progress', 0)
        ON CONFLICT (user_id, course_id) DO NOTHING`,
       [req.user.id, course.id]
     );
 
-    const incompleteReadings = await incompleteRequiredReadings(db, { unitId: unit.id, userId: req.user.id });
+    const progressResult = await transaction.query(
+      `SELECT state, pastor_confirmed
+         FROM course_progress
+        WHERE user_id = $1 AND course_id = $2
+        FOR UPDATE`,
+      [req.user.id, course.id]
+    );
+    const currentProgress = progressResult.rows[0];
+    if (currentProgress?.state === 'completed') {
+      const [done, total] = await Promise.all([
+        transaction.query(
+          `SELECT count(*)::int AS n FROM unit_attempts a
+             JOIN course_units cu ON cu.id = a.unit_id
+            WHERE a.user_id = $1 AND cu.course_id = $2 AND a.passed = TRUE`,
+          [req.user.id, course.id]
+        ),
+        transaction.query('SELECT count(*)::int AS n FROM course_units WHERE course_id = $1', [course.id]),
+      ]);
+      const unitsDone = done.rows[0]?.n ?? 0;
+      const totalUnits = total.rows[0]?.n ?? 0;
+      return {
+        unitsDone,
+        totalUnits,
+        state: 'completed',
+        examReady: true,
+        isPastorNode: unit.is_pastor_node,
+      };
+    }
+
+    const nodeRows = await transaction.query(
+      `SELECT id, unit_index
+         FROM course_units
+        WHERE course_id = $1 AND is_pastor_node = TRUE
+        ORDER BY unit_index`,
+      [course.id]
+    );
+    const firstPastorNode = nodeRows.rows[0];
+    if (firstPastorNode && Number(unit.unit_index) > Number(firstPastorNode.unit_index)) {
+      const midtermApproval = await transaction.query(
+        `SELECT 1
+           FROM course_pastor_reviews
+          WHERE user_id = $1 AND course_id = $2 AND unit_id = $3 AND state = 'approved'
+          LIMIT 1`,
+        [req.user.id, course.id, firstPastorNode.id]
+      );
+      if (!midtermApproval.rows[0]) return { blockedByMidterm: true };
+    }
+
+    const textbookBindingIssue = await getCourseRequiredTextbookBindingIssue(transaction, {
+      courseSlug: course.slug,
+      unitId: unit.id,
+    });
+    if (textbookBindingIssue) return { textbookBindingIssue };
+
+    const incompleteReadings = await incompleteRequiredReadings(transaction, { unitId: unit.id, userId: req.user.id });
     if (incompleteReadings.length > 0) {
       return { blockedByReadings: true, incompleteReadings };
     }
 
-    await db.query(
+    await transaction.query(
       `INSERT INTO unit_attempts (user_id, unit_id, passed, score, qa_log)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (user_id, unit_id) DO UPDATE SET passed = $3, score = $4, qa_log = $5`,
       [req.user.id, unit.id, true, 1, JSON.stringify([{ type: 'reading', readConfirmed: true }])]
     );
     // 统计已阅读单元数
-    const done = await db.query(
+    const done = await transaction.query(
       `SELECT count(*)::int AS n FROM unit_attempts a
          JOIN course_units cu ON cu.id = a.unit_id
         WHERE a.user_id = $1 AND cu.course_id = $2 AND a.passed = TRUE`,
       [req.user.id, course.id]
     );
     const unitsDone = done.rows[0].n;
-    const total = await db.query('SELECT count(*)::int AS n FROM course_units WHERE course_id = $1', [course.id]);
+    const total = await transaction.query('SELECT count(*)::int AS n FROM course_units WHERE course_id = $1', [course.id]);
     const totalUnits = total.rows[0].n;
-    const prog = await db.query(
-      'SELECT state FROM course_progress WHERE user_id = $1 AND course_id = $2',
-      [req.user.id, course.id]
-    );
-    const state = ['completed', 'pastor_review'].includes(prog.rows[0]?.state)
-      ? prog.rows[0].state
+    const state = nodeRows.rows.length > 0
+      ? computeCourseState({
+        currentState: currentProgress?.state,
+        unitsDone,
+        totalUnits,
+        pastorConfirmed: currentProgress?.pastor_confirmed ?? 0,
+        pastorNodeCount: nodeRows.rows.length,
+        pastorNodeIndexes: nodeRows.rows.map((row) => row.unit_index),
+        examPassed: false,
+      })
       : 'in_progress';
 
-    await db.query(
+    await transaction.query(
       `UPDATE course_progress SET units_done = $3, state = $4::course_state,
          updated_at = now()
        WHERE user_id = $1 AND course_id = $2`,
@@ -371,8 +453,24 @@ router.post('/courses/:slug/units/:index/submit', requireAuth, async (req, res) 
       readings: out.incompleteReadings,
     });
   }
+  if (out.textbookBindingIssue) {
+    return res.status(503).json({
+      error: out.textbookBindingIssue.error,
+      code: 'COURSE_TEXTBOOK_BINDING_MISSING',
+      textbook: {
+        slug: out.textbookBindingIssue.textbookSlug,
+        title: out.textbookBindingIssue.textbookTitle,
+      },
+    });
+  }
+  if (out.blockedByMidterm) {
+    return res.status(409).json({ error: '期中牧者确认通过后才能继续第 6 至 10 单元' });
+  }
   res.json({ ok: true, ...out });
-});
+  };
+}
+
+router.post('/courses/:slug/units/:index/submit', requireAuth, createCourseUnitSubmitHandler());
 
 router.get('/courses/:slug/exam', requireAuth, async (req, res) => {
   const course = await one('SELECT id, slug FROM courses WHERE slug = $1 AND is_published = TRUE', [req.params.slug]);
@@ -394,8 +492,9 @@ router.get('/courses/:slug/exam', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/courses/:slug/exam/submit', requireAuth, async (req, res) => {
-  const course = await one('SELECT id, slug FROM courses WHERE slug = $1 AND is_published = TRUE', [req.params.slug]);
+export function createCourseExamSubmitHandler({ db = { one, tx } } = {}) {
+  return async (req, res) => {
+  const course = await db.one('SELECT id, slug FROM courses WHERE slug = $1 AND is_published = TRUE', [req.params.slug]);
   if (!course) return res.status(404).json({ error: '课程不存在' });
 
   let graded;
@@ -405,32 +504,57 @@ router.post('/courses/:slug/exam/submit', requireAuth, async (req, res) => {
     return res.status(404).json({ error: '课程考试不存在' });
   }
 
-  const out = await tx(async (db) => {
-    await db.query(
+  const out = await db.tx(async (transaction) => {
+    await transaction.query(
       `INSERT INTO course_progress (user_id, course_id, state, units_done)
        VALUES ($1, $2, 'in_progress', 0)
        ON CONFLICT (user_id, course_id) DO NOTHING`,
       [req.user.id, course.id]
     );
-    const total = await db.query('SELECT count(*)::int AS n FROM course_units WHERE course_id = $1', [course.id]);
+    const progress = await transaction.query(
+      `SELECT state
+         FROM course_progress
+        WHERE user_id = $1 AND course_id = $2
+        FOR UPDATE`,
+      [req.user.id, course.id]
+    );
+    const total = await transaction.query('SELECT count(*)::int AS n FROM course_units WHERE course_id = $1', [course.id]);
     const totalUnits = total.rows[0].n;
-    const done = await db.query(
+    const done = await transaction.query(
       `SELECT count(*)::int AS n FROM unit_attempts a
          JOIN course_units cu ON cu.id = a.unit_id
         WHERE a.user_id = $1 AND cu.course_id = $2 AND a.passed = TRUE`,
       [req.user.id, course.id]
     );
     const unitsDone = done.rows[0].n;
+    if (progress.rows[0]?.state === 'completed') {
+      const passedAttempt = await transaction.query(
+        `SELECT score
+           FROM course_exam_attempts
+          WHERE user_id = $1 AND course_id = $2 AND passed = TRUE
+          ORDER BY created_at DESC
+          LIMIT 1`,
+        [req.user.id, course.id]
+      );
+      return {
+        blocked: false,
+        unitsDone,
+        totalUnits,
+        state: 'completed',
+        justCompleted: false,
+        examResult: { ...graded, score: passedAttempt.rows[0]?.score ?? graded.passThreshold, passed: true },
+      };
+    }
     if (unitsDone < totalUnits) return { blocked: true, unitsDone, totalUnits };
 
-    await db.query(
+    await transaction.query(
       `INSERT INTO course_exam_attempts (user_id, course_id, score, passed, answers)
        VALUES ($1, $2, $3, $4, $5)`,
       [req.user.id, course.id, graded.score, graded.passed, JSON.stringify(req.body?.answers ?? [])]
     );
 
     if (!graded.passed) return { blocked: false, unitsDone, totalUnits, state: 'in_progress', justCompleted: false };
-    const completion = await applyCourseCompletion(db, {
+    const completion = await applyCourseCompletion(transaction, {
       userId: req.user.id,
       courseId: course.id,
       unitsDone,
@@ -442,11 +566,15 @@ router.post('/courses/:slug/exam/submit', requireAuth, async (req, res) => {
   if (out.blocked) {
     return res.status(409).json({ error: '请先读完全部课程单元，再参加结课考试', unitsDone: out.unitsDone, totalUnits: out.totalUnits });
   }
-  res.json({ ok: true, ...graded, unitsDone: out.unitsDone, totalUnits: out.totalUnits, state: out.state, justCompleted: out.justCompleted });
-});
+  res.json({ ok: true, ...(out.examResult ?? graded), unitsDone: out.unitsDone, totalUnits: out.totalUnits, state: out.state, justCompleted: out.justCompleted });
+  };
+}
 
-router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
-  const course = await one(
+router.post('/courses/:slug/exam/submit', requireAuth, createCourseExamSubmitHandler());
+
+export function createCoursePastorReviewRequestHandler({ db = { one, tx } } = {}) {
+  return async (req, res) => {
+  const course = await db.one(
     'SELECT id, slug, title FROM courses WHERE slug = $1 AND is_published = TRUE',
     [req.params.slug]
   );
@@ -461,27 +589,8 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
   }
   const requestedNote = String(req.body?.note || '').trim().slice(0, 1000) || null;
 
-  const out = await tx(async (db) => {
-    const progressResult = await db.query(
-      `SELECT state FROM course_progress
-        WHERE user_id = $1 AND course_id = $2
-        FOR UPDATE`,
-      [req.user.id, course.id]
-    );
-    const latestExam = await db.query(
-      `SELECT passed FROM course_exam_attempts
-        WHERE user_id = $1 AND course_id = $2
-        ORDER BY created_at DESC LIMIT 1`,
-      [req.user.id, course.id]
-    );
-    if (!canRequestCoursePastorReview({
-      progressState: progressResult.rows[0]?.state,
-      examPassed: latestExam.rows[0]?.passed === true,
-    })) {
-      return { blocked: true };
-    }
-
-    const nodeResult = await db.query(
+  const out = await db.tx(async (transaction) => {
+    const nodeResult = await transaction.query(
       `SELECT id, unit_index, title
          FROM course_units
         WHERE id = $1 AND course_id = $2 AND is_pastor_node = TRUE`,
@@ -490,7 +599,52 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
     const node = nodeResult.rows[0];
     if (!node) return { invalidNode: true };
 
-    const endorsementResult = await db.query(
+    const progressResult = await transaction.query(
+      `SELECT state, units_done FROM course_progress
+        WHERE user_id = $1 AND course_id = $2
+        FOR UPDATE`,
+      [req.user.id, course.id]
+    );
+    const nodes = await transaction.query(
+      `SELECT id, unit_index
+         FROM course_units
+        WHERE course_id = $1 AND is_pastor_node = TRUE
+        ORDER BY unit_index`,
+      [course.id]
+    );
+    const firstPastorNode = nodes.rows[0];
+    const total = await transaction.query(
+      'SELECT count(*)::int AS n FROM course_units WHERE course_id = $1',
+      [course.id]
+    );
+    const midtermApproval = firstPastorNode
+      ? await transaction.query(
+        `SELECT 1 FROM course_pastor_reviews
+          WHERE user_id = $1 AND course_id = $2 AND unit_id = $3 AND state = 'approved'
+          LIMIT 1`,
+        [req.user.id, course.id, firstPastorNode.id]
+      )
+      : { rows: [] };
+    const passedExam = await transaction.query(
+      `SELECT EXISTS(
+         SELECT 1 FROM course_exam_attempts
+          WHERE user_id = $1 AND course_id = $2 AND passed = TRUE
+       ) AS passed`,
+      [req.user.id, course.id]
+    );
+    if (!canRequestCoursePastorReview({
+      progressState: progressResult.rows[0]?.state,
+      nodeIndex: node.unit_index,
+      firstPastorNodeIndex: firstPastorNode?.unit_index,
+      unitsDone: progressResult.rows[0]?.units_done ?? 0,
+      totalUnits: total.rows[0]?.n ?? 0,
+      midtermApproved: Boolean(midtermApproval.rows[0]),
+      examPassed: passedExam.rows[0]?.passed === true,
+    })) {
+      return { blocked: true, isMidterm: node.id === firstPastorNode?.id };
+    }
+
+    const endorsementResult = await transaction.query(
       `SELECT e.id, e.kind, e.name,
               CASE
                 WHEN reviewer.id IS NOT NULL
@@ -520,7 +674,17 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
     const endorsement = endorsementResult.rows[0];
     if (!endorsement) return { invalidEndorsement: true };
 
-    const active = await db.query(
+    if (node.id === firstPastorNode?.id && progressResult.rows[0]?.state === 'in_progress') {
+      await transaction.query(
+        `UPDATE course_progress
+            SET state = 'pastor_review', updated_at = now()
+          WHERE user_id = $1 AND course_id = $2
+            AND state = 'in_progress' AND units_done >= $3`,
+        [req.user.id, course.id, firstPastorNode.unit_index]
+      );
+    }
+
+    const active = await transaction.query(
       `SELECT id, unit_id, state, endorsement_id, assigned_reviewer_id,
               requested_note, review_note, reviewed_at, created_at
          FROM course_pastor_reviews
@@ -531,7 +695,7 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
     );
     if (active.rows[0]) return { review: active.rows[0], already: true };
 
-    const inserted = await db.query(
+    const inserted = await transaction.query(
       `INSERT INTO course_pastor_reviews
          (user_id, course_id, unit_id, endorsement_id, assigned_reviewer_id, state, requested_note)
        VALUES ($1, $2, $3, $4, $5, 'pending', $6)
@@ -542,7 +706,7 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
     );
     if (inserted.rows[0]) return { review: inserted.rows[0], already: false };
 
-    const existing = await db.query(
+    const existing = await transaction.query(
       `SELECT id, unit_id, state, endorsement_id, assigned_reviewer_id,
               requested_note, review_note, reviewed_at, created_at
          FROM course_pastor_reviews
@@ -554,7 +718,11 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
   });
 
   if (out.blocked) {
-    return res.status(409).json({ error: '请先读完课程并通过结课考试，再申请牧者确认' });
+    return res.status(409).json({
+      error: out.isMidterm
+        ? '第 5 单元完成后可申请期中牧者确认'
+        : '第 10 单元完成并通过结课考试后才能申请结业牧者确认',
+    });
   }
   if (out.invalidEndorsement) {
     return res.status(400).json({ error: '所选背书不存在、尚未通过审核或不能由本人背书' });
@@ -563,6 +731,9 @@ router.post('/courses/:slug/pastor-review', requireAuth, async (req, res) => {
     return res.status(400).json({ error: '所选课程节点不存在或无需确认' });
   }
   res.status(out.already ? 200 : 201).json({ ok: true, already: out.already, pastorReview: out.review });
-});
+  };
+}
+
+router.post('/courses/:slug/pastor-review', requireAuth, createCoursePastorReviewRequestHandler());
 
 export default router;

@@ -91,6 +91,9 @@ export default function Community() {
   const [hasMore, setHasMore] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const postsRequest = useRef(0)
+  const feedScopeRef = useRef({ tab: 'trending' })
+  const activeGroupRef = useRef(null)
 
   // ─── composer ───
   const [content, setContent] = useState('')
@@ -105,7 +108,12 @@ export default function Community() {
   const [notifCount, setNotifCount] = useState(0)
   const [notifList, setNotifList] = useState([])
   const [showNotifs, setShowNotifs] = useState(false)
+  const [notifPage, setNotifPage] = useState(1)
+  const [notifHasMore, setNotifHasMore] = useState(false)
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [notifError, setNotifError] = useState('')
   const notifRef = useRef(null)
+  const notifRequest = useRef(0)
 
   // ─── follow / suggested ───
   const [followed, setFollowed] = useState(new Set())
@@ -118,11 +126,18 @@ export default function Community() {
   // ─── bookmarks ───
   const [showBookmarks, setShowBookmarks] = useState(false)
   const [bookmarks, setBookmarks] = useState([])
+  const [bookmarksPage, setBookmarksPage] = useState(1)
+  const [bookmarksHasMore, setBookmarksHasMore] = useState(false)
+  const [bookmarksLoading, setBookmarksLoading] = useState(false)
+  const [bookmarksError, setBookmarksError] = useState('')
+  const bookmarksRequest = useRef(0)
 
   // ─── report modal ───
   const [showReport, setShowReport] = useState(null) // { target_type, target_id }
   const [reportReason, setReportReason] = useState('spam')
   const [reportDetail, setReportDetail] = useState('')
+  const [reporting, setReporting] = useState(false)
+  const reportRequest = useRef(0)
 
   // ═══════════════════════════════════════════════════════════════
   // DATA LOADING
@@ -144,11 +159,15 @@ export default function Community() {
   }, [])
 
   const loadPosts = useCallback(async (p = 1, opts = {}) => {
+    const requestId = ++postsRequest.current
+    if (p === 1) feedScopeRef.current = { ...opts }
     setLoading(true)
     setError('')
     try {
       let res
-      if (opts.groupId) {
+      if (opts.search) {
+        res = await community.search({ q: opts.search, page: p })
+      } else if (opts.groupId) {
         res = await community.posts({ page: p, group_id: opts.groupId, post_type: opts.postType })
       } else if (opts.tab === 'following') {
         res = await community.feedFollowing(p)
@@ -161,22 +180,26 @@ export default function Community() {
       } else {
         res = await community.posts({ page: p })
       }
+      if (requestId !== postsRequest.current) return
       const newPosts = res.data.posts ?? []
       setPosts(prev => p === 1 ? newPosts : [...prev, ...newPosts])
       setPage(p)
       setHasMore(newPosts.length >= 20)
     } catch (e) {
+      if (requestId !== postsRequest.current) return
       setError(e.response?.data?.error || '加载失败')
     } finally {
-      setLoading(false)
+      if (requestId === postsRequest.current) setLoading(false)
     }
   }, [])
 
   const loadGroupDetail = async (groupId) => {
     try {
       const res = await community.groupDetail(groupId)
+      if (activeGroupRef.current !== groupId) return
       setGroupDetail(res.data.group)
     } catch (e) {
+      if (activeGroupRef.current !== groupId) return
       setError(getErrorMessage(e, '小组详情加载失败'))
     }
   }
@@ -184,8 +207,10 @@ export default function Community() {
   const loadMembers = async (groupId) => {
     try {
       const res = await community.groupMembers(groupId)
+      if (activeGroupRef.current !== groupId) return
       setMembers(res.data.members ?? [])
     } catch (e) {
+      if (activeGroupRef.current !== groupId) return
       setError(getErrorMessage(e, '成员加载失败'))
     }
   }
@@ -193,8 +218,10 @@ export default function Community() {
   const loadPending = async (groupId) => {
     try {
       const res = await community.groupPending(groupId)
+      if (activeGroupRef.current !== groupId) return
       setPendingRequests(res.data.pending ?? [])
     } catch (e) {
+      if (activeGroupRef.current !== groupId) return
       setError(getErrorMessage(e, '待审核申请加载失败'))
     }
   }
@@ -202,9 +229,43 @@ export default function Community() {
   const loadEvents = async (groupId) => {
     try {
       const res = await community.groupEvents(groupId)
+      if (activeGroupRef.current !== groupId) return
       setEvents(res.data.events ?? [])
     } catch (e) {
+      if (activeGroupRef.current !== groupId) return
       setError(getErrorMessage(e, '活动加载失败'))
+    }
+  }
+
+  const loadNotifications = useCallback(async (p = 1) => {
+    const requestId = ++notifRequest.current
+    setNotifLoading(true)
+    if (p === 1) setNotifError('')
+    try {
+      const response = await community.notifications(p)
+      if (requestId !== notifRequest.current) return
+      const nextItems = response.data.notifications ?? []
+      setNotifList(previous => p === 1 ? nextItems : [...previous, ...nextItems])
+      setNotifCount(response.data.unread ?? 0)
+      setNotifPage(p)
+      setNotifHasMore(nextItems.length >= 20)
+    } catch (error) {
+      if (requestId !== notifRequest.current) return
+      setNotifError(getErrorMessage(error, '通知加载失败'))
+    } finally {
+      if (requestId === notifRequest.current) setNotifLoading(false)
+    }
+  }, [])
+
+  const markNotificationsRead = async () => {
+    notifRequest.current += 1
+    setNotifLoading(false)
+    try {
+      await community.readNotifications()
+      setNotifCount(0)
+      setNotifList(items => items.map(item => ({ ...item, is_read: true })))
+    } catch (e) {
+      setError(getErrorMessage(e, '通知标记失败'))
     }
   }
 
@@ -222,9 +283,11 @@ export default function Community() {
 
   useEffect(() => {
     if (showNotifs) {
-      community.notifications(1).then(r => setNotifList(r.data.notifications ?? [])).catch(() => setNotifList([]))
+      loadNotifications(1)
+    } else {
+      notifRequest.current += 1
     }
-  }, [showNotifs])
+  }, [loadNotifications, showNotifs])
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -239,6 +302,7 @@ export default function Community() {
   // ═══════════════════════════════════════════════════════════════
 
   const goToGlobal = () => {
+    activeGroupRef.current = null
     setView('global')
     setActiveTab('trending')
     setActiveTag(null)
@@ -253,7 +317,17 @@ export default function Community() {
     loadPosts(1, { tab: 'trending' })
   }
 
+  const enterGlobalScope = () => {
+    activeGroupRef.current = null
+    setView('global')
+    setSelectedGroup(null)
+    setGroupDetail(null)
+  }
+
   const goToGroups = () => {
+    activeGroupRef.current = null
+    postsRequest.current += 1
+    setLoading(false)
     setView('groups')
     setSelectedGroup(null)
     setGroupDetail(null)
@@ -268,6 +342,7 @@ export default function Community() {
   }
 
   const goToGroup = (group) => {
+    activeGroupRef.current = group.id
     setSelectedGroup(group)
     setGroupDetail(null)
     setView('group-detail')
@@ -440,21 +515,40 @@ export default function Community() {
   const featurePost = async (postId, action) => {
     try {
       await community.feature(postId, action)
-      if (selectedGroup) loadPosts(1, { groupId: selectedGroup.id })
+      loadPosts(1, feedScopeRef.current)
     } catch (e) {
       setError(getErrorMessage(e, '操作失败'))
     }
   }
 
+  const openReport = (target) => {
+    reportRequest.current += 1
+    setReporting(false)
+    setShowReport(target)
+  }
+
+  const closeReport = () => {
+    reportRequest.current += 1
+    setReporting(false)
+    setShowReport(null)
+  }
+
   const submitReport = async () => {
-    if (!showReport) return
+    if (!showReport || reporting) return
+    const requestId = ++reportRequest.current
+    const target = showReport
+    setReporting(true)
     try {
-      await community.report({ ...showReport, reason: reportReason, detail: reportDetail })
+      await community.report({ ...target, reason: reportReason, detail: reportDetail })
+      if (requestId !== reportRequest.current) return
       setShowReport(null)
       setReportReason('spam')
       setReportDetail('')
     } catch (e) {
+      if (requestId !== reportRequest.current) return
       setError(getErrorMessage(e, '举报失败'))
+    } finally {
+      if (requestId === reportRequest.current) setReporting(false)
     }
   }
 
@@ -495,29 +589,42 @@ export default function Community() {
     }
   }
 
-  const loadBookmarks = async () => {
-    try {
-      const res = await community.bookmarks(1)
-      setBookmarks(res.data.posts ?? [])
+  const loadBookmarks = async (p = 1) => {
+    const requestId = ++bookmarksRequest.current
+    setBookmarksLoading(true)
+    if (p === 1) {
+      setBookmarksError('')
       setShowBookmarks(true)
-    } catch (e) {
-      setBookmarks([])
-      setError(getErrorMessage(e, '收藏加载失败'))
     }
+    try {
+      const response = await community.bookmarks(p)
+      if (requestId !== bookmarksRequest.current) return
+      const nextItems = response.data.posts ?? []
+      setBookmarks(previous => p === 1 ? nextItems : [...previous, ...nextItems])
+      setBookmarksPage(p)
+      setBookmarksHasMore(nextItems.length >= 20)
+    } catch (e) {
+      if (requestId !== bookmarksRequest.current) return
+      setBookmarksError(getErrorMessage(e, '收藏加载失败'))
+    } finally {
+      if (requestId === bookmarksRequest.current) setBookmarksLoading(false)
+    }
+  }
+
+  const closeBookmarks = () => {
+    bookmarksRequest.current += 1
+    setBookmarksLoading(false)
+    setShowBookmarks(false)
   }
 
   const doSearch = async () => {
     if (!searchQuery.trim()) return
+    enterGlobalScope()
     setActiveTag(null)
-    try {
-      const res = await community.search({ q: searchQuery.trim(), page: 1 })
-      setPosts(res.data.posts ?? [])
-      setPage(1)
-      setHasMore(false)
-    } catch (e) {
-      setError(getErrorMessage(e, '搜索失败'))
-    }
+    loadPosts(1, { search: searchQuery.trim() })
   }
+
+  const loadMorePosts = () => loadPosts(page + 1, feedScopeRef.current)
 
   // ═══════════════════════════════════════════════════════════════
   // EVENT ACTIONS
@@ -549,7 +656,7 @@ export default function Community() {
   // ═══════════════════════════════════════════════════════════════
 
   const openUser = (authorId) => {
-    if (authorId !== user.id) navigate(`/community/user/${authorId}`)
+    navigate(`/community/user/${authorId}`)
   }
 
   const renderContent = (text) => {
@@ -559,7 +666,7 @@ export default function Community() {
       if (part.startsWith('#')) {
         const tag = part.slice(1)
         return (
-          <span key={i} className="com-hashtag" onClick={() => { setActiveTag(tag); setView('global'); loadPosts(1, { tag }) }}
+          <span key={i} className="com-hashtag" onClick={() => { enterGlobalScope(); setActiveTag(tag); loadPosts(1, { tag }) }}
             style={{ color: 'var(--brand)', cursor: 'pointer', fontWeight: 500 }}>
             {part}
           </span>
@@ -571,6 +678,8 @@ export default function Community() {
 
   const currentGroup = groupDetail ?? selectedGroup
   const isAdmin = currentGroup && (currentGroup.my_role === 'owner' || currentGroup.my_role === 'admin')
+  const isPlatformAdmin = user.role === 'admin'
+  const canModeratePosts = isAdmin || isPlatformAdmin
   const isMember = currentGroup && currentGroup.my_membership_state === 'approved'
 
   const renderErrorBanner = () => error ? (
@@ -898,21 +1007,21 @@ export default function Community() {
                       {post.bookmarked_by_me ? '⭐' : '☆'}
                     </button>
                     {post.author_id !== user.id && (
-                      <button className="com-action-btn" onClick={() => setShowReport({ target_type: 'post', target_id: post.id })}>
+                      <button className="com-action-btn" onClick={() => openReport({ target_type: 'post', target_id: post.id })}>
                         🚩
                       </button>
                     )}
                   </>
                 )}
-                {(user.id === post.author_id || isAdmin) && (
+                {(user.id === post.author_id || canModeratePosts) && (
                   <>
-                    {isAdmin && post.state !== 'pinned' && (
+                    {canModeratePosts && post.state !== 'pinned' && (
                       <button className="com-action-btn" onClick={() => featurePost(post.id, 'pin')}>📌</button>
                     )}
-                    {isAdmin && post.state === 'pinned' && (
+                    {canModeratePosts && post.state === 'pinned' && (
                       <button className="com-action-btn" onClick={() => featurePost(post.id, 'unpin')}>📌</button>
                     )}
-                    {isAdmin && post.state !== 'featured' && (
+                    {canModeratePosts && post.state !== 'featured' && (
                       <button className="com-action-btn" onClick={() => featurePost(post.id, 'feature')}>⭐</button>
                     )}
                     <button className="com-action-btn" onClick={() => deletePost(post.id)} style={{ color: 'var(--legacy-muted)' }}>
@@ -920,7 +1029,7 @@ export default function Community() {
                     </button>
                   </>
                 )}
-                {isAdmin && post.moderation === 'pending' && (
+                {canModeratePosts && post.moderation === 'pending' && (
                   <>
                     <button className="com-action-btn" style={{ color: 'var(--success)' }}
                       onClick={() => moderatePost(post.id, 'approve')}>✓ 通过</button>
@@ -936,6 +1045,7 @@ export default function Community() {
                   onError={handleCommentError}
                   onOpenUser={openUser}
                   onTotalChange={updateCommentCount}
+                  onReport={commentId => openReport({ target_type: 'comment', target_id: commentId })}
                 />
               )}
             </div>
@@ -944,10 +1054,7 @@ export default function Community() {
         )
       })}
       {hasMore && (
-        <button className="com-load-more" onClick={() => {
-          if (selectedGroup) loadPosts(page + 1, { groupId: selectedGroup.id })
-          else loadPosts(page + 1, { tab: activeTab })
-        }} disabled={loading}>
+        <button className="com-load-more" onClick={loadMorePosts} disabled={loading}>
           {loading ? '加载中…' : '加载更多'}
         </button>
       )}
@@ -995,23 +1102,18 @@ export default function Community() {
             )}
           </div>
           <div className="com-notif-bell" ref={notifRef} style={{ position: 'relative', cursor: 'pointer', padding: '4px 8px' }}>
-            <span onClick={() => setShowNotifs(prev => !prev)}>
+            <button type="button" aria-label="通知" aria-expanded={showNotifs} onClick={() => setShowNotifs(prev => !prev)}
+              style={{background:'none',border:0,padding:0,cursor:'pointer'}}>
               🔔{notifCount > 0 && <span className="com-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
-            </span>
+            </button>
             {showNotifs && (
               <div className="com-notif-dropdown">
                 <div className="com-notif-header">
                   通知
-                  <span className="com-notif-readall" onClick={async () => {
-                    try {
-                      await community.readNotifications()
-                      setNotifCount(0)
-                    } catch (e) {
-                      setError(getErrorMessage(e, '通知标记失败'))
-                    }
-                  }}>标为已读</span>
+                  <button type="button" className="com-notif-readall" onClick={markNotificationsRead}>标为已读</button>
                 </div>
-                {notifList.length === 0 && <div className="com-notif-empty">暂无通知</div>}
+                {notifError && <div className="com-notif-empty">{notifError}</div>}
+                {!notifLoading && !notifError && notifList.length === 0 && <div className="com-notif-empty">暂无通知</div>}
                 {notifList.map(n => (
                   <div key={n.id} className={`com-notif-item ${!n.is_read ? 'unread' : ''}`}>
                     <span className="com-notif-actor">{n.actor_nickname}</span>
@@ -1019,10 +1121,15 @@ export default function Community() {
                     <span className="com-notif-time">{timeAgo(n.created_at)}</span>
                   </div>
                 ))}
+                {notifLoading && <div className="com-notif-empty">加载中…</div>}
+                {notifHasMore && !notifLoading && (
+                  <button type="button" className="com-load-more" onClick={() => loadNotifications(notifPage + 1)}>加载更多</button>
+                )}
               </div>
             )}
           </div>
-          <button className="com-bookmark-btn" onClick={loadBookmarks} title="收藏">⭐</button>
+	        <button className="com-bookmark-btn" onClick={() => loadBookmarks(1)} title="收藏">⭐</button>
+	        <button className="com-tab sub" onClick={() => openUser(user.id)}>我的主页</button>
 	        </div>
         {renderErrorBanner()}
 
@@ -1187,12 +1294,12 @@ export default function Community() {
 
       {/* Report Modal */}
       {showReport && (
-        <div className="com-modal-overlay" onClick={() => setShowReport(null)}>
+        <div className="com-modal-overlay" onClick={closeReport}>
           <div className="com-modal" onClick={e => e.stopPropagation()}>
             <h3 className="com-modal-title">举报</h3>
             <div className="com-modal-field">
-              <label>原因</label>
-              <select value={reportReason} onChange={e => setReportReason(e.target.value)} className="com-modal-input">
+              <label htmlFor="community-report-reason">原因</label>
+              <select id="community-report-reason" value={reportReason} onChange={e => setReportReason(e.target.value)} className="com-modal-input">
                 <option value="spam">垃圾信息</option>
                 <option value="inappropriate">不当内容</option>
                 <option value="fraud">欺诈</option>
@@ -1201,13 +1308,13 @@ export default function Community() {
               </select>
             </div>
             <div className="com-modal-field">
-              <label>详情</label>
-              <textarea value={reportDetail} onChange={e => setReportDetail(e.target.value)}
+              <label htmlFor="community-report-detail">详情</label>
+              <textarea id="community-report-detail" value={reportDetail} onChange={e => setReportDetail(e.target.value)}
                 placeholder="补充说明（可选）" rows={3} className="com-modal-input" />
             </div>
             <div className="com-modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowReport(null)}>取消</button>
-              <button className="btn btn-primary" onClick={submitReport}>提交举报</button>
+              <button className="btn btn-secondary" onClick={closeReport}>取消</button>
+              <button className="btn btn-primary" onClick={submitReport} disabled={reporting}>{reporting ? '提交中…' : '提交举报'}</button>
             </div>
           </div>
         </div>
@@ -1215,18 +1322,23 @@ export default function Community() {
 
       {/* Bookmarks Modal */}
       {showBookmarks && (
-        <div className="com-modal-overlay" onClick={() => setShowBookmarks(false)}>
+        <div className="com-modal-overlay" onClick={closeBookmarks}>
           <div className="com-modal com-modal-wide" onClick={e => e.stopPropagation()}>
             <h3 className="com-modal-title">我的收藏</h3>
-            {bookmarks.length === 0 && <div className="com-empty">暂无收藏</div>}
+            {bookmarksError && <div className="com-error">{bookmarksError}</div>}
+            {!bookmarksLoading && !bookmarksError && bookmarks.length === 0 && <div className="com-empty">暂无收藏</div>}
             {bookmarks.map(p => (
               <div key={p.id} className="com-post" style={{ boxShadow: 'none', border: '1px solid var(--border)' }}>
                 <div className="com-post-content">{renderContent(p.content)}</div>
                 <div className="com-post-time">{timeAgo(p.created_at)}</div>
               </div>
             ))}
+            {bookmarksLoading && <div className="com-empty">加载中…</div>}
+            {bookmarksHasMore && !bookmarksLoading && (
+              <button type="button" className="com-load-more" onClick={() => loadBookmarks(bookmarksPage + 1)}>加载更多</button>
+            )}
             <div className="com-modal-actions">
-              <button className="btn btn-secondary" onClick={() => setShowBookmarks(false)}>关闭</button>
+              <button className="btn btn-secondary" onClick={closeBookmarks}>关闭</button>
             </div>
           </div>
         </div>

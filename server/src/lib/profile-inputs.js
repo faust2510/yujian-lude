@@ -1,3 +1,5 @@
+import { adultCutoffDateString, platformDateParts, platformDateString } from './platform-date.js';
+
 export class ProfileInputError extends Error {
   constructor(message) {
     super(message);
@@ -9,7 +11,7 @@ export function calculateProfileCompletion(profile = {}) {
   const values = [
     profile.nickname,
     profile.city,
-    profile.birth_year,
+    profile.birth_date,
     profile.education,
     profile.goal,
     profile.preference,
@@ -23,10 +25,33 @@ export function calculateProfileCompletion(profile = {}) {
   return Math.round((filled / values.length) * 100);
 }
 
+const EARLIEST_BIRTH_DATE = '1940-01-01';
+
+export function normalizeBirthDate(value, now = new Date()) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const input = String(value).trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input);
+  if (!match || !isValidDateParts(Number(match[1]), Number(match[2]), Number(match[3]))) {
+    throw new ProfileInputError('出生日期格式不正确，请填写 YYYY-MM-DD');
+  }
+
+  const today = platformDateString(now);
+  if (input < EARLIEST_BIRTH_DATE) {
+    throw new ProfileInputError(`出生日期不能早于 ${EARLIEST_BIRTH_DATE}`);
+  }
+  if (input > today) {
+    throw new ProfileInputError('出生日期不能晚于当前日期');
+  }
+  if (input > adultCutoffDateString(now)) {
+    throw new ProfileInputError('仅限年满 18 周岁的用户参与匹配');
+  }
+  return input;
+}
+
 export function normalizeBirthYear(value, now = new Date()) {
   if (value === null || value === undefined || String(value).trim() === '') return null;
   const input = String(value).trim();
-  const maxYear = now.getUTCFullYear() - 18;
+  const maxYear = platformDateParts(now).year - 18;
   if (!/^\d{4}$/.test(input)) {
     throw new ProfileInputError(`出生年份必须是 1940 到 ${maxYear} 之间的四位整数`);
   }

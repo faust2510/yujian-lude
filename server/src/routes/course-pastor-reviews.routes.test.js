@@ -42,3 +42,11 @@ test('each pastor node is requested and approved independently', () => {
   assert.match(source, /is_pastor_node\s*=\s*TRUE/i);
   assert.doesNotMatch(source, /pastor_confirmed\s*=\s*\$3[\s\S]{0,180}\[review\.user_id, review\.course_id, pastorNodes\]/);
 });
+
+test('course routes enforce the midterm approval gate and fail closed for missing configured textbook bindings', () => {
+  assert.match(source, /getCourseRequiredTextbookBindingIssue/);
+  assert.match(source, /期中牧者确认通过后才能继续第 6 至 10 单元/);
+  assert.match(source, /第 5 单元完成后可申请期中牧者确认/);
+  assert.match(source, /第 10 单元完成并通过结课考试后才能申请结业牧者确认/);
+  assert.match(source, /COURSE_TEXTBOOK_BINDING_MISSING/);
+});

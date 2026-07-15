@@ -3,6 +3,14 @@ import { query, one } from '../db.js';
 import { requireAuth } from '../auth.js';
 
 const router = Router();
+const CHAT_MESSAGE_MAX_LENGTH = 2000;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateChannelId(req, res) {
+  if (UUID_RE.test(req.params.id)) return true;
+  res.status(400).json({ error: '聊天通道 ID 格式不正确' });
+  return false;
+}
 
 // 我的所有私聊通道
 router.get('/chat/channels', requireAuth, async (req, res) => {
@@ -31,6 +39,7 @@ router.get('/chat/channels', requireAuth, async (req, res) => {
 
 // 某个通道的消息
 router.get('/chat/channels/:id/messages', requireAuth, async (req, res) => {
+  if (!validateChannelId(req, res)) return;
   const ch = await one(
     `SELECT * FROM chat_channels WHERE id=$1 AND (user_a=$2 OR user_b=$2)`,
     [req.params.id, req.user.id]
@@ -48,15 +57,20 @@ router.get('/chat/channels/:id/messages', requireAuth, async (req, res) => {
 
 // 发送消息
 router.post('/chat/channels/:id/messages', requireAuth, async (req, res) => {
-  const text = req.body.body ?? req.body.text;
-  if (!text?.trim()) return res.status(400).json({ error: '内容不能为空' });
+  if (!validateChannelId(req, res)) return;
+  const text = req.body?.body ?? req.body?.text;
+  if (typeof text !== 'string' || !text.trim()) return res.status(400).json({ error: '内容不能为空' });
+  const normalizedText = text.trim();
+  if (normalizedText.length > CHAT_MESSAGE_MAX_LENGTH) {
+    return res.status(400).json({ error: `消息不能超过 ${CHAT_MESSAGE_MAX_LENGTH} 个字符` });
+  }
   const msg = await one(
     `INSERT INTO chat_messages (channel_id, sender_id, body)
      SELECT id, $2, $3
        FROM chat_channels
       WHERE id = $1 AND (user_a = $2 OR user_b = $2)
      RETURNING id, sender_id, body, created_at`,
-    [req.params.id, req.user.id, text.trim()]
+    [req.params.id, req.user.id, normalizedText]
   );
   if (!msg) return res.status(403).json({ error: '无权访问' });
   res.json({ message: msg });

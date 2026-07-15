@@ -26,7 +26,7 @@ test('matching eligibility blockers render before secondary points and course in
 
 test('check-in keeps explicit pending, busy, and completed states', () => {
   assert.match(dashboardSource, /data-checkin-status=\{checkedIn \? 'complete' : 'pending'\}/)
-  assert.match(dashboardSource, /disabled=\{checkedIn \|\| checkinBusy\}/)
+  assert.match(dashboardSource, /disabled=\{pointsLoading \|\| checkedIn \|\| checkinBusy\}/)
   assert.match(dashboardSource, /checkinBusy \? '签到中…' : checkedIn \? '已签到'/)
 })
 
@@ -36,4 +36,10 @@ test('dashboard layout can shrink without horizontal overflow on mobile', () => 
   assert.match(dashboardCss, /\.dashboard-next-action\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto/s)
   assert.match(dashboardCss, /@media\s*\(max-width:\s*768px\)[\s\S]*\.dashboard-next-action\s*\{[^}]*grid-template-columns:\s*1fr/s)
   assert.match(dashboardCss, /@media\s*\(max-width:\s*768px\)[\s\S]*\.dashboard-next-action\s+\.btn\s*\{[^}]*width:\s*100%/s)
+  assert.match(dashboardCss, /@media\s*\(max-width:\s*768px\)[\s\S]*\.dashboard-next-action\s+\.btn\s*\{[^}]*white-space:\s*normal/s)
+})
+
+test('dashboard uses a compact local command instead of the server explanation as button text', () => {
+  assert.match(dashboardSource, /action:\s*nextStep\?\.action\s*\|\|\s*serverStep\?\.action/)
+  assert.doesNotMatch(dashboardSource, /action:\s*serverNext\?\.label/)
 })

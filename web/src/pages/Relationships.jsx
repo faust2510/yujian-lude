@@ -207,7 +207,7 @@ function RelationshipCard({ rel, user, busy, onConfirm, onEnd }) {
             {busy === `confirm-${rel.id}` ? '提交中…' : '确认进入关系流程'}
           </button>
         )}
-        {!['confirmed', 'ended'].includes(rel.state) && (
+        {rel.state !== 'ended' && (
           <button className="btn btn-outline" disabled={busy === `end-${rel.id}`} onClick={() => onEnd(rel.id)}>
             结束关系
           </button>

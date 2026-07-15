@@ -47,6 +47,18 @@ test('deep course pastor nodes are requested and displayed independently', () =>
   assert.match(pastorSource, /item\.unit_title/)
 })
 
+test('course UI explains the midterm gate and only exposes each pastor request when the server state permits it', () => {
+  assert.match(source, /第 5 单元完成后可申请期中牧者确认/)
+  assert.match(source, /期中牧者确认通过后才能继续第 6 至 10 单元/)
+  assert.match(source, /第 10 单元完成并通过结课考试后才能申请结业牧者确认/)
+  assert.match(source, /reviewEligibility/)
+})
+
+test('legacy in-progress learners at unit five can see the midterm review application area', () => {
+  assert.match(source, /const showPastorReview = progress\?\.state === 'pastor_review' \|\| reviewEligibility\.get\(midtermUnit\?\.id\) === true/)
+  assert.match(source, /\{showPastorReview && \(/)
+})
+
 test('course summary ignores superseded rejected pastor reviews', () => {
   const statusFunction = source.match(/function statusText\(progress, latestExam\) \{[\s\S]*?\n\}/)?.[0]
   assert.ok(statusFunction, 'statusText should remain directly testable')

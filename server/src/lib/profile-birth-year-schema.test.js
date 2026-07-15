@@ -22,19 +22,29 @@ function readOptional(relativePath) {
 }
 
 const schema = read('db/schema.sql');
-const migration = readOptional('db/migrations/0022_harden_profile_birth_year.sql');
+const migration = readOptional('db/migrations/0025_add_profile_birth_date.sql');
 
-test('fresh schema rejects non-adult profile birth years', () => {
+test('fresh schema stores birth_date and constrains it to adult, non-future dates', () => {
   assert.match(
     schema,
-    /CONSTRAINT\s+profiles_birth_year_adult_check\s+CHECK\s*\([^;]*birth_year[^;]*1940[^;]*CURRENT_DATE/is
+    /birth_date\s+DATE/i
   );
+  assert.match(
+    schema,
+    /CONSTRAINT\s+profiles_birth_date_adult_check\s+CHECK\s*\([^;]*birth_date[^;]*1940[^;]*18 years/is
+  );
+  assert.match(schema, /AT TIME ZONE 'Asia\/Shanghai'/i);
+  assert.doesNotMatch(schema, /profiles_birth_date_adult_check[^;]*AT TIME ZONE 'UTC'/i);
 });
 
-test('incremental migration cleans legacy years and adds the adult constraint', () => {
-  assert.match(migration, /UPDATE\s+profiles[\s\S]*birth_year\s*=\s*NULL/i);
+test('incremental migration preserves legacy birth years while requiring birth_date completion', () => {
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS birth_date DATE/i);
   assert.match(migration, /completion\s*=\s*LEAST\(completion,\s*88\)/i);
-  assert.match(migration, /ADD\s+CONSTRAINT\s+profiles_birth_year_adult_check[\s\S]*1940[\s\S]*CURRENT_DATE/i);
+  assert.doesNotMatch(migration, /SET\s+birth_date\s*=/i);
+  assert.match(migration, /DROP CONSTRAINT IF EXISTS profiles_birth_year_adult_check/i);
+  assert.match(migration, /ADD\s+CONSTRAINT\s+profiles_birth_date_adult_check[\s\S]*1940[\s\S]*18 years/i);
+  assert.match(migration, /AT TIME ZONE 'Asia\/Shanghai'/i);
+  assert.doesNotMatch(migration, /profiles_birth_date_adult_check[^;]*AT TIME ZONE 'UTC'/i);
 });
 
 function connectionUrlWithDatabase(databaseUrl, databaseName) {
@@ -47,7 +57,7 @@ function quoteIdentifier(value) {
   return `"${String(value).replace(/"/g, '""')}"`;
 }
 
-test('PostgreSQL migration cleans invalid legacy years and enforces future writes', {
+test('PostgreSQL migration preserves legacy birth years, leaves birth date empty, and enforces date writes', {
   skip: !TEST_DATABASE_URL,
   timeout: 30_000,
 }, async () => {
@@ -61,7 +71,8 @@ test('PostgreSQL migration cleans invalid legacy years and enforces future write
     await adminPool.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
     databasePool = new Pool({ connectionString: databaseUrl });
     await databasePool.query(schema);
-    await databasePool.query('ALTER TABLE profiles DROP CONSTRAINT profiles_birth_year_adult_check');
+    await databasePool.query('ALTER TABLE profiles DROP CONSTRAINT profiles_birth_date_adult_check');
+    await databasePool.query('ALTER TABLE profiles DROP COLUMN birth_date');
     const userId = randomUUID();
     await databasePool.query(
       `INSERT INTO users (id, email, password_hash) VALUES ($1, $2, 'test')`,
@@ -69,27 +80,27 @@ test('PostgreSQL migration cleans invalid legacy years and enforces future write
     );
     await databasePool.query(
       `INSERT INTO profiles (user_id, birth_year, privacy_ok, completion)
-       VALUES ($1, EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER, TRUE, 100)`,
+       VALUES ($1, 1990, TRUE, 100)`,
       [userId]
     );
 
     await databasePool.query(migration);
     const cleaned = await databasePool.query(
-      'SELECT birth_year, completion FROM profiles WHERE user_id = $1',
+      'SELECT birth_year, birth_date, completion FROM profiles WHERE user_id = $1',
       [userId]
     );
-    assert.deepEqual(cleaned.rows[0], { birth_year: null, completion: 88 });
+    assert.deepEqual(cleaned.rows[0], { birth_year: 1990, birth_date: null, completion: 88 });
 
     await assert.rejects(
       databasePool.query(
         `UPDATE profiles
-            SET birth_year = EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER
+            SET birth_date = (now() AT TIME ZONE 'Asia/Shanghai')::date
           WHERE user_id = $1`,
         [userId]
       ),
       (error) => error?.code === '23514'
     );
-    await databasePool.query('UPDATE profiles SET birth_year = 1990 WHERE user_id = $1', [userId]);
+    await databasePool.query("UPDATE profiles SET birth_date = DATE '1990-01-01' WHERE user_id = $1", [userId]);
   } finally {
     if (databasePool) await databasePool.end();
     await adminPool.query(

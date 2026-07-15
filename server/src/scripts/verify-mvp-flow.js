@@ -84,14 +84,17 @@ async function verifyDailyCheckin(client) {
 }
 
 async function makeAdmin(userId) {
-  await pool.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [userId]);
+  await pool.query(
+    `UPDATE users SET role = 'admin', email_verified = TRUE WHERE id = $1`,
+    [userId],
+  );
 }
 
 async function completeProfile(client, index) {
   const profile = await client.put('/me/profile', {
     nickname: `路得测试${index}`,
     city: index === 1 ? '杭州' : index === 2 ? '上海' : '南京',
-    birth_year: 1990 + index,
+    birth_date: `199${index}-01-15`,
     education: index === 3 ? '博士' : '硕士',
     goal: 'serious',
     preference: '认真预备婚姻，愿意在教会群体中被认识和陪伴。',
@@ -143,6 +146,7 @@ async function completeCourse(client, {
   expectedPassThreshold,
   expectedState,
   isMatchGateCourse,
+  afterUnit,
 }) {
   const list = await client.get('/courses');
   const course = list.courses.find((item) => item.slug === slug);
@@ -175,6 +179,7 @@ async function completeCourse(client, {
     await client.post(`/courses/${course.slug}/units/${unit.unit_index}/submit`, {
       readConfirmed: true,
     });
+    if (afterUnit) await afterUnit({ course, unit });
   }
   const exam = await client.get(`/courses/${course.slug}/exam`);
   assert(exam.questions?.length === expectedQuestions, `${label} expected ${expectedQuestions} exam questions, got ${exam.questions?.length || 0}`);
@@ -201,6 +206,7 @@ async function completeLightCourse(client) {
 }
 
 async function completeDeepMarriageCourse(client, reviewer, endorsementId) {
+  let midtermReviewId = null;
   await completeCourse(client, {
     slug: 'keller-meaning-of-marriage',
     label: 'deep marriage course',
@@ -209,23 +215,37 @@ async function completeDeepMarriageCourse(client, reviewer, endorsementId) {
     expectedPassThreshold: 8,
     expectedState: 'pastor_review',
     isMatchGateCourse: false,
+    afterUnit: async ({ unit }) => {
+      if (!unit.is_pastor_node || Number(unit.unit_index) !== 5) return;
+      const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+        unit_id: unit.id,
+        endorsement_id: endorsementId,
+        note: '请核对第 5 单元期中反思记录。',
+      });
+      midtermReviewId = request.pastorReview?.id;
+      assert(midtermReviewId, 'deep marriage course should create its midterm review request');
+      const pending = await reviewer.get('/course-pastor-reviews');
+      assert(pending.reviews?.some((item) => item.id === midtermReviewId), 'pastor review queue should include the midterm request');
+      const reviewed = await reviewer.patch(`/course-pastor-reviews/${midtermReviewId}`, { action: 'approve' });
+      assert(reviewed.courseState !== 'completed', 'midterm approval must not complete the deep course');
+    },
   });
   const beforeReview = await client.get('/courses/keller-meaning-of-marriage');
   const pastorNodes = beforeReview.units?.filter((unit) => unit.is_pastor_node) || [];
   assert(pastorNodes.length === 2, `deep marriage course expected 2 pastor nodes, got ${pastorNodes.length}`);
-  for (const [index, node] of pastorNodes.entries()) {
-    const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
-      unit_id: node.id,
-      endorsement_id: endorsementId,
-      note: `请核对第 ${node.unit_index} 单元与课程反思记录。`,
-    });
-    assert(request.pastorReview?.id, 'deep marriage course should create a pastor review request');
-    const pending = await reviewer.get('/course-pastor-reviews');
-    assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the request');
-    const reviewed = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, { action: 'approve' });
-    const expected = index === pastorNodes.length - 1 ? 'completed' : 'pastor_review';
-    assert(reviewed.courseState === expected, `pastor node ${node.unit_index} expected ${expected}, got ${reviewed.courseState}`);
-  }
+  assert(beforeReview.progress?.pastor_reviews?.some((review) => review.id === midtermReviewId && review.state === 'approved'), 'course detail should expose the approved midterm node');
+  const finalNode = pastorNodes.find((node) => Number(node.unit_index) === 10);
+  assert(finalNode, 'deep marriage course should expose its final pastor node');
+  const request = await client.post('/courses/keller-meaning-of-marriage/pastor-review', {
+    unit_id: finalNode.id,
+    endorsement_id: endorsementId,
+    note: '请核对第 10 单元结业反思记录。',
+  });
+  assert(request.pastorReview?.id, 'deep marriage course should create its final review request');
+  const pending = await reviewer.get('/course-pastor-reviews');
+  assert(pending.reviews?.some((item) => item.id === request.pastorReview.id), 'pastor review queue should include the final request');
+  const reviewed = await reviewer.patch(`/course-pastor-reviews/${request.pastorReview.id}`, { action: 'approve' });
+  assert(reviewed.courseState === 'completed', `final pastor node expected completed, got ${reviewed.courseState}`);
   const detail = await client.get('/courses/keller-meaning-of-marriage');
   assert(detail.progress?.state === 'completed', 'deep marriage course should be completed after both pastor approvals');
   assert(detail.progress?.pastor_reviews?.filter((review) => review.state === 'approved').length === 2, 'course detail should expose both approved pastor nodes');

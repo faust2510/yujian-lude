@@ -60,6 +60,14 @@ test('release verification imports and diagnoses the authorized marriage textboo
   assert.ok(source.indexOf('import:textbook') < source.indexOf("fresh DB schema 诊断"));
 });
 
+test('release verification rejects public downloads of sensitive repository paths', () => {
+  assert.match(source, /assertSensitivePathsAreNotPublic/);
+  assert.match(source, /server\/package\.json/);
+  assert.match(source, /server\/db\/schema\.sql/);
+  assert.match(source, /ops\/deploy-runbook\.md/);
+  assert.match(source, /backups\/release-verify\.dump/);
+});
+
 test('extracts verification and reset links from quoted-printable SMTP bodies', () => {
   assert.ifError(authEmailAcceptanceLoadError);
   const { extractAccountLink } = authEmailAcceptance;

@@ -9,7 +9,7 @@ const GATE_STEPS = [
     actionKey: 'profile',
     key: 'profileComplete',
     label: '完善个人资料',
-    desc: '填写城市、出生年份、学历、婚恋目标和自我介绍，并同意匿名匹配。',
+    desc: '填写城市、出生日期、学历、婚恋目标和自我介绍，并同意匿名匹配。',
     to: '/profile',
     action: '去完善资料',
   },
@@ -17,7 +17,7 @@ const GATE_STEPS = [
     actionKey: 'faithProfile',
     key: 'faithProfileComplete',
     label: '补全信仰档案',
-    desc: '填写教会、区会、受洗时间、信主年数和简短见证。',
+    desc: '填写教会、区会、地区、宗派、受洗时间、信主年数和简短见证。',
     to: '/profile',
     action: '去填信仰档案',
   },
@@ -124,7 +124,14 @@ export default function Dashboard() {
     ? GATE_STEPS.find(step => step.actionKey === serverNext.key)
     : null
   const primaryNext = qualification
-    ? qualification.inPool
+    ? qualification.relationshipBlocked
+      ? {
+          label: '关系进行中',
+          desc: '你已有一段正在推进的关系。为保护双方，关系结束前不会再进入匹配池。',
+          to: '/relationships',
+          action: '查看关系',
+        }
+      : qualification.inPool
       ? {
           label: '开始匿名匹配',
           desc: '你已满足匹配资格，可以进入匹配池查看新机会。',
@@ -135,7 +142,7 @@ export default function Dashboard() {
           ...(nextStep || serverStep),
           label: serverNext?.label || nextStep?.label,
           to: serverNext?.to || nextStep?.to,
-          action: serverNext?.label || nextStep?.action,
+          action: nextStep?.action || serverStep?.action || '继续',
           desc: nextStep?.desc || serverStep?.desc || '完成这个步骤后，系统会继续提示下一项入池任务。',
         }
     : null
@@ -155,7 +162,7 @@ export default function Dashboard() {
           </div>
           {!qualificationLoading && qualification && (
             <span className={`badge ${qualification.inPool ? 'badge-green' : 'badge-yellow'}`}>
-              {qualification.inPool ? '已入池' : `${gateDone}/${GATE_STEPS.length} 已完成`}
+              {qualification.relationshipBlocked ? '关系进行中' : qualification.inPool ? '已入池' : `${gateDone}/${GATE_STEPS.length} 已完成`}
             </span>
           )}
         </div>
@@ -174,7 +181,7 @@ export default function Dashboard() {
             <div className="dashboard-next-copy">
               <strong>{primaryNext.label}</strong>
               <p>{primaryNext.desc}</p>
-              {!qualification.inPool && (
+              {!qualification.inPool && !qualification.relationshipBlocked && (
                 <span className="dashboard-progress">入池进度：{gateDone}/{GATE_STEPS.length}</span>
               )}
             </div>
@@ -219,7 +226,7 @@ export default function Dashboard() {
             <div className="dashboard-daily-points">
               今日积分：<strong>{pointsLoading ? '…' : (pts?.daily ?? 0)}</strong>
             </div>
-            <button className="btn btn-primary" onClick={doCheckin} disabled={checkedIn || checkinBusy}>
+            <button className="btn btn-primary" onClick={doCheckin} disabled={pointsLoading || checkedIn || checkinBusy}>
               {checkinBusy ? '签到中…' : checkedIn ? '已签到' : checkinAmount ? `签到 +${checkinAmount}` : '签到'}
             </button>
             {msg && <div className={msgType === 'error' ? 'error-msg' : 'success-msg'}>{msg}</div>}

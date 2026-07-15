@@ -136,6 +136,34 @@ export async function markChapterRead(db, { slug, chapterIndex, userId }) {
   return { ok: true };
 }
 
+const REQUIRED_COURSE_TEXTBOOKS = {
+  'keller-meaning-of-marriage': {
+    slug: 'meaning-of-marriage',
+    title: '《婚姻的意义》',
+  },
+};
+
+export async function getCourseRequiredTextbookBindingIssue(db, { courseSlug, unitId }) {
+  const expected = REQUIRED_COURSE_TEXTBOOKS[courseSlug];
+  if (!expected) return null;
+
+  const { rows } = await db.query(
+    `SELECT count(*) FILTER (WHERE cur.required AND textbook.slug = $2)::int AS expected_required_bindings
+       FROM course_unit_readings cur
+       JOIN textbook_chapters chapter ON chapter.id = cur.chapter_id
+       JOIN textbooks textbook ON textbook.id = chapter.textbook_id
+      WHERE cur.course_unit_id = $1`,
+    [unitId, expected.slug]
+  );
+  if ((rows[0]?.expected_required_bindings ?? 0) > 0) return null;
+
+  return {
+    textbookSlug: expected.slug,
+    textbookTitle: expected.title,
+    error: `课程必读教材绑定缺失：请联系管理员重新导入并绑定${expected.title}后再继续学习`,
+  };
+}
+
 export async function readingsForCourseUnits(db, { courseId, userId }) {
   const { rows } = await db.query(
     `SELECT cur.course_unit_id,

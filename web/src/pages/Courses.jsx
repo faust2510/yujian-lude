@@ -287,12 +287,26 @@ function CoursePanel({ course, detail, submitting, examState, reviewForm, onMark
     return byUnit
   }, [progress?.pastor_reviews])
   const pastorUnits = units.filter(unit => unit.is_pastor_node)
+  const midtermUnit = pastorUnits[0]
+  const midtermApproved = midtermUnit ? reviewsByUnit.get(midtermUnit.id)?.state === 'approved' : true
   const reviewOptions = detail?.review_options || []
   const selectedEndorsementId = reviewForm.endorsementId || pastorReview?.endorsement_id || ''
   const done = progress?.units_done || 0
   const total = units.length || 1
   const pct = Math.round((done / total) * 100)
   const examUnlocked = units.length > 0 && done >= units.length
+  const reviewEligibility = useMemo(() => new Map(pastorUnits.map((unit, index) => [
+    unit.id,
+    index === 0
+      ? done >= unit.unit_index && !midtermApproved
+      : done >= total && midtermApproved && latestExam?.passed === true,
+  ])), [done, latestExam?.passed, midtermApproved, pastorUnits, total])
+  const showPastorReview = progress?.state === 'pastor_review' || reviewEligibility.get(midtermUnit?.id) === true
+  const courseStatus = showPastorReview && !midtermApproved
+    ? '待期中牧者确认'
+    : progress?.state === 'pastor_review' && latestExam?.passed !== true
+      ? '待结课考试'
+      : statusText(progress, latestExam)
   const answered = Object.keys(examState.answers || {}).length
   const examTotal = examState.questions?.length || 0
 
@@ -305,7 +319,7 @@ function CoursePanel({ course, detail, submitting, examState, reviewForm, onMark
             <p style={{fontSize:13,color:'var(--legacy-muted)',marginTop:4}}>{course.description}</p>
           </div>
           <span className={`badge ${progress?.state === 'completed' ? 'badge-green' : 'badge-yellow'}`} style={{whiteSpace:'nowrap',flex:'0 0 auto'}}>
-            {statusText(progress, latestExam)}
+            {courseStatus}
           </span>
         </div>
         <div style={{background:'var(--border)',borderRadius:4,height:6,marginTop:12,marginBottom:8}}>
@@ -324,6 +338,7 @@ function CoursePanel({ course, detail, submitting, examState, reviewForm, onMark
           const requiredReadings = u.readings?.filter(item => item.required) || []
           const missingRequiredReadings = requiredReadings.filter(item => !item.completed)
           const blockedByReadings = missingRequiredReadings.length > 0
+          const blockedByMidterm = Boolean(midtermUnit && u.unit_index > midtermUnit.unit_index && !midtermApproved)
           return (
             <details key={u.id} style={{border:'1px solid var(--border)',borderRadius:8,background:read ? '#F0FAF4' : 'var(--bg)',padding:12}}>
               <summary style={{cursor:'pointer',listStyle:'none'}}>
@@ -343,9 +358,12 @@ function CoursePanel({ course, detail, submitting, examState, reviewForm, onMark
               {blockedByReadings && (
                 <div className="error-msg">请先读完本单元绑定教材章节</div>
               )}
+              {blockedByMidterm && (
+                <div className="error-msg">期中牧者确认通过后才能继续第 6 至 10 单元</div>
+              )}
               <CourseMaterial material={u.material} />
               <button className="btn btn-outline" style={{fontSize:12,padding:'6px 12px',marginTop:12}}
-                disabled={read || blockedByReadings || !!submitting[key]}
+                disabled={read || blockedByReadings || blockedByMidterm || !!submitting[key]}
                 onClick={() => onMarkRead(u.unit_index, course.slug)}>
                 {read ? '已阅读' : submitting[key] ? '保存中…' : '我已阅读本单元'}
               </button>
@@ -413,11 +431,11 @@ function CoursePanel({ course, detail, submitting, examState, reviewForm, onMark
           )}
         </div>
 
-        {progress?.state === 'pastor_review' && (
+        {showPastorReview && (
           <div style={{border:'1px solid var(--border)',borderRadius:8,padding:14,background:'var(--bg)'}}>
             <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>引荐确认</div>
             <p style={{fontSize:13,color:'var(--legacy-muted)',lineHeight:1.6,marginBottom:12}}>
-              你的结课考试已经通过。请选择一位已审核的牧者或引荐人确认课程关键节点；若对方尚未绑定平台账号，将由管理员核验。
+              第 5 单元完成后可申请期中牧者确认。期中确认通过后才能继续第 6 至 10 单元；第 10 单元完成并通过结课考试后才能申请结业牧者确认。
             </p>
             {reviewOptions.length > 0 ? (
               <div style={{display:'grid',gap:10}}>
@@ -449,10 +467,11 @@ function CoursePanel({ course, detail, submitting, examState, reviewForm, onMark
                 </label>
                 {pastorUnits.map(unit => {
                   const review = reviewsByUnit.get(unit.id)
+                  const eligible = reviewEligibility.get(unit.id) === true
                   const requestKey = `${course.slug}-pastor-review-${unit.id}`
                   return (
                     <div key={unit.id} style={{borderTop:'1px solid var(--border)',paddingTop:10}}>
-                      <div style={{fontWeight:600,fontSize:14}}>第 {unit.unit_index} 单元 · {unit.title}</div>
+                      <div style={{fontWeight:600,fontSize:14}}>{unit === midtermUnit ? '期中牧者确认' : '结业牧者确认'} · 第 {unit.unit_index} 单元 · {unit.title}</div>
                       {review?.state === 'approved' && <div className="success-msg">该节点已确认</div>}
                       {review?.state === 'pending' && (
                         <div style={{marginTop:8}}>
@@ -464,14 +483,22 @@ function CoursePanel({ course, detail, submitting, examState, reviewForm, onMark
                         <div className="error-msg">确认人反馈：{review.review_note}</div>
                       )}
                       {review?.state !== 'approved' && review?.state !== 'pending' && (
-                        <button
-                          className="btn btn-primary"
-                          style={{marginTop:8}}
-                          disabled={!selectedEndorsementId || !!submitting[requestKey]}
-                          onClick={() => onRequestPastorReview(course.slug, unit.id, selectedEndorsementId, reviewForm.note || '')}
-                        >
-                          {submitting[requestKey] ? '提交中…' : '申请该节点确认'}
-                        </button>
+                        eligible ? (
+                          <button
+                            className="btn btn-primary"
+                            style={{marginTop:8}}
+                            disabled={!selectedEndorsementId || !!submitting[requestKey]}
+                            onClick={() => onRequestPastorReview(course.slug, unit.id, selectedEndorsementId, reviewForm.note || '')}
+                          >
+                            {submitting[requestKey] ? '提交中…' : '申请该节点确认'}
+                          </button>
+                        ) : (
+                          <div style={{fontSize:13,color:'var(--legacy-muted)',marginTop:8}}>
+                            {unit === midtermUnit
+                              ? '第 5 单元完成后可申请期中牧者确认'
+                              : '第 10 单元完成并通过结课考试后才能申请结业牧者确认'}
+                          </div>
+                        )
                       )}
                     </div>
                   )

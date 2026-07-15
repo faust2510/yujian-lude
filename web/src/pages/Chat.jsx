@@ -229,7 +229,7 @@ export default function Chat() {
               padding: '12px 20px', borderTop: '1px solid var(--border)',
               background: 'var(--surface)', display: 'flex', gap: 10, alignItems: 'center'
             }}>
-              <input value={text} onChange={e => setText(e.target.value)}
+              <input value={text} onChange={e => setText(e.target.value)} maxLength={2000}
                 onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}
                 placeholder="输入消息…"
                 style={{

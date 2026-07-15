@@ -2,8 +2,8 @@
 import { Router } from 'express';
 import { query, one, tx } from '../db.js';
 import { requireAuth, requireRole } from '../auth.js';
-import { loadSettings, setSetting, settingsToAdminRows, validateSettingUpdate } from '../settings.js';
-import { awardPoints, grantVipDays, recomputeExposure } from '../lib/rewards.js';
+import { invalidateSettings, loadSettings, setSetting, settingsToAdminRows, validateSettingUpdate } from '../settings.js';
+import { awardPoints, grantVipTierDays, recomputeAllExposure, recomputeExposure } from '../lib/rewards.js';
 import { buildEndorsementReviewPatch, canReviewEndorsement, validateEndorsementDecision } from '../lib/endorsement-review.js';
 import { isAllowedAdminRole, isAssignableAdminRole, validateAdminActorStatus, validateAdminUserAction, writeAdminAudit } from '../lib/admin-audit.js';
 import { normalizeVipSubscriptionReview } from '../lib/vip-subscription.js';
@@ -13,6 +13,7 @@ const router = Router();
 router.use(requireAuth, requireRole('admin'));
 
 const ADMIN_USER_OP_LOCK_KEY = 871406252;
+const EXPOSURE_SETTING_KEYS = new Set(['exposure.base', 'exposure.endorsement_bonus', 'course.exposure_multiplier']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const INTEGER_SETTING_FIELDS = new Map([
   ['points.daily_checkin', ['amount']],
@@ -64,14 +65,27 @@ router.put('/settings/:key', async (req, res) => {
   const integerError = getAdminIntegerSettingError(req.params.key, validation.value);
   if (integerError) return res.status(400).json({ error: integerError });
   try {
-    await setSetting(req.params.key, validation.value, req.user.id);
-    await writeAdminAudit(query, {
-      actorId: req.user.id,
-      action: 'settings.update',
-      targetType: 'setting',
-      targetId: null,
-      detail: { key: req.params.key },
+    await tx(async (db) => {
+      if (EXPOSURE_SETTING_KEYS.has(req.params.key)) {
+        await db.query('SELECT pg_advisory_xact_lock($1)', [ADMIN_USER_OP_LOCK_KEY]);
+      }
+      const actor = await db.query(
+        'SELECT id, role, is_banned FROM users WHERE id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      const actorError = validateAdminActorStatus(actor.rows[0]);
+      if (actorError) throw routeError(403, actorError);
+      await setSetting(req.params.key, validation.value, req.user.id, db);
+      if (EXPOSURE_SETTING_KEYS.has(req.params.key)) await recomputeAllExposure(db);
+      await writeAdminAudit(db, {
+        actorId: req.user.id,
+        action: 'settings.update',
+        targetType: 'setting',
+        targetId: null,
+        detail: { key: req.params.key },
+      });
     });
+    invalidateSettings();
   } catch (err) {
     return sendRouteError(res, err);
   }
@@ -123,10 +137,11 @@ router.post('/users/:id/points', async (req, res) => {
     const result = await adjustAdminPoints(tx, {
       actorId: req.user.id,
       targetUserId: req.params.id,
+      operationId: req.body?.operation_id,
       amount: req.body?.amount,
       reason: req.body?.reason,
     });
-    return res.json({ ok: true, balance: result.balance });
+    return res.json({ ok: true, balance: result.balance, idempotent: result.idempotent });
   } catch (err) {
     return sendRouteError(res, err);
   }
@@ -270,7 +285,7 @@ router.patch('/vip-subscriptions/:id', async (req, res) => {
 
       let activatedUntil = null;
       if (normalized.value.state === 'approved') {
-        activatedUntil = await grantVipDays(db, subscription.user_id, subscription.duration_days);
+        activatedUntil = await grantVipTierDays(db, subscription.user_id, subscription.tier, subscription.duration_days);
         if (!activatedUntil) throw routeError(404, '申请用户不存在');
       }
 
@@ -305,6 +320,7 @@ router.patch('/vip-subscriptions/:id', async (req, res) => {
           amount_minor: subscription.amount_minor,
           currency: subscription.currency,
           duration_days: subscription.duration_days,
+          tier: subscription.tier,
           activated_until: activatedUntil,
         },
       });

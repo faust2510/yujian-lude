@@ -10,10 +10,12 @@ import {
 } from '../lib/relationship-flow.js';
 
 const router = Router();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 router.post('/relationships/initiate', requireAuth, async (req, res) => {
   const { partner_id } = req.body;
   if (!partner_id) return res.status(400).json({ error: '缺少 partner_id' });
+  if (!UUID_RE.test(partner_id)) return res.status(400).json({ error: '目标用户不存在' });
   if (partner_id === req.user.id) return res.status(400).json({ error: '不能与自己发起关系' });
 
   const target = await one('SELECT id FROM users WHERE id = $1', [partner_id]);
@@ -75,7 +77,7 @@ router.post('/relationships/initiate', requireAuth, async (req, res) => {
     if (concurrent) return res.json({ ok: true, relationship: concurrent });
     return res.status(409).json({ error: '关系发起状态已变化，请重试' });
   } catch (e) {
-    if (e.code === '23505') return res.status(409).json({ error: '关系已存在' });
+    if (e.code === '23505') return res.status(409).json({ error: '你或对方已有进行中的关系' });
     throw e;
   }
 });
@@ -86,6 +88,7 @@ async function requirePassedLightCourse(userId, findOne = one) {
 }
 
 async function handleRelationshipConfirmationRequest(req, res) {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: '关系不存在' });
   const result = await tx(async (db) => {
     const relationshipResult = await db.query(
       `SELECT *
@@ -208,6 +211,7 @@ router.get('/relationship-reviews', requireAuth, async (req, res) => {
 });
 
 router.post('/relationships/:id/pastor-approve', requireAuth, async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: '关系不存在' });
   const side = req.body?.side;
   const rel = await one(
     `SELECT * FROM relationships WHERE id = $1 AND state NOT IN ('confirmed','ended')`,
@@ -312,11 +316,31 @@ router.post('/relationships/:id/pastor-approve', requireAuth, async (req, res) =
             ELSE pastor_b_approved = FALSE AND pastor_a_approved_by IS DISTINCT FROM $3
           END
           AND EXISTS (
-            SELECT 1 FROM endorsements eligible
+            SELECT 1
+              FROM endorsements eligible
+              JOIN users reviewer ON reviewer.id = $3
              WHERE eligible.id = $4
                AND eligible.user_id = CASE WHEN $2::text = 'user_a' THEN relationships.user_a ELSE relationships.user_b END
                AND eligible.state = 'verified'
-               AND ($5::boolean OR eligible.endorser_user_id = $3)
+               AND reviewer.email_verified = TRUE
+               AND reviewer.is_banned = FALSE
+               AND (
+                 reviewer.role = 'admin'
+                 OR (
+                   eligible.endorser_user_id = reviewer.id
+                   AND (
+                     eligible.kind = 'referrer'
+                     OR (
+                       eligible.kind = 'pastor'
+                       AND reviewer.role = 'pastor'
+                       AND EXISTS (
+                         SELECT 1 FROM pastor_certifications cert
+                          WHERE cert.user_id = reviewer.id AND cert.state = 'approved'
+                       )
+                     )
+                   )
+                 )
+               )
           )
         RETURNING *
      ), audited AS (
@@ -326,7 +350,7 @@ router.post('/relationships/:id/pastor-approve', requireAuth, async (req, res) =
          FROM updated
      )
      SELECT * FROM updated`,
-    [rel.id, side, req.user.id, endorsement.id, isAdmin]
+    [rel.id, side, req.user.id, endorsement.id]
   );
   if (!updated) return res.status(409).json({ error: '关系审核状态已变化，请刷新后重试' });
   res.json({ ok: true, relationship: updated });
@@ -348,6 +372,7 @@ router.get('/relationships/mine', requireAuth, async (req, res) => {
 });
 
 router.delete('/relationships/:id', requireAuth, async (req, res) => {
+  if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: '关系不存在' });
   const rel = await one(
     `SELECT * FROM relationships WHERE id = $1 AND state <> 'ended'`,
     [req.params.id]

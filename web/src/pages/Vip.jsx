@@ -18,6 +18,7 @@ export default function Vip() {
   const [submitting, setSubmitting] = useState(false)
   const [paymentReference, setPaymentReference] = useState('')
   const [applicantNote, setApplicantNote] = useState('')
+  const [selectedTier, setSelectedTier] = useState('basic')
 
   useEffect(() => {
     Promise.allSettled([vipApi.plans(), points.balance(), vipApi.subscriptions()]).then(([plansResult, pointsResult, subscriptionsResult]) => {
@@ -56,7 +57,7 @@ export default function Vip() {
   const earned = pts?.earned ?? 0
   const cost = redemptionCost(days, redemption)
   const maxDays = redeemableDays(earned, redemption)
-  const basicPlan = plans.find(plan => plan.tier === 'basic')
+  const selectedPlan = plans.find(plan => plan.tier === selectedTier)
   const pendingSubscription = subscriptions.find(item => item.state === 'pending')
 
   const doRedeem = async () => {
@@ -68,7 +69,7 @@ export default function Vip() {
       const [pointsResult] = await Promise.all([points.balance(), refreshMe()])
       setPts(pointsResult.data)
       setRedemption(redeemed.data.redemption || pointsResult.data.vipRedemption || redemption)
-      setMsg(`兑换成功！已获得 ${redeemed.data.daysGranted} 天 VIP 体验，消耗 ${redeemed.data.spent} 分`)
+      setMsg(`兑换成功！已获得 ${redeemed.data.daysGranted} 天 Basic VIP 体验，消耗 ${redeemed.data.spent} 分`)
     } catch (e) {
       setMsg(e.response?.data?.error || '兑换失败')
     } finally {
@@ -85,7 +86,7 @@ export default function Vip() {
     setSubscriptionMsg('')
     try {
       const response = await vipApi.subscribe({
-        tier: 'basic',
+        tier: selectedTier,
         payment_reference: paymentReference.trim(),
         applicant_note: applicantNote.trim(),
       })
@@ -122,16 +123,21 @@ export default function Vip() {
 
       {isVip && (
         <div className="card" style={{background:'#F0FAF4',border:'1px solid #B8E0C8',marginBottom:16}}>
-          <span className="badge badge-green">VIP 生效中</span>
+          <span className="badge badge-green">{user?.vip_plan === 'pro' ? 'Pro' : 'Basic'} VIP 生效中</span>
           <span style={{marginLeft:10,fontSize:14,color:'var(--legacy-muted)'}}>
-            到期：{user.vip_until && new Date(user.vip_until).toLocaleDateString('zh-CN')}
+            Basic 到期：{user.vip_until && new Date(user.vip_until).toLocaleDateString('zh-CN')}
           </span>
+          {user?.vip_plan === 'pro' && user.vip_pro_until && (
+            <span style={{marginLeft:10,fontSize:14,color:'var(--legacy-muted)'}}>
+              Pro 到期：{new Date(user.vip_pro_until).toLocaleDateString('zh-CN')}
+            </span>
+          )}
         </div>
       )}
 
       {/* 积分兑换区 */}
       <div className="card" style={{marginBottom:24}}>
-        <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:8}}>积分兑换 VIP 体验</h3>
+        <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:8}}>积分兑换 Basic VIP 体验</h3>
         <p style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:12}}>
           当前积分：<strong style={{color:'var(--brand)'}}>{earned}</strong> 分 · 兑换比例：
           {redemption ? `${redemption.points} 分 = ${redemption.days} 天` : '加载中…'}
@@ -145,33 +151,44 @@ export default function Vip() {
         </div>
         {msg && <div style={{fontSize:13,color: msg.includes('成功') ? '#17a34a' : 'var(--brand)',marginBottom:8}}>{msg}</div>}
         <button className="btn btn-primary" onClick={doRedeem} disabled={loading || cost === null || earned < cost}>
-          {loading ? '处理中...' : `兑换 ${days} 天 VIP`}
+          {loading ? '处理中...' : `兑换 ${days} 天 Basic VIP`}
         </button>
+        <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:10}}>积分兑换与课程赠送均为 Basic，不包含 Pro 深度筛选。</div>
       </div>
 
       <h3 style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:12}}>付费开通</h3>
       <div className="card" style={{marginBottom:16}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))',gap:8,marginBottom:16}}>
+          {plans.map(plan => (
+            <button key={plan.tier} type="button"
+              className={`btn ${selectedTier === plan.tier ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => setSelectedTier(plan.tier)} disabled={plan.available !== true}>
+              {plan.tier === 'pro' ? '进阶 VIP' : '基础 VIP'} · {formatCurrencyAmount(plan.price, plan.currency)}
+            </button>
+          ))}
+        </div>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:12,flexWrap:'wrap'}}>
           <div>
-            <h3 style={{fontFamily:'var(--font-serif)',fontSize:18}}>{basicPlan?.name || '基础 VIP'}</h3>
+            <h3 style={{fontFamily:'var(--font-serif)',fontSize:18}}>{selectedPlan?.name || (selectedTier === 'pro' ? '进阶 VIP' : '基础 VIP')}</h3>
             <div style={{fontSize:13,color:'var(--legacy-muted)',marginTop:4}}>
-              {basicPlan?.duration_days || 30} 天 · 每次单独申请，不自动续费
+              {selectedPlan?.duration_days || 30} 天 · 每次单独申请，不自动续费
             </div>
           </div>
           <div style={{fontSize:28,fontFamily:'var(--font-serif)',color:'var(--brand)'}}>
-            {basicPlan ? formatCurrencyAmount(basicPlan.price, basicPlan.currency) : '—'}
+            {selectedPlan ? formatCurrencyAmount(selectedPlan.price, selectedPlan.currency) : '—'}
           </div>
         </div>
         <ul style={{paddingLeft:20,fontSize:14,margin:'14px 0'}}>
-          {(basicPlan?.perks || []).map(perk => <li key={perk}>{perk}</li>)}
+          {(selectedPlan?.perks || []).map(perk => <li key={perk}>{perk}</li>)}
         </ul>
         <div style={{fontSize:13,color:'var(--legacy-muted)',marginBottom:14}}>
-          {basicPlan?.payment_instructions || '请联系平台运营获取收款方式，付款后填写流水尾号。'}
+          {selectedPlan?.payment_instructions || '请联系平台运营获取收款方式，付款后填写流水尾号。'}
         </div>
 
         {pendingSubscription ? (
           <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
             <span className="badge badge-soft">待核款</span>
+            <div style={{fontSize:13,marginTop:8}}>申请套餐：{pendingSubscription.tier === 'pro' ? '进阶 VIP' : '基础 VIP'}</div>
             <div style={{fontSize:13,marginTop:8}}>付款流水尾号：{pendingSubscription.payment_reference}</div>
             <div style={{fontSize:12,color:'var(--legacy-muted)',marginTop:4}}>提交时间：{new Date(pendingSubscription.created_at).toLocaleString('zh-CN')}</div>
             <button className="btn btn-outline" style={{marginTop:12}} disabled={submitting} onClick={() => cancelSubscription(pendingSubscription.id)}>
@@ -190,7 +207,7 @@ export default function Vip() {
               <textarea id="vip-applicant-note" rows={3} maxLength={500} value={applicantNote}
                 onChange={event => setApplicantNote(event.target.value)} placeholder="例如付款时间或需要运营留意的信息" />
             </div>
-            <button className="btn btn-primary" disabled={submitting || basicPlan?.available !== true} onClick={submitSubscription}>
+            <button className="btn btn-primary" disabled={submitting || selectedPlan?.available !== true} onClick={submitSubscription}>
               {submitting ? '提交中…' : '提交核款申请'}
             </button>
           </div>
@@ -198,17 +215,12 @@ export default function Vip() {
         {subscriptionMsg && <div className={subscriptionMsg.includes('失败') || subscriptionMsg.includes('请填写') ? 'error-msg' : 'success-msg'} style={{marginTop:12}}>{subscriptionMsg}</div>}
       </div>
 
-      <div className="card" style={{marginBottom:16}}>
-        <h3 style={{fontFamily:'var(--font-serif)',fontSize:16}}>进阶 VIP</h3>
-        <p style={{fontSize:13,color:'var(--legacy-muted)',marginTop:6}}>深度筛选和顾问权益尚未完整上线，暂不开放销售。</p>
-      </div>
-
       {subscriptions.some(item => item.state !== 'pending') && (
         <div className="card" style={{marginBottom:16}}>
           <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:10}}>申请记录</h3>
           {subscriptions.filter(item => item.state !== 'pending').map(item => (
             <div key={item.id} style={{padding:'10px 0',borderTop:'1px solid var(--border)',fontSize:13}}>
-              <div>{item.plan_snapshot?.name || '基础 VIP'} · {item.state === 'approved' ? '已通过' : item.state === 'rejected' ? '已驳回' : '已取消'}</div>
+              <div>{item.plan_snapshot?.name || (item.tier === 'pro' ? '进阶 VIP' : '基础 VIP')} · {item.state === 'approved' ? '已通过' : item.state === 'rejected' ? '已驳回' : '已取消'}</div>
               <div style={{color:'var(--legacy-muted)',marginTop:4}}>{new Date(item.created_at).toLocaleString('zh-CN')}</div>
               {item.review_note && <div style={{marginTop:4}}>审核备注：{item.review_note}</div>}
               {item.activated_until && <div style={{marginTop:4}}>权益已延长至：{new Date(item.activated_until).toLocaleDateString('zh-CN')}</div>}
@@ -218,7 +230,7 @@ export default function Vip() {
       )}
 
       <div className="card" style={{marginTop:16,fontSize:13,color:'var(--legacy-muted)'}}>
-        提示：完成凯勒《婚姻的意义》精品课，可免费获得 14 天 VIP 体验。受装备的人不光排前面，还能尝到便利。
+        提示：完成凯勒《婚姻的意义》精品课，可免费获得 14 天 Basic VIP 体验。受装备的人不光排前面，还能尝到便利。
       </div>
     </>
   )

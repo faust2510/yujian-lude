@@ -15,14 +15,22 @@ const routeSource = readFileSync(path.join(__dirname, 'admin.routes.js'), 'utf8'
 
 const actorId = '11111111-1111-4111-8111-111111111111';
 const targetUserId = '22222222-2222-4222-8222-222222222222';
+const operationId = '33333333-3333-4333-8333-333333333333';
 
-function createDb({ actor = { id: actorId, role: 'admin', is_banned: false }, target = { id: targetUserId }, balance = 40 } = {}) {
+function createDb({
+  actor = { id: actorId, role: 'admin', is_banned: false },
+  target = { id: targetUserId },
+  balance = 40,
+  existingLedger = null,
+} = {}) {
   const calls = [];
   const db = {
     async query(sql, params = []) {
       calls.push({ sql, params });
+      if (/pg_advisory_xact_lock/.test(sql)) return { rows: [] };
       if (/SELECT id, role, is_banned FROM users/.test(sql)) return { rows: actor ? [actor] : [] };
       if (/SELECT id FROM users/.test(sql)) return { rows: target ? [target] : [] };
+      if (/FROM points_ledger/.test(sql) && /ref_id/.test(sql)) return { rows: existingLedger ? [existingLedger] : [] };
       if (/SELECT earned_total FROM points_balance/.test(sql)) return { rows: [{ earned_total: balance }] };
       if (/UPDATE points_balance/.test(sql)) return { rows: [{ earned_total: params[1] }] };
       return { rows: [] };
@@ -32,14 +40,15 @@ function createDb({ actor = { id: actorId, role: 'admin', is_banned: false }, ta
 }
 
 test('manual points input requires a UUID, bounded non-zero integer, and reason', () => {
-  assert.equal(validateAdminPointsInput({ targetUserId: 'nope', amount: 1, reason: '补发' }).ok, false);
+  assert.equal(validateAdminPointsInput({ targetUserId: 'nope', operationId, amount: 1, reason: '补发' }).ok, false);
+  assert.equal(validateAdminPointsInput({ targetUserId, operationId: 'nope', amount: 1, reason: '补发' }).ok, false);
   assert.equal(validateAdminPointsInput({ targetUserId, amount: '1', reason: '补发' }).ok, false);
   assert.equal(validateAdminPointsInput({ targetUserId, amount: 0, reason: '补发' }).ok, false);
   assert.equal(validateAdminPointsInput({ targetUserId, amount: ADMIN_POINTS_MAX_ABS_AMOUNT + 1, reason: '补发' }).ok, false);
   assert.equal(validateAdminPointsInput({ targetUserId, amount: 1, reason: '   ' }).ok, false);
   assert.deepEqual(
-    validateAdminPointsInput({ targetUserId, amount: -25, reason: '  纠正重复奖励  ' }),
-    { ok: true, value: { targetUserId, amount: -25, reason: '纠正重复奖励' } },
+    validateAdminPointsInput({ targetUserId, operationId, amount: -25, reason: '  纠正重复奖励  ' }),
+    { ok: true, value: { targetUserId, operationId, amount: -25, reason: '纠正重复奖励' } },
   );
 });
 
@@ -49,18 +58,19 @@ test('credit uses an admin-only ledger reason and keeps the required explanation
   const result = await adjustAdminPoints(async (callback) => {
     transactionCalls += 1;
     return callback(db);
-  }, { actorId, targetUserId, amount: 15, reason: 'points.daily_checkin' });
+  }, { actorId, targetUserId, operationId, amount: 15, reason: 'points.daily_checkin' });
 
   assert.equal(transactionCalls, 1);
-  assert.deepEqual(result, { balance: 55 });
-  assert.match(calls[0].sql, /SELECT id, role, is_banned FROM users[\s\S]*FOR UPDATE/);
-  assert.match(calls[1].sql, /SELECT id FROM users[\s\S]*FOR UPDATE/);
+  assert.deepEqual(result, { balance: 55, idempotent: false });
+  assert.ok(calls.some(({ sql }) => /SELECT id, role, is_banned FROM users[\s\S]*FOR UPDATE/.test(sql)));
+  assert.ok(calls.some(({ sql }) => /SELECT id FROM users[\s\S]*FOR UPDATE/.test(sql)));
   assert.ok(calls.some(({ sql }) => /SELECT earned_total FROM points_balance[\s\S]*FOR UPDATE/.test(sql)));
   const ledger = calls.find(({ sql }) => /INSERT INTO points_ledger/.test(sql));
   assert.match(ledger.sql, /'earned'/);
   assert.equal(ledger.params[1], 'credit');
   assert.equal(ledger.params[2], 15);
   assert.equal(ledger.params[3], 'points.admin_adjustment');
+  assert.equal(ledger.params[4], operationId);
   const audit = calls.find(({ sql }) => /INSERT INTO admin_audit_logs/.test(sql));
   assert.equal(JSON.parse(audit.params[4]).reason, 'points.daily_checkin');
 });
@@ -70,11 +80,12 @@ test('debit writes a positive debit amount and returns the remaining earned bala
   const result = await adjustAdminPoints(async (callback) => callback(db), {
     actorId,
     targetUserId,
+    operationId,
     amount: -25,
     reason: '撤销误发',
   });
 
-  assert.deepEqual(result, { balance: 15 });
+  assert.deepEqual(result, { balance: 15, idempotent: false });
   const ledger = calls.find(({ sql }) => /INSERT INTO points_ledger/.test(sql));
   assert.equal(ledger.params[1], 'debit');
   assert.equal(ledger.params[2], 25);
@@ -87,6 +98,7 @@ test('debit cannot overdraw earned balance', async () => {
     adjustAdminPoints(async (callback) => callback(db), {
       actorId,
       targetUserId,
+      operationId,
       amount: -11,
       reason: '撤销误发',
     }),
@@ -101,6 +113,7 @@ test('transaction revalidates that the actor is still an active admin', async ()
     adjustAdminPoints(async (callback) => callback(db), {
       actorId,
       targetUserId,
+      operationId,
       amount: 10,
       reason: '补发',
     }),
@@ -109,10 +122,47 @@ test('transaction revalidates that the actor is still an active admin', async ()
   assert.equal(calls.some(({ sql }) => /INSERT INTO points_ledger/.test(sql)), false);
 });
 
+test('reusing the same operation id returns the committed balance without another ledger or audit write', async () => {
+  const { db, calls } = createDb({
+    balance: 55,
+    existingLedger: { user_id: targetUserId, direction: 'credit', amount: 15 },
+  });
+
+  const result = await adjustAdminPoints(async (callback) => callback(db), {
+    actorId,
+    targetUserId,
+    operationId,
+    amount: 15,
+    reason: '补发',
+  });
+
+  assert.deepEqual(result, { balance: 55, idempotent: true });
+  assert.equal(calls.some(({ sql }) => /INSERT INTO points_ledger/.test(sql)), false);
+  assert.equal(calls.some(({ sql }) => /UPDATE points_balance/.test(sql)), false);
+  assert.equal(calls.some(({ sql }) => /INSERT INTO admin_audit_logs/.test(sql)), false);
+});
+
+test('credit rejects an adjustment that would exceed the PostgreSQL integer balance limit', async () => {
+  const { db, calls } = createDb({ balance: 2_147_483_647 });
+
+  await assert.rejects(
+    adjustAdminPoints(async (callback) => callback(db), {
+      actorId,
+      targetUserId,
+      operationId,
+      amount: 1,
+      reason: '补发',
+    }),
+    (error) => error.status === 409 && /上限/.test(error.message),
+  );
+  assert.equal(calls.some(({ sql }) => /INSERT INTO points_ledger/.test(sql)), false);
+});
+
 test('admin route is protected and exposes balance plus the points adjustment endpoint', () => {
   assert.match(routeSource, /router\.use\(requireAuth, requireRole\('admin'\)\)/);
   assert.match(routeSource, /router\.post\('\/users\/:id\/points'/);
   assert.match(routeSource, /adjustAdminPoints\(tx,/);
+  assert.match(routeSource, /operationId:\s*req\.body\?\.operation_id/);
   assert.match(routeSource, /COALESCE\(pb\.earned_total, 0\)::int AS earned_points/);
   assert.match(routeSource, /LEFT JOIN points_balance pb ON pb\.user_id = u\.id/);
 });
