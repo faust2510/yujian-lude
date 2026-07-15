@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { community } from '../api/client'
+import PostComments from '../components/community/PostComments'
 import { useAuth } from '../contexts/AuthContext'
 
 function timeAgo(iso) {
@@ -99,9 +100,6 @@ export default function Community() {
 
   // ─── comments ───
   const [openComments, setOpenComments] = useState(new Set())
-  const [comments, setComments] = useState({})
-  const [commentBodies, setCommentBodies] = useState({})
-  const [replyTo, setReplyTo] = useState(null)
 
   // ─── notifications ───
   const [notifCount, setNotifCount] = useState(0)
@@ -464,41 +462,20 @@ export default function Community() {
   // COMMENT ACTIONS
   // ═══════════════════════════════════════════════════════════════
 
-  const toggleComments = async (postId) => {
-    const next = new Set(openComments)
-    if (next.has(postId)) {
-      next.delete(postId)
-    } else {
-      next.add(postId)
-      if (!comments[postId]) {
-        try {
-          const res = await community.getComments(postId)
-          setComments(prev => ({ ...prev, [postId]: res.data.comments ?? [] }))
-        } catch (e) {
-          setComments(prev => ({ ...prev, [postId]: [] }))
-          setError(getErrorMessage(e, '评论加载失败'))
-        }
-      }
-    }
-    setOpenComments(next)
-    setReplyTo(null)
+  const toggleComments = (postId) => {
+    setOpenComments(prev => {
+      const next = new Set(prev)
+      if (next.has(postId)) next.delete(postId)
+      else next.add(postId)
+      return next
+    })
   }
 
-  const submitComment = async (postId) => {
-    const body = commentBodies[postId]
-    if (!body?.trim()) return
-    try {
-      const data = { body: body.trim() }
-      if (replyTo?.postId === postId) data.parent_id = replyTo.commentId
-      await community.addComment(postId, data)
-      setCommentBodies(prev => ({ ...prev, [postId]: '' }))
-      setReplyTo(null)
-      const res = await community.getComments(postId)
-      setComments(prev => ({ ...prev, [postId]: res.data.comments ?? [] }))
-    } catch (e) {
-      setError(getErrorMessage(e, '评论失败'))
-    }
-  }
+  const updateCommentCount = useCallback((postId, total) => {
+    setPosts(prev => prev.map(post => post.id === postId ? { ...post, comment_count: total } : post))
+  }, [])
+
+  const handleCommentError = useCallback((message) => setError(message), [])
 
   // ═══════════════════════════════════════════════════════════════
   // FOLLOW / BOOKMARKS / SEARCH
@@ -873,7 +850,9 @@ export default function Community() {
   const renderPostList = () => (
     <div className="com-feed">
       {!loading && posts.length === 0 && <div className="com-empty">暂无帖子</div>}
-      {posts.map(post => (
+      {posts.map(post => {
+        const canInteract = post.moderation !== 'pending'
+        return (
         <div key={post.id} className={`com-post ${post.post_type === 'announcement' ? 'com-post-announcement' : ''}`}>
           <div className="com-post-main">
             <Avatar name={post.author_nickname} onClick={() => openUser(post.author_id)} />
@@ -905,21 +884,25 @@ export default function Community() {
                 </div>
               )}
               <div className="com-post-actions">
-                <button className={`com-action-btn ${post.liked_by_me ? 'liked' : ''}`}
-                  onClick={() => toggleLike(post.id)}>
-                  {post.liked_by_me ? '❤️' : '🤍'} {post.like_count > 0 && post.like_count}
-                </button>
-                <button className="com-action-btn" onClick={() => toggleComments(post.id)}>
-                  💬 {post.comment_count > 0 && post.comment_count}
-                </button>
-                <button className={`com-action-btn ${post.bookmarked_by_me ? 'bookmarked' : ''}`}
-                  onClick={() => toggleBookmark(post.id)}>
-                  {post.bookmarked_by_me ? '⭐' : '☆'}
-                </button>
-                {post.author_id !== user.id && (
-                  <button className="com-action-btn" onClick={() => setShowReport({ target_type: 'post', target_id: post.id })}>
-                    🚩
-                  </button>
+                {canInteract && (
+                  <>
+                    <button className={`com-action-btn ${post.liked_by_me ? 'liked' : ''}`}
+                      onClick={() => toggleLike(post.id)}>
+                      {post.liked_by_me ? '❤️' : '🤍'} {post.like_count > 0 && post.like_count}
+                    </button>
+                    <button className="com-action-btn" onClick={() => toggleComments(post.id)}>
+                      💬 {post.comment_count > 0 && post.comment_count}
+                    </button>
+                    <button className={`com-action-btn ${post.bookmarked_by_me ? 'bookmarked' : ''}`}
+                      onClick={() => toggleBookmark(post.id)}>
+                      {post.bookmarked_by_me ? '⭐' : '☆'}
+                    </button>
+                    {post.author_id !== user.id && (
+                      <button className="com-action-btn" onClick={() => setShowReport({ target_type: 'post', target_id: post.id })}>
+                        🚩
+                      </button>
+                    )}
+                  </>
                 )}
                 {(user.id === post.author_id || isAdmin) && (
                   <>
@@ -946,56 +929,20 @@ export default function Community() {
                   </>
                 )}
               </div>
-              {openComments.has(post.id) && (
-                <div className="com-comments-wrap">
-                  <div className="com-comments-section">
-                    {(comments[post.id] ?? []).map(c => (
-                      <div key={c.id} className="com-comment" style={{ marginLeft: (c.parent_id ? 20 : 0) }}>
-                        <div className="com-comment-header">
-                          <span className="com-comment-author" style={{ cursor: 'pointer' }} onClick={() => openUser(c.author_id)}>
-                            {c.author_nickname}
-                          </span>
-                          <span className="com-comment-time">{timeAgo(c.created_at)}</span>
-                        </div>
-                        <div className="com-comment-body">{c.body}</div>
-                        <div className="com-comment-actions">
-                          <span className="com-comment-reply-btn" onClick={() => {
-                            setReplyTo({ postId: post.id, commentId: c.id, nickname: c.author_nickname })
-                            if (!openComments.has(post.id)) toggleComments(post.id)
-                          }}>回复</span>
-                          {c.author_id === user.id && (
-                            <span className="com-comment-reply-btn" onClick={async () => {
-                              try {
-                                await community.deleteComment(c.id)
-                                const res = await community.getComments(post.id)
-                                setComments(prev => ({ ...prev, [post.id]: res.data.comments ?? [] }))
-                              } catch (e) {
-                                setError(getErrorMessage(e, '删除评论失败'))
-                              }
-                            }}>删除</span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="com-comment-input-row">
-                    {replyTo?.postId === post.id && (
-                      <div className="com-reply-to">
-                        回复 @{replyTo.nickname}
-                        <span className="com-reply-cancel" onClick={() => setReplyTo(null)}>✕</span>
-                      </div>
-                    )}
-                    <input value={commentBodies[post.id] ?? ''}
-                      onChange={e => setCommentBodies(prev => ({ ...prev, [post.id]: e.target.value }))}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(post.id) } }}
-                      placeholder="写评论…" className="com-comment-input" />
-                  </div>
-                </div>
+              {canInteract && openComments.has(post.id) && (
+                <PostComments
+                  postId={post.id}
+                  currentUserId={user.id}
+                  onError={handleCommentError}
+                  onOpenUser={openUser}
+                  onTotalChange={updateCommentCount}
+                />
               )}
             </div>
           </div>
         </div>
-      ))}
+        )
+      })}
       {hasMore && (
         <button className="com-load-more" onClick={() => {
           if (selectedGroup) loadPosts(page + 1, { groupId: selectedGroup.id })

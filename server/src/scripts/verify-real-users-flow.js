@@ -573,14 +573,24 @@ async function verifyCommunity(users) {
   const hashtags = await bob.get('/community/hashtags');
   assert(hashtags.hashtags?.some((tag) => tag.tag === '真实验收'), 'hashtag list should include post tag');
 
-  await bob.post(`/community/posts/${post.id}/comments`, { body: 'Bob 看到并评论。' });
+  const bobComment = await bob.post(`/community/posts/${post.id}/comments`, { body: 'Bob 看到并评论。' });
+  const caraReply = await cara.post(`/community/posts/${post.id}/comments`, {
+    body: 'Cara 回复 Bob。',
+    parent_id: bobComment.id,
+  });
   const like = await cara.post(`/community/posts/${post.id}/like`, {});
   assert(like.liked === true, 'cara should like the post');
   const bookmark = await dan.post(`/community/posts/${post.id}/bookmark`, {});
   assert(bookmark.bookmarked === true, 'dan should bookmark the post');
 
   const commentsForCara = await cara.get(`/community/posts/${post.id}/comments`);
-  assert(commentsForCara.comments?.some((comment) => comment.body.includes('Bob 看到并评论')), 'peer comment should be visible');
+  const bobRootComment = commentsForCara.comments?.find((comment) => comment.id === bobComment.id);
+  assert(bobRootComment?.body.includes('Bob 看到并评论'), 'peer root comment should be visible');
+  assert(
+    bobRootComment.replies?.some((reply) => reply.id === caraReply.id && reply.body.includes('Cara 回复 Bob')),
+    'same-post reply should be nested under its root comment'
+  );
+  assert(commentsForCara.total === 2, `comment total should include root and reply, got ${commentsForCara.total}`);
   const danBookmarks = await dan.get('/community/bookmarks');
   assert(danBookmarks.posts?.some((item) => item.id === post.id), 'bookmark list should include bookmarked post');
 
@@ -596,6 +606,11 @@ async function verifyCommunity(users) {
 
   const notifications = await alice.get('/community/notifications');
   assert(notifications.unread >= 2, `alice should have unread notifications after comment and like, got ${notifications.unread}`);
+  const bobNotifications = await bob.get('/community/notifications');
+  assert(
+    bobNotifications.notifications?.some((item) => item.kind === 'reply' && item.comment_id === caraReply.id),
+    'reply notification should target the replied-to comment author'
+  );
 
   const group = await alice.post('/community/groups', {
     name: `实战开放小组 ${stamp}`,

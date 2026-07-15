@@ -7,6 +7,26 @@ import { normalizeReportAction, validateAdminActorStatus, writeAdminAudit } from
 const router = Router();
 const POST_TYPES = new Set(['post', 'announcement']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const VISIBLE_NOTIFICATION_FILTER = `(
+  n.post_id IS NULL
+  OR EXISTS (
+    SELECT 1
+      FROM community_posts p
+     WHERE p.id = n.post_id
+       AND p.state IN ('visible','pinned','featured')
+       AND p.moderation = 'approved'
+       AND (
+         p.group_id IS NULL
+         OR EXISTS (
+           SELECT 1
+             FROM community_memberships cm
+            WHERE cm.group_id = p.group_id
+              AND cm.user_id = $1
+              AND cm.state = 'approved'
+         )
+       )
+  )
+)`;
 
 function communityRouteError(status, message) {
   const error = new Error(message);
@@ -552,41 +572,97 @@ router.get('/community/posts/:id/comments', requireAuth, async (req, res) => {
   const roots = rows.filter(c => !c.parent_id);
   const children = rows.filter(c => c.parent_id);
   const attachReplies = (comment) => {
-    comment.replies = children.filter(c => c.parent_id === comment.id).map(r => {
-      r.replies = [];
-      return r;
-    });
-    return comment;
+    const replies = children
+      .filter(c => c.parent_id === comment.id)
+      .map(reply => ({ ...reply, replies: [] }));
+    return { ...comment, replies };
   };
-  res.json({ comments: roots.map(attachReplies) });
+  res.json({ comments: roots.map(attachReplies), total: rows.length });
 });
 
 router.post('/community/posts/:id/comments', requireAuth, async (req, res) => {
   const { body, parent_id } = req.body;
-  if (!body) return res.status(400).json({ error: '缺少 body' });
+  const normalizedBody = typeof body === 'string' ? body.trim() : '';
+  if (!normalizedBody) return res.status(400).json({ error: '缺少 body' });
   const postId = req.params.id;
-  const visiblePost = await canViewPost(req.user.id, postId);
-  if (!visiblePost) return res.status(403).json({ error: '无权访问该帖子' });
+  if (!UUID_RE.test(postId)) return res.status(400).json({ error: '帖子 ID 格式不正确' });
+  if (parent_id !== undefined && parent_id !== null && !UUID_RE.test(parent_id)) {
+    return res.status(400).json({ error: '父评论 ID 格式不正确' });
+  }
 
-  const comment = await tx(async (client) => {
-    const { rows } = await client.query(
-      `INSERT INTO community_comments (post_id, author_id, parent_id, body)
-       VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
-      [postId, req.user.id, parent_id ?? null, body]
-    );
-    const c = rows[0];
-    // Notify post author
-    const post = await client.query(`SELECT author_id FROM community_posts WHERE id = $1`, [postId]);
-    const kind = parent_id ? 'reply' : 'comment';
-    if (post.rows.length > 0 && post.rows[0].author_id !== req.user.id) {
-      await client.query(
-        `INSERT INTO notifications (user_id, actor_id, kind, post_id, comment_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [post.rows[0].author_id, req.user.id, kind, postId, c.id]
+  let comment;
+  try {
+    comment = await tx(async (client) => {
+      const postResult = await client.query(
+        `SELECT p.id, p.author_id, p.group_id
+           FROM community_posts p
+          WHERE p.id = $1
+            AND p.state IN ('visible','pinned','featured')
+            AND p.moderation = 'approved'
+          FOR SHARE`,
+        [postId]
       );
-    }
-    return c;
-  });
+      const visiblePost = postResult.rows[0];
+      if (!visiblePost) throw communityRouteError(403, '无权访问该帖子');
+
+      let parent = null;
+      if (parent_id) {
+        const parentResult = await client.query(
+          `SELECT id, post_id, author_id, parent_id
+             FROM community_comments
+            WHERE id = $1
+            FOR SHARE`,
+          [parent_id]
+        );
+        parent = parentResult.rows[0];
+        if (!parent) throw communityRouteError(400, '父评论不存在');
+        if (String(parent.post_id) !== String(postId)) {
+          throw communityRouteError(400, '父评论不属于当前帖子');
+        }
+        if (parent.parent_id) throw communityRouteError(400, '仅支持一级回复');
+      }
+
+      const notificationTarget = parent?.author_id ?? visiblePost.author_id;
+      let notificationTargetCanView = true;
+      if (visiblePost.group_id) {
+        const relevantUserIds = [...new Set([req.user.id, notificationTarget].filter(Boolean))].sort();
+        const membershipResult = await client.query(
+          `SELECT user_id
+             FROM community_memberships
+            WHERE group_id = $1
+              AND user_id = ANY($2::uuid[])
+              AND state = 'approved'
+            ORDER BY user_id
+            FOR SHARE`,
+          [visiblePost.group_id, relevantUserIds]
+        );
+        const memberIds = new Set(membershipResult.rows.map(({ user_id }) => String(user_id)));
+        if (!memberIds.has(String(req.user.id))) {
+          throw communityRouteError(403, '无权访问该帖子');
+        }
+        notificationTargetCanView = memberIds.has(String(notificationTarget));
+      }
+
+      const { rows } = await client.query(
+        `INSERT INTO community_comments (post_id, author_id, parent_id, body)
+         VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
+        [postId, req.user.id, parent_id ?? null, normalizedBody]
+      );
+      const created = rows[0];
+      const kind = parent ? 'reply' : 'comment';
+      if (notificationTargetCanView && notificationTarget && notificationTarget !== req.user.id) {
+        await client.query(
+          `INSERT INTO notifications (user_id, actor_id, kind, post_id, comment_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [notificationTarget, req.user.id, kind, postId, created.id]
+        );
+      }
+      return created;
+    });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    throw error;
+  }
   res.json({ ok: true, id: comment.id, created_at: comment.created_at });
 });
 
@@ -671,12 +747,17 @@ router.get('/community/notifications', requireAuth, async (req, res) => {
        FROM notifications n
        LEFT JOIN profiles pr ON pr.user_id = n.actor_id
       WHERE n.user_id = $1
+        AND ${VISIBLE_NOTIFICATION_FILTER}
       ORDER BY n.created_at DESC
       LIMIT $2 OFFSET $3`,
     [req.user.id, limit, offset]
   );
   const unread = await one(
-    `SELECT COUNT(*)::int AS count FROM notifications WHERE user_id = $1 AND is_read = FALSE`,
+    `SELECT COUNT(*)::int AS count
+       FROM notifications n
+      WHERE n.user_id = $1
+        AND n.is_read = FALSE
+        AND ${VISIBLE_NOTIFICATION_FILTER}`,
     [req.user.id]
   );
   res.json({ notifications: rows, unread: unread.count });
@@ -692,7 +773,11 @@ router.post('/community/notifications/read', requireAuth, async (req, res) => {
 
 router.get('/community/notifications/unread', requireAuth, async (req, res) => {
   const row = await one(
-    `SELECT COUNT(*)::int AS count FROM notifications WHERE user_id = $1 AND is_read = FALSE`,
+    `SELECT COUNT(*)::int AS count
+       FROM notifications n
+      WHERE n.user_id = $1
+        AND n.is_read = FALSE
+        AND ${VISIBLE_NOTIFICATION_FILTER}`,
     [req.user.id]
   );
   res.json({ unread: row.count });

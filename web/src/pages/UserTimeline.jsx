@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { community } from '../api/client'
+import PostComments from '../components/community/PostComments'
 import { useAuth } from '../contexts/AuthContext'
 
 function timeAgo(iso) {
@@ -25,6 +26,7 @@ export default function UserTimeline() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
   const currentUserId = currentUser?.id
+  const isSelf = userId === currentUserId
 
   const [profile, setProfile] = useState(null)
   const [posts, setPosts] = useState([])
@@ -34,47 +36,76 @@ export default function UserTimeline() {
   const [followed, setFollowed] = useState(false)
   const [error, setError] = useState('')
   const [profileError, setProfileError] = useState('')
+  const [openComments, setOpenComments] = useState(new Set())
+  const profileRequest = useRef(0)
+  const postsRequest = useRef(0)
+  const followRequest = useRef(0)
 
   useEffect(() => {
-    if (!userId || userId === currentUserId) return
+    if (!userId) return
+    const requestId = ++profileRequest.current
+    followRequest.current += 1
+    setProfile(null)
+    setFollowed(false)
     setProfileError('')
     community.userProfile(userId).then(r => {
+      if (requestId !== profileRequest.current) return
       setProfile(r.data.profile)
       setFollowed(r.data.profile.followed_by_me)
     }).catch(e => {
+      if (requestId !== profileRequest.current) return
       setProfileError(e.response?.data?.error || '用户资料加载失败')
     })
-  }, [currentUserId, userId])
+    return () => {
+      profileRequest.current += 1
+      followRequest.current += 1
+    }
+  }, [userId])
 
   const loadPosts = useCallback(async (p = 1) => {
+    const requestId = ++postsRequest.current
     setLoading(true)
     setError('')
     try {
       const res = await community.userPosts(userId, { page: p })
+      if (requestId !== postsRequest.current) return
       const newPosts = res.data.posts ?? []
       setPosts(prev => p === 1 ? newPosts : [...prev, ...newPosts])
       setPage(p)
       setHasMore(newPosts.length >= 20)
     } catch (e) {
+      if (requestId !== postsRequest.current) return
       setError(e.response?.data?.error || '动态加载失败')
     } finally {
-      setLoading(false)
+      if (requestId === postsRequest.current) setLoading(false)
     }
   }, [userId])
 
   useEffect(() => {
-    if (userId) loadPosts(1)
+    if (!userId) return
+    setPosts([])
+    setPage(1)
+    setHasMore(true)
+    setError('')
+    setOpenComments(new Set())
+    loadPosts(1)
+    return () => {
+      postsRequest.current += 1
+    }
   }, [loadPosts, userId])
 
   const toggleFollow = async () => {
+    const requestId = ++followRequest.current
     try {
       const res = await community.follow(userId)
+      if (requestId !== followRequest.current) return
       setFollowed(res.data.following)
       setProfile(prev => prev ? {
         ...prev,
         follower_count: prev.follower_count + (res.data.following ? 1 : -1)
       } : prev)
     } catch (e) {
+      if (requestId !== followRequest.current) return
       setError(e.response?.data?.error || '关注失败')
     }
   }
@@ -92,7 +123,26 @@ export default function UserTimeline() {
     }
   }
 
-  if (profileError && userId !== currentUserId) {
+  const toggleComments = (postId) => {
+    setOpenComments(prev => {
+      const next = new Set(prev)
+      if (next.has(postId)) next.delete(postId)
+      else next.add(postId)
+      return next
+    })
+  }
+
+  const updateCommentCount = useCallback((postId, total) => {
+    setPosts(prev => prev.map(post => post.id === postId ? { ...post, comment_count: total } : post))
+  }, [])
+
+  const handleCommentError = useCallback((message) => setError(message), [])
+
+  const openUser = (authorId) => {
+    navigate(`/community/user/${authorId}`)
+  }
+
+  if (profileError) {
     return (
       <div className="com-layout">
         <div className="com-main">
@@ -107,25 +157,8 @@ export default function UserTimeline() {
     )
   }
 
-  if (!profile && userId !== currentUserId) {
+  if (!profile) {
     return <div className="com-loading" style={{ padding: 40, textAlign: 'center', color: 'var(--legacy-muted)' }}>加载中…</div>
-  }
-
-  if (userId === currentUserId) {
-    return (
-      <div className="com-layout">
-        <div className="com-main">
-          <div className="com-tabs">
-            <button className="com-tab active" onClick={() => navigate('/community')}>
-              ← 回到社群
-            </button>
-            <div style={{ flex: 1 }} />
-            <span style={{ fontSize: 14, color: 'var(--legacy-muted)' }}>这是你的主页</span>
-          </div>
-          <div className="com-empty">这是你自己的页面，去社群板块查看活动吧</div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -135,6 +168,7 @@ export default function UserTimeline() {
           <button className="com-tab" onClick={() => navigate('/community')}>
             ← 社群
           </button>
+          {isSelf && <span className="com-self-timeline-note">这是你的主页</span>}
         </div>
 
         <div className="com-profile-card">
@@ -149,12 +183,14 @@ export default function UserTimeline() {
                 <span><strong>{profile.following_count}</strong> 关注</span>
               </div>
             </div>
-            <button
-              className={`com-profile-follow-btn ${followed ? 'following' : ''}`}
-              onClick={toggleFollow}
-            >
-              {followed ? '已关注' : '关注'}
-            </button>
+            {!isSelf && (
+              <button
+                className={`com-profile-follow-btn ${followed ? 'following' : ''}`}
+                onClick={toggleFollow}
+              >
+                {followed ? '已关注' : '关注'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -178,10 +214,19 @@ export default function UserTimeline() {
                       onClick={() => toggleLike(post.id)}>
                       {post.liked_by_me ? '❤️' : '🤍'} {post.like_count > 0 && post.like_count}
                     </button>
-                    <button className="com-action-btn">
+                    <button className="com-action-btn" onClick={() => toggleComments(post.id)}>
                       💬 {post.comment_count > 0 && post.comment_count}
                     </button>
                   </div>
+                  {openComments.has(post.id) && (
+                    <PostComments
+                      postId={post.id}
+                      currentUserId={currentUserId}
+                      onError={handleCommentError}
+                      onOpenUser={openUser}
+                      onTotalChange={updateCommentCount}
+                    />
+                  )}
                 </div>
               </div>
             </div>

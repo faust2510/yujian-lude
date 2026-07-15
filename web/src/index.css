@@ -918,7 +918,10 @@ h1, h2, h3 { font-family: var(--font-serif); }
 
 .com-comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
 
-.com-comment-author { font-weight: 600; font-size: 13px; color: var(--fg); }
+.com-comment-author {
+  padding: 0; border: 0; background: none; color: var(--fg); cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600;
+}
 
 .com-comment-time { font-size: 11px; color: var(--legacy-muted); }
 
@@ -937,6 +940,20 @@ h1, h2, h3 { font-family: var(--font-serif); }
   display: flex; flex-direction: column; gap: 6px; margin-top: 8px;
 }
 
+.com-comment-compose { display: flex; gap: 8px; min-width: 0; }
+
+.com-comment-status, .com-comment-error { font-size: 13px; color: var(--legacy-muted); padding: 6px 0; }
+.com-comment-error { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--danger); }
+
+.com-comment-retry-btn, .com-comment-submit {
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--fg);
+  cursor: pointer; font-family: var(--font-sans); font-size: 12px; padding: 6px 10px; white-space: nowrap;
+}
+.com-comment-retry-btn:hover, .com-comment-submit:hover:not(:disabled) { border-color: var(--brand); color: var(--brand); }
+.com-comment-submit:disabled { cursor: not-allowed; opacity: 0.55; }
+
+.com-comment-reply { margin-left: 20px; min-width: 0; }
+
 .com-reply-to {
   font-size: 12px; color: var(--legacy-muted); display: flex; align-items: center; gap: 6px;
 }
@@ -944,7 +961,7 @@ h1, h2, h3 { font-family: var(--font-serif); }
 .com-reply-cancel { cursor: pointer; color: var(--brand); font-size: 14px; }
 
 .com-comment-input {
-  width: 100%; padding: 8px 12px; border: 1px solid var(--border);
+  width: 100%; min-width: 0; padding: 8px 12px; border: 1px solid var(--border);
   border-radius: 8px; font-size: 13px; outline: none; font-family: var(--font-sans);
   background: var(--bg);
 }
@@ -1016,6 +1033,7 @@ h1, h2, h3 { font-family: var(--font-serif); }
 .com-profile-follow-btn:hover { opacity: 0.9; }
 .com-profile-follow-btn.following { background: #fff; color: var(--legacy-muted); border-color: var(--border); }
 .com-profile-follow-btn.following:hover { border-color: #dc2626; color: #dc2626; background: #FEF2F2; }
+.com-self-timeline-note { margin-left: auto; align-self: center; color: var(--legacy-muted); font-size: 14px; }
 
 /* --- Image in posts --- */
 .com-composer-image-row { margin-top: 8px; }
@@ -1297,6 +1315,9 @@ textarea.com-modal-input { resize: vertical; font-family: inherit; }
   .com-notif-dropdown { right: -40px; width: 280px; }
   .com-profile-header { flex-direction: column; align-items: center; text-align: center; }
   .com-profile-stats { justify-content: center; }
+  .com-self-timeline-note { margin-left: 0; }
+  .com-comment-reply { margin-left: 12px; }
+  .com-comment-body { overflow-wrap: anywhere; }
   .com-groups-grid { grid-template-columns: 1fr; }
   .com-group-detail-header { flex-direction: column; }
   .com-group-detail-cover { width: 100%; min-height: 100px; }

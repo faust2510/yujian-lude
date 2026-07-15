@@ -148,7 +148,12 @@ const requiredConstraints = [
 ];
 
 const requiredTriggers = [
-  ['pastor_letters', 'pastor_letters_reset_verification_on_content_change'],
+  [
+    'pastor_letters',
+    'pastor_letters_reset_verification_on_content_change',
+    'reset_pastor_letter_verification_on_content_change',
+  ],
+  ['community_comments', 'community_comments_enforce_parent', 'enforce_community_comment_parent'],
 ];
 
 const requiredSettings = [
@@ -266,7 +271,7 @@ async function constraintExists(tableName, constraintName, constraintType, delet
   );
 }
 
-async function triggerExists(tableName, triggerName) {
+async function triggerIsValid(tableName, triggerName, functionName) {
   const row = await one(
     `SELECT 1
        FROM pg_trigger t
@@ -275,8 +280,10 @@ async function triggerExists(tableName, triggerName) {
       WHERE ns.nspname = 'public'
         AND tbl.relname = $1
         AND t.tgname = $2
-        AND t.tgisinternal = FALSE`,
-    [tableName, triggerName]
+        AND t.tgisinternal = FALSE
+        AND t.tgenabled IN ('O', 'A')
+        AND t.tgfoid = to_regprocedure($3)`,
+    [tableName, triggerName, `public.${functionName}()`]
   );
   return Boolean(row);
 }
@@ -347,9 +354,9 @@ async function run() {
     }
   }
 
-  for (const [tableName, triggerName] of requiredTriggers) {
+  for (const [tableName, triggerName, functionName] of requiredTriggers) {
     if (!tableMap.get(tableName)) continue;
-    if (!(await triggerExists(tableName, triggerName))) {
+    if (!(await triggerIsValid(tableName, triggerName, functionName))) {
       missing.push(`trigger ${tableName}.${triggerName}`);
     }
   }

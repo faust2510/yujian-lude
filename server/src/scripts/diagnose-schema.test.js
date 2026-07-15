@@ -31,6 +31,10 @@ const communityPermissionMigrationPath = path.resolve(
   __dirname,
   '../../db/migrations/0019_harden_community_admin_permissions.sql'
 );
+const communityCommentParentMigrationPath = path.resolve(
+  __dirname,
+  '../../db/migrations/0020_enforce_community_comment_parents.sql'
+);
 
 function connectionUrlWithDatabase(databaseUrl, databaseName) {
   const url = new URL(databaseUrl);
@@ -117,6 +121,20 @@ test('community permission migration deduplicates applications and backfills app
   assert.match(sql, /m\.state = 'approved'[\s\S]*m\.role = 'member'/i);
   assert.match(sql, /CREATE UNIQUE INDEX[\s\S]*community_admin_applications\(user_id\)[\s\S]*group_id IS NULL/i);
   assert.match(sql, /CREATE UNIQUE INDEX[\s\S]*community_admin_applications\(user_id, group_id\)[\s\S]*group_id IS NOT NULL/i);
+});
+
+test('schema diagnosis requires the community comment parent trigger', () => {
+  assert.match(
+    source,
+    /\['community_comments', 'community_comments_enforce_parent', 'enforce_community_comment_parent'\]/
+  );
+  assert.equal(existsSync(communityCommentParentMigrationPath), true);
+  const sql = readFileSync(communityCommentParentMigrationPath, 'utf8');
+  assert.match(sql, /LOCK TABLE community_comments IN SHARE ROW EXCLUSIVE MODE/i);
+  assert.match(sql, /UPDATE community_comments child[\s\S]*SET parent_id = NULL/i);
+  assert.match(sql, /parent\.post_id <> NEW\.post_id/i);
+  assert.match(sql, /parent\.parent_id IS NOT NULL/i);
+  assert.match(sql, /CREATE TRIGGER community_comments_enforce_parent/i);
 });
 
 test('PostgreSQL community permission migration deduplicates scopes and backfills only active members', {
@@ -217,6 +235,221 @@ test('PostgreSQL community permission migration deduplicates scopes and backfill
 
     const diagnosis = await runSchemaDiagnosis(databaseUrl);
     assert.equal(diagnosis.code, 0, diagnosisDetails(diagnosis));
+
+  } finally {
+    if (databasePool) await databasePool.end();
+    if (databaseCreated) {
+      await adminPool.query(
+        `SELECT pg_terminate_backend(pid)
+           FROM pg_stat_activity
+          WHERE datname = $1 AND pid <> pg_backend_pid()`,
+        [databaseName]
+      );
+      await adminPool.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(databaseName)}`);
+    }
+    await adminPool.end();
+  }
+});
+
+test('PostgreSQL comment parent migration detaches invalid legacy links and enforces one reply level', {
+  skip: !process.env.TEST_DATABASE_URL,
+  timeout: 30_000,
+}, async () => {
+  const databaseName = `codex_comment_parent_${process.pid}_${randomUUID().replace(/-/g, '')}`;
+  const maintenanceUrl = connectionUrlWithDatabase(process.env.TEST_DATABASE_URL, 'postgres');
+  const databaseUrl = connectionUrlWithDatabase(process.env.TEST_DATABASE_URL, databaseName);
+  const adminPool = new Pool({ connectionString: maintenanceUrl });
+  let databaseCreated = false;
+  let databasePool;
+
+  try {
+    await adminPool.query(`CREATE DATABASE ${quoteIdentifier(databaseName)}`);
+    databaseCreated = true;
+    databasePool = new Pool({ connectionString: databaseUrl });
+    await databasePool.query(readFileSync(schemaPath, 'utf8'));
+    await databasePool.query(readFileSync(seedPath, 'utf8'));
+    await databasePool.query('DROP TRIGGER community_comments_enforce_parent ON community_comments');
+    await databasePool.query('DROP FUNCTION enforce_community_comment_parent()');
+
+    const userId = 'aaaaaaaa-2000-4000-8000-000000000001';
+    const firstPostId = 'bbbbbbbb-2000-4000-8000-000000000001';
+    const secondPostId = 'bbbbbbbb-2000-4000-8000-000000000002';
+    const rootId = 'cccccccc-2000-4000-8000-000000000001';
+    const replyId = 'cccccccc-2000-4000-8000-000000000002';
+    const nestedId = 'cccccccc-2000-4000-8000-000000000003';
+    const crossPostId = 'cccccccc-2000-4000-8000-000000000004';
+    const movingRootId = 'cccccccc-2000-4000-8000-000000000005';
+    const movingReplyId = 'cccccccc-2000-4000-8000-000000000006';
+    const concurrentRootId = 'cccccccc-2000-4000-8000-000000000007';
+    const concurrentReplyId = 'cccccccc-2000-4000-8000-000000000008';
+    await databasePool.query(
+      `INSERT INTO users (id, email, password_hash)
+       VALUES ($1, 'comment-parent@example.test', 'test')`,
+      [userId]
+    );
+    await databasePool.query(
+      `INSERT INTO community_posts (id, author_id, body)
+       VALUES ($1, $3, 'first post'), ($2, $3, 'second post')`,
+      [firstPostId, secondPostId, userId]
+    );
+    await databasePool.query(
+      `INSERT INTO community_comments (id, post_id, author_id, parent_id, body)
+       VALUES
+         ($1, $5, $7, NULL, 'root'),
+         ($2, $5, $7, $1, 'reply'),
+         ($3, $5, $7, $2, 'nested'),
+         ($4, $6, $7, $1, 'cross post')`,
+      [rootId, replyId, nestedId, crossPostId, firstPostId, secondPostId, userId]
+    );
+
+    await databasePool.query(readFileSync(communityCommentParentMigrationPath, 'utf8'));
+
+    const comments = await databasePool.query(
+      `SELECT id::text, parent_id::text
+         FROM community_comments
+        ORDER BY id`
+    );
+    assert.deepEqual(comments.rows, [
+      { id: rootId, parent_id: null },
+      { id: replyId, parent_id: rootId },
+      { id: nestedId, parent_id: null },
+      { id: crossPostId, parent_id: null },
+    ]);
+
+    await databasePool.query(
+      `INSERT INTO community_comments (post_id, author_id, parent_id, body)
+       VALUES ($1, $2, $3, 'valid reply')`,
+      [firstPostId, userId, rootId]
+    );
+    await assert.rejects(
+      databasePool.query(
+        `INSERT INTO community_comments (post_id, author_id, parent_id, body)
+         VALUES ($1, $2, $3, 'cross post reply')`,
+        [secondPostId, userId, rootId]
+      ),
+      (error) => error.code === '23514'
+    );
+    await assert.rejects(
+      databasePool.query(
+        `INSERT INTO community_comments (post_id, author_id, parent_id, body)
+         VALUES ($1, $2, $3, 'nested reply')`,
+        [firstPostId, userId, replyId]
+      ),
+      (error) => error.code === '23514'
+    );
+
+    await databasePool.query(
+      `INSERT INTO community_comments (id, post_id, author_id, parent_id, body)
+       VALUES ($1, $3, $4, NULL, 'root to move'),
+              ($2, $3, $4, $1, 'reply to moving root')`,
+      [movingRootId, movingReplyId, firstPostId, userId]
+    );
+    const [rootToReplyUpdate, rootToOtherPostUpdate] = await Promise.allSettled([
+      databasePool.query(
+        'UPDATE community_comments SET parent_id = $1 WHERE id = $2',
+        [nestedId, rootId]
+      ),
+      databasePool.query(
+        'UPDATE community_comments SET post_id = $1 WHERE id = $2',
+        [secondPostId, movingRootId]
+      ),
+    ]);
+    assert.deepEqual(
+      {
+        rootToReply: rootToReplyUpdate.status === 'rejected' ? rootToReplyUpdate.reason.code : null,
+        rootToOtherPost: rootToOtherPostUpdate.status === 'rejected' ? rootToOtherPostUpdate.reason.code : null,
+      },
+      {
+        rootToReply: '23514',
+        rootToOtherPost: '23514',
+      }
+    );
+
+    await databasePool.query(
+      `INSERT INTO community_comments (id, post_id, author_id, body)
+       VALUES ($1, $2, $3, 'concurrent root')`,
+      [concurrentRootId, firstPostId, userId]
+    );
+    const replyClient = await databasePool.connect();
+    const updateClient = await databasePool.connect();
+    try {
+      await replyClient.query('BEGIN');
+      await updateClient.query('BEGIN');
+      await replyClient.query(
+        `INSERT INTO community_comments (id, post_id, author_id, parent_id, body)
+         VALUES ($1, $2, $3, $4, 'concurrent reply')`,
+        [concurrentReplyId, firstPostId, userId, concurrentRootId]
+      );
+
+      let updateSettled = false;
+      const updateAttempt = updateClient.query(
+        'UPDATE community_comments SET parent_id = $1 WHERE id = $2',
+        [nestedId, concurrentRootId]
+      ).then(
+        () => ({ status: 'fulfilled', code: null }),
+        (error) => ({ status: 'rejected', code: error.code })
+      ).finally(() => {
+        updateSettled = true;
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+      assert.equal(updateSettled, false, 'reply insert must lock its parent until commit');
+      await replyClient.query('COMMIT');
+      const updateResult = await updateAttempt;
+      assert.deepEqual(updateResult, { status: 'rejected', code: '23514' });
+    } finally {
+      await replyClient.query('ROLLBACK').catch(() => {});
+      await updateClient.query('ROLLBACK').catch(() => {});
+      replyClient.release();
+      updateClient.release();
+    }
+
+    const diagnosis = await runSchemaDiagnosis(databaseUrl);
+    assert.equal(diagnosis.code, 0, diagnosisDetails(diagnosis));
+
+    await databasePool.query(
+      'ALTER TABLE community_comments DISABLE TRIGGER community_comments_enforce_parent'
+    );
+    const disabledTriggerDiagnosis = await runSchemaDiagnosis(databaseUrl);
+    await databasePool.query(
+      'ALTER TABLE community_comments ENABLE TRIGGER community_comments_enforce_parent'
+    );
+
+    await databasePool.query(`
+      CREATE FUNCTION wrong_community_comment_parent()
+      RETURNS TRIGGER
+      LANGUAGE plpgsql
+      AS $$
+      BEGIN
+        RETURN NEW;
+      END;
+      $$
+    `);
+    await databasePool.query(
+      'DROP TRIGGER community_comments_enforce_parent ON community_comments'
+    );
+    await databasePool.query(`
+      CREATE TRIGGER community_comments_enforce_parent
+      BEFORE INSERT OR UPDATE OF post_id, parent_id ON community_comments
+      FOR EACH ROW
+      EXECUTE FUNCTION wrong_community_comment_parent()
+    `);
+    const wrongFunctionDiagnosis = await runSchemaDiagnosis(databaseUrl);
+
+    assert.deepEqual(
+      {
+        disabledTrigger: disabledTriggerDiagnosis.code,
+        wrongFunction: wrongFunctionDiagnosis.code,
+      },
+      {
+        disabledTrigger: 1,
+        wrongFunction: 1,
+      },
+      [
+        `disabled trigger:\n${diagnosisDetails(disabledTriggerDiagnosis)}`,
+        `wrong function:\n${diagnosisDetails(wrongFunctionDiagnosis)}`,
+      ].join('\n\n')
+    );
   } finally {
     if (databasePool) await databasePool.end();
     if (databaseCreated) {
