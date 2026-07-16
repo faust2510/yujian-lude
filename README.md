@@ -111,7 +111,7 @@ DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude' npm run migrate:up --pr
 
 ### MVP 闭环
 
-`verify:mvp` 是最小 release gate，覆盖注册、资料、信仰测试、背书审核、恋爱必修课、入池、匹配、私聊和全站广场互动。
+`verify:mvp` 是最小 release gate，覆盖注册、资料、信仰测试、背书审核、入池、匹配、私聊和全站广场互动。
 
 ```bash
 dropdb --if-exists yujian_lude_mvp_verify
@@ -121,7 +121,7 @@ DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude_mvp_verify' PORT=8090 np
 DATABASE_URL='postgres://qwe@localhost:5432/yujian_lude_mvp_verify' API_BASE='http://localhost:8090/api' npm run verify:mvp --prefix server
 ```
 
-`verify:mvp` 会自动创建 3 个普通用户和 1 个管理员，并跑通资料、信仰测试、背书提交与审核、恋爱必修课、入池、匹配、私聊和全站广场互动。
+`verify:mvp` 会自动创建 3 个普通用户和 1 个管理员，并跑通资料、信仰测试、背书提交与审核、入池、匹配、私聊和全站广场互动。
 
 ### 真实多用户回归
 

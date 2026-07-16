@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { courseAuthoring } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -54,7 +54,7 @@ export default function CourseAuthoring() {
 
   const selected = useMemo(() => courses.find(course => course.id === selectedId), [courses, selectedId])
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setError('')
     try {
       const mine = await courseAuthoring.mine()
@@ -66,9 +66,9 @@ export default function CourseAuthoring() {
     } catch (err) {
       setError(messageFrom(err, '课程工作台加载失败'))
     }
-  }
+  }, [isAdmin])
 
-  useEffect(() => { load() }, [isAdmin])
+  useEffect(() => { load() }, [load])
 
   const openCourse = async (id) => {
     setBusy(true)

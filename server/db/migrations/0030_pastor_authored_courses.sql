@@ -140,6 +140,7 @@ WITH keller_exam AS (
       'keller-10', 10, '完成婚姻装备课程后，进入关系更成熟的标志是：',
       '["更会包装自己以获得匹配", "能更真实地认识自己、尊重对方，并在真理和群体中前行", "认为自己已经不需要任何提醒", "把课程当作获得权益的形式流程"]'::jsonb,
       1, NULL
+    )
 )
 INSERT INTO course_exam_questions (
   exam_id,

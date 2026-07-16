@@ -20,15 +20,15 @@ function unitRows(sql, courseId) {
   }));
 }
 
-test('seed data keeps both marriage courses substantial', () => {
+test('seed data keeps the remaining marriage course substantial', () => {
   const seed = readProjectFile('db/seed.sql');
   const kellerRows = unitRows(seed, '11111111-1111-1111-1111-111111111111');
   const datingRows = unitRows(seed, '22222222-2222-2222-2222-222222222222');
 
   assert.equal(kellerRows.length, 10);
-  assert.equal(datingRows.length, 8);
+  assert.equal(datingRows.length, 0);
 
-  for (const row of [...kellerRows, ...datingRows]) {
+  for (const row of kellerRows) {
     assert.match(row.material, /学习目标/);
     assert.match(row.material, /导读/);
     assert.match(row.material, /反思题/);

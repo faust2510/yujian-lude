@@ -51,13 +51,15 @@ ON CONFLICT (key) DO NOTHING;
 -- 首门精品课：凯勒《婚姻的意义》（MVP 只做这一门）
 -- 10 个单元，期中(第5单元)+结业(第10单元) 为牧者确认节点
 -- ------------------------------------------------------------
-INSERT INTO courses (id, slug, title, subtitle, description, is_published, sort_order)
+INSERT INTO courses (id, slug, title, subtitle, description, is_published, publication_state, rewards_enabled, sort_order)
 VALUES (
   '11111111-1111-1111-1111-111111111111',
   'keller-meaning-of-marriage',
   '婚姻的意义',
   '提摩太·凯勒 著 · 改革宗婚姻神学经典',
   '以凯勒《婚姻的意义》为蓝本的原创导读课程。每单元包含学习目标、正文导读、反思题和讨论题；关键节点需牧者或成熟引荐人确认，完成后获得「已完成婚姻装备」徽章、曝光翻倍与 14 天 VIP 体验。',
+  TRUE,
+  'published',
   TRUE,
   1
 )
@@ -76,5 +78,22 @@ INSERT INTO course_units (course_id, unit_index, title, material, is_pastor_node
 ('11111111-1111-1111-1111-111111111111',  9, '婚姻中的友谊与扶持', '学习目标：把配偶理解为属灵朋友，而不仅是浪漫对象。导读：稳固关系需要友谊：能交谈、能同行、能在软弱中扶持，也能在真理中提醒。浪漫会带来吸引，但友谊承载日常。若两个人不能谈论信仰、金钱、家庭、失败、服事和未来，只靠心动很难走远。属灵朋友不是彼此控制，而是彼此认识、彼此代祷、彼此鼓励，也愿意在对方偏离时温柔提醒。反思题：我是否愿意让未来配偶看见真实的我，而不只是我包装过的一面？讨论题：认识阶段有哪些问题能帮助判断两个人是否可能成为属灵朋友？', FALSE),
 ('11111111-1111-1111-1111-111111111111', 10, '【结业 · 牧者确认】走向终生的盟约', '学习目标：整合全课，形成进入正式关系或继续分辨的成熟判断。导读：终生盟约不是凭热情硬撑，而是在共同信仰、真实认识、群体见证和持续悔改中前行。完成课程不代表已经准备好结婚，但应当更清楚自己对婚姻的理解、对关系的边界、对教会见证的需要，以及对未来责任的承担。结业节点建议和牧者或引荐人讨论：双方信仰是否真实，家庭与生活议题是否足够清楚，是否存在需要暂停或辅导的问题。反思题：这门课最深地更新了我对婚姻哪一点认识？讨论题：若要进入下一阶段，我需要向对方和属灵遮盖说明哪些具体决定？', TRUE)
 ON CONFLICT (course_id, unit_index) DO NOTHING;
+
+-- 历史迁移兼容锚点：旧课程只为 0003/0004 的增量 SQL 提供外键目标。
+-- 0032 完成后会删除它；已完成迁移的数据库再次 seed 时不会重建。
+INSERT INTO courses (id, slug, title, description, is_published, publication_state, rewards_enabled, sort_order)
+SELECT
+  '22222222-2222-2222-2222-222222222222',
+  'christian-dating-basics',
+  '历史课程（待清理）',
+  '仅用于历史迁移兼容，不对用户发布。',
+  FALSE,
+  'draft',
+  FALSE,
+  999
+WHERE NOT EXISTS (
+  SELECT 1 FROM schema_migrations WHERE version = '0032'
+)
+ON CONFLICT (slug) DO NOTHING;
 
 -- ------------------------------------------------------------

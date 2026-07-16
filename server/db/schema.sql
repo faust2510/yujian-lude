@@ -31,6 +31,7 @@ CREATE TYPE endorsement_kind AS ENUM ('pastor', 'referrer');          -- 牧者 
 CREATE TYPE endorsement_state AS ENUM ('pending', 'verified', 'rejected'); -- 待背书/已背书/驳回
 CREATE TYPE match_status     AS ENUM ('suggested', 'intent_sent', 'matched', 'under_review', 'approved', 'declined');
 CREATE TYPE course_state     AS ENUM ('not_started', 'in_progress', 'pastor_review', 'completed');
+CREATE TYPE course_publication_state AS ENUM ('draft', 'pending_review', 'changes_requested', 'published', 'archived');
 CREATE TYPE points_pool      AS ENUM ('daily', 'earned');             -- 每日池(清零) / 赚取池(累积)
 CREATE TYPE ledger_direction AS ENUM ('credit', 'debit');            -- 进账 / 出账
 
@@ -116,8 +117,22 @@ CREATE TABLE courses (
     description   TEXT,
     cover_image   TEXT,
     is_published  BOOLEAN NOT NULL DEFAULT FALSE,
+    author_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+    publication_state course_publication_state NOT NULL DEFAULT 'draft',
+    rewards_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    review_note   TEXT,
+    reviewed_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at   TIMESTAMPTZ,
+    submitted_at  TIMESTAMPTZ,
+    published_at  TIMESTAMPTZ,
+    authoring_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     sort_order    SMALLINT NOT NULL DEFAULT 0,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT courses_publication_is_published_consistent
+      CHECK ((publication_state = 'published') = is_published),
+    CONSTRAINT courses_authoring_payload_object
+      CHECK (jsonb_typeof(authoring_payload) = 'object')
 );
 
 CREATE TABLE course_units (
@@ -130,6 +145,30 @@ CREATE TABLE course_units (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (course_id, unit_index)
 );
+
+CREATE TABLE course_exams (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id       UUID NOT NULL UNIQUE REFERENCES courses(id) ON DELETE CASCADE,
+    pass_threshold  SMALLINT NOT NULL DEFAULT 80 CHECK (pass_threshold BETWEEN 1 AND 100),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE course_exam_questions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    exam_id         UUID NOT NULL REFERENCES course_exams(id) ON DELETE CASCADE,
+    question_key    TEXT NOT NULL,
+    question_index  SMALLINT NOT NULL CHECK (question_index BETWEEN 1 AND 50),
+    prompt          TEXT NOT NULL CHECK (length(btrim(prompt)) > 0),
+    options         JSONB NOT NULL CHECK (jsonb_typeof(options) = 'array' AND jsonb_array_length(options) BETWEEN 2 AND 6),
+    correct_option  SMALLINT NOT NULL CHECK (correct_option >= 0 AND correct_option < jsonb_array_length(options)),
+    explanation     TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (exam_id, question_index),
+    UNIQUE (exam_id, question_key)
+);
+CREATE INDEX idx_course_exam_questions_exam ON course_exam_questions(exam_id, question_index);
 
 CREATE TABLE course_progress (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),

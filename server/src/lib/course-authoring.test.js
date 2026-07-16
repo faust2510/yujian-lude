@@ -139,7 +139,7 @@ test('course authoring rules keep drafts editable and published courses reviewab
   assert.equal(nextPublicationState('changes_requested', 'save'), 'changes_requested');
 });
 
-test('0031 removes the retired dating basics course and moves the gate to the published marriage course', () => {
+test('0032 removes the retired dating basics course and disables the obsolete light-course gate', () => {
   const migrationUrl = new URL('../../db/migrations/0032_retire_dating_basics_course.sql', import.meta.url);
   const sql = readFileSync(fileURLToPath(migrationUrl), 'utf8');
 

@@ -352,7 +352,7 @@ export function createCourseAuthoringRouter({
                      WHERE pc.user_id = c.author_id AND pc.state = 'approved'
                   ) AS has_approved_certification
              FROM courses c LEFT JOIN users u ON u.id = c.author_id
-            WHERE c.id = $1 FOR UPDATE`,
+            WHERE c.id = $1 FOR UPDATE OF c`,
           [req.params.id],
         );
         if (!current) throw routeError(404, '课程不存在');
@@ -380,6 +380,7 @@ export function createCourseAuthoringRouter({
           `UPDATE courses
               SET publication_state = $2::course_publication_state,
                   is_published = ($2 = 'published'),
+                  published_at = CASE WHEN $2 = 'published' THEN COALESCE(published_at, now()) ELSE published_at END,
                   review_note = $3, reviewed_by = $4, reviewed_at = now(), updated_at = now()
             WHERE id = $1 AND publication_state = $5::course_publication_state
             RETURNING id, publication_state, is_published`,
