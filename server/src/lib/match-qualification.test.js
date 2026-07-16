@@ -32,7 +32,7 @@ test('qualification reports concrete missing actions', () => {
     'faithProfile',
     'faithTest',
     'endorsement',
-    'lightCourse',
+    'course',
   ]);
   assert.equal(status.nextActions[0].to, '/profile');
 });

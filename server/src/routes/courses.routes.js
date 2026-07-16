@@ -5,7 +5,12 @@ import { requireAuth } from '../auth.js';
 import { awardPoints, recomputeExposure, grantVipDays } from '../lib/rewards.js';
 import { getSetting } from '../settings.js';
 import { computeCourseState, shouldGrantCourseCompletionRewards } from '../lib/course-completion.js';
-import { gradeCourseExam, publicCourseExam } from '../lib/course-exams.js';
+import {
+  gradeCourseExam,
+  gradePersistedCourseExam,
+  publicCourseExam,
+  publicPersistedCourseExam,
+} from '../lib/course-exams.js';
 import { incompleteRequiredReadings, readingsForCourseUnits } from '../lib/textbook-reading.js';
 
 const router = Router();
@@ -34,7 +39,13 @@ async function applyCourseCompletion(db, { userId, courseId, unitsDone, totalUni
   let justCompleted = false;
   if (state === 'completed') {
     const lightCourseId = await getSetting('match.light_course_id');
-    const grantsRewards = shouldGrantCourseCompletionRewards({ courseId, lightCourseId });
+    const requireLightCourse = await getSetting('match.require_light_course');
+    const courseMeta = await db.query('SELECT rewards_enabled FROM courses WHERE id = $1', [courseId]);
+    const grantsRewards = shouldGrantCourseCompletionRewards({
+      courseId,
+      lightCourseId: requireLightCourse === false ? null : lightCourseId,
+      rewardsEnabled: courseMeta.rows[0]?.rewards_enabled !== false,
+    });
     if (grantsRewards && !prog.rows[0]?.badge_awarded) {
       justCompleted = true;
       await awardPoints(db, userId, 'points.course_complete', { refId: courseId, force: true });
@@ -51,21 +62,37 @@ async function applyCourseCompletion(db, { userId, courseId, unitsDone, totalUni
   return { state, justCompleted };
 }
 
+async function persistedExam(courseId) {
+  const exam = await one('SELECT id, pass_threshold FROM course_exams WHERE course_id = $1', [courseId]);
+  if (!exam) return null;
+  const { rows: questions } = await query(
+    `SELECT id, prompt, options, correct_option
+       FROM course_exam_questions WHERE exam_id = $1 ORDER BY question_index`,
+    [exam.id]
+  );
+  return { exam, questions };
+}
+
 // 课程列表（已发布）
 router.get('/courses', async (_req, res) => {
   const { rows } = await query(
-    `SELECT id, slug, title, subtitle, description, cover_image, sort_order
+    `SELECT id, slug, title, subtitle, description, cover_image, sort_order, rewards_enabled
        FROM courses WHERE is_published = TRUE ORDER BY sort_order, created_at`
   );
   const points = (await getSetting('points.course_complete'))?.amount ?? 300;
   const vipDays = (await getSetting('course.completion_vip_days'))?.days ?? 14;
   const lightCourseId = await getSetting('match.light_course_id');
+  const requireLightCourse = await getSetting('match.require_light_course');
   res.json({
     courses: rows.map((course) => {
-      const grantsRewards = shouldGrantCourseCompletionRewards({ courseId: course.id, lightCourseId });
+      const grantsRewards = shouldGrantCourseCompletionRewards({
+        courseId: course.id,
+        lightCourseId: requireLightCourse === false ? null : lightCourseId,
+        rewardsEnabled: course.rewards_enabled !== false,
+      });
       return {
         ...course,
-        is_match_gate_course: !grantsRewards,
+        is_match_gate_course: requireLightCourse !== false && String(course.id) === String(lightCourseId),
         reward_points: grantsRewards ? points : 0,
         reward_vip_days: grantsRewards ? vipDays : 0,
       };
@@ -115,7 +142,7 @@ router.get('/courses/:slug', async (req, res) => {
 
 // 报名 / 开始课程
 router.post('/courses/:slug/enroll', requireAuth, async (req, res) => {
-  const course = await one('SELECT id FROM courses WHERE slug = $1', [req.params.slug]);
+  const course = await one('SELECT id FROM courses WHERE slug = $1 AND is_published = TRUE', [req.params.slug]);
   if (!course) return res.status(404).json({ error: '课程不存在' });
   await query(
     `INSERT INTO course_progress (user_id, course_id, state, units_done)
@@ -130,7 +157,7 @@ router.post('/courses/:slug/enroll', requireAuth, async (req, res) => {
 router.post('/courses/:slug/units/:index/submit', requireAuth, async (req, res) => {
   const { readConfirmed = false } = req.body ?? {};
   if (readConfirmed !== true) return res.status(400).json({ error: '请先阅读本单元文本，再确认已阅读' });
-  const course = await one('SELECT id FROM courses WHERE slug = $1', [req.params.slug]);
+  const course = await one('SELECT id FROM courses WHERE slug = $1 AND is_published = TRUE', [req.params.slug]);
   if (!course) return res.status(404).json({ error: '课程不存在' });
   const unit = await one(
     'SELECT id, is_pastor_node FROM course_units WHERE course_id = $1 AND unit_index = $2',
@@ -206,7 +233,8 @@ router.get('/courses/:slug/exam', requireAuth, async (req, res) => {
     return res.status(409).json({ error: '请先读完全部课程单元，再参加结课考试' });
   }
   try {
-    res.json(publicCourseExam(course.slug));
+    const persisted = await persistedExam(course.id);
+    res.json(persisted ? publicPersistedCourseExam(persisted.exam, persisted.questions) : publicCourseExam(course.slug));
   } catch {
     res.status(404).json({ error: '课程考试不存在' });
   }
@@ -218,7 +246,10 @@ router.post('/courses/:slug/exam/submit', requireAuth, async (req, res) => {
 
   let graded;
   try {
-    graded = gradeCourseExam(course.slug, req.body?.answers);
+    const persisted = await persistedExam(course.id);
+    graded = persisted
+      ? gradePersistedCourseExam(persisted.exam, persisted.questions, req.body?.answers)
+      : gradeCourseExam(course.slug, req.body?.answers);
   } catch {
     return res.status(404).json({ error: '课程考试不存在' });
   }

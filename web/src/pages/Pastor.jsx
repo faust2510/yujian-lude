@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { pastorCert } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { Link } from 'react-router-dom'
 
 export default function Pastor() {
   const { user } = useAuth()
@@ -44,6 +45,7 @@ export default function Pastor() {
           <p style={{fontSize:14,marginTop:8,color:'var(--muted)'}}>
             你可以在用户的信仰档案中接收背书请求、为关系确认对接、撰写牧者介绍信。
           </p>
+          <Link className="btn btn-primary" to="/course-authoring" style={{display:'inline-block',marginTop:12}}>进入课程工作台</Link>
         </div>
       )}
 

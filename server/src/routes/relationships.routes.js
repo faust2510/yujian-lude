@@ -17,11 +17,13 @@ router.post('/relationships/initiate', requireAuth, async (req, res) => {
   if (!partner_id) return res.status(400).json({ error: '缺少 partner_id' });
 
   const lightCourseId = await getSetting('match.light_course_id');
-  const examPassed = await hasPassedRequiredCourseExam(one, {
-    userId: req.user.id,
-    requiredCourseId: lightCourseId,
-  });
-  if (!examPassed) return res.status(403).json({ error: '需先通过恋爱必修课考试' });
+  if (await getSetting('match.require_light_course')) {
+    const examPassed = await hasPassedRequiredCourseExam(one, {
+      userId: req.user.id,
+      requiredCourseId: lightCourseId,
+    });
+    if (!examPassed) return res.status(403).json({ error: '需先完成平台要求的课程考试' });
+  }
 
   const [user_a, user_b] = [req.user.id, partner_id].sort();
   const existing = await one('SELECT * FROM relationships WHERE user_a = $1 AND user_b = $2', [user_a, user_b]);
@@ -44,6 +46,7 @@ router.post('/relationships/initiate', requireAuth, async (req, res) => {
 });
 
 async function requirePassedLightCourse(userId) {
+  if (!(await getSetting('match.require_light_course'))) return true;
   const lightCourseId = await getSetting('match.light_course_id');
   return hasPassedRequiredCourseExam(one, { userId, requiredCourseId: lightCourseId });
 }
@@ -65,7 +68,7 @@ async function handleRelationshipConfirmationRequest(req, res) {
   if (!isA && !isB) return res.status(403).json({ error: '无权操作' });
 
   if (!(await requirePassedLightCourse(req.user.id))) {
-    return res.status(403).json({ error: '需先通过恋爱必修课考试' });
+    return res.status(403).json({ error: '需先完成平台要求的课程考试' });
   }
 
   const next = confirmRelationshipParticipant(rel, req.user.id);

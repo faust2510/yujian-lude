@@ -46,6 +46,7 @@ export async function getMatchQualification(userId) {
     faithTestPassed: gate.requireTest ? !!testRow?.passed : true,
     endorsements: gate.requireEndorsement ? endorsements : [{ kind: 'pastor', state: 'verified' }],
     lightCourseCompleted,
+    lightCourseRequired: gate.requireCourse,
   });
 }
 

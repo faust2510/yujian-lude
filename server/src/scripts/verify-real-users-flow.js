@@ -180,18 +180,6 @@ async function completeCourse(client, {
   assert(after.progress?.latest_exam?.passed === true, `${client.label} ${label} latest exam should be passed`);
 }
 
-async function completeLightCourse(client) {
-  await completeCourse(client, {
-    slug: 'christian-dating-basics',
-    label: 'light course',
-    expectedUnits: 8,
-    expectedQuestions: 8,
-    expectedPassThreshold: 6,
-    expectedState: 'completed',
-    isMatchGateCourse: true,
-  });
-}
-
 async function completeDeepMarriageCourse(client) {
   await completeCourse(client, {
     slug: 'keller-meaning-of-marriage',
@@ -209,7 +197,6 @@ async function onboard(client, admin, index) {
   await passFaithTest(client);
   const endorsementId = await submitEndorsement(client, index);
   await reviewEndorsement(admin, endorsementId);
-  await completeLightCourse(client);
   const status = await client.get('/match/status');
   assert(status.inPool, `${client.label} should be in pool: ${JSON.stringify(status.missing)}`);
 }
@@ -469,7 +456,7 @@ async function verifyAdminOps(admin, users, communityResult) {
   await expectStatus(admin, 'PUT', '/admin/settings/points.daily_checkin', { value: { amount: -1, pool: 'daily' } }, 400);
   const settings = await admin.get('/admin/settings');
   assert(Array.isArray(settings.settings), 'admin settings should return rows for the settings UI');
-  await admin.put('/admin/settings/match.light_course_id', { value: '22222222-2222-2222-2222-222222222222' });
+  await admin.put('/admin/settings/match.require_light_course', { value: false });
 
   await admin.post(`/admin/users/${partial.user.id}/ban`, { ban: true });
   const bannedSession = await partial.get('/auth/me');

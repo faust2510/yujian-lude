@@ -39,7 +39,7 @@ const GATE_STEPS = [
   {
     actionKey: 'lightCourse',
     key: 'lightCourseCompleted',
-    label: '完成恋爱必修课',
+    label: '完成平台课程',
     desc: '打卡完成入池门槛课程后，就能进入匿名匹配池。',
     to: '/courses',
     action: '去上课程',
@@ -255,7 +255,7 @@ export default function Dashboard() {
         {[
           {to:'/profile', title:'完善资料', desc:'资料越完整，曝光越高', badge:'+50 分'},
           {to:'/faith-test', title:'信仰基础测试', desc:'通过测试才能进入匹配池', badge:'必须'},
-          {to:'/courses', title:'婚恋必修课', desc:'完课大幅提升曝光排名', badge:'+300 分'},
+          {to:'/courses', title:'婚姻装备课程', desc:'阅读、考试并获得课程完成奖励', badge:'+300 分'},
         ].map(item => (
           <Link key={item.to} to={item.to} style={{textDecoration:'none'}}>
             <div className="card" style={{

@@ -360,7 +360,7 @@ function CoursePanel({ course, detail, submitting, examState, onMarkRead, onLoad
 
         <div style={{fontSize:13,color:'var(--muted)'}}>
           {course.is_match_gate_course
-            ? '入池门槛：读完全部单元并通过考试后满足恋爱必修课资格'
+            ? '入池门槛：读完全部单元并通过考试后满足平台课程资格'
             : <>完成奖励：+{course.reward_points || 0} 积分{course.reward_vip_days > 0 && <span> + {course.reward_vip_days} 天 VIP 体验</span>}</>}
         </div>
       </div>

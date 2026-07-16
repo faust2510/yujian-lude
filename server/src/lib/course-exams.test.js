@@ -1,27 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { courseExamAnswers, gradeCourseExam, publicCourseExam } from './course-exams.js';
+import {
+  courseExamAnswers,
+  gradeCourseExam,
+  gradePersistedCourseExam,
+  publicCourseExam,
+  publicPersistedCourseExam,
+} from './course-exams.js';
 
-test('course exams expose questions without answers', () => {
-  const exam = publicCourseExam('christian-dating-basics');
+test('persisted exams expose options without correct answers and grade percentage thresholds', () => {
+  const exam = { pass_threshold: 80 };
+  const questions = [
+    { id: 'q1', prompt: '第一题', options: ['甲', '乙'], correct_option: 1 },
+    { id: 'q2', prompt: '第二题', options: ['丙', '丁'], correct_option: 0 },
+    { id: 'q3', prompt: '第三题', options: ['戊', '己'], correct_option: 1 },
+  ];
+  const publicExam = publicPersistedCourseExam(exam, questions);
+  const result = gradePersistedCourseExam(exam, questions, [
+    { id: 'q1', a: 'B' },
+    { id: 'q2', a: 'A' },
+    { id: 'q3', a: 'A' },
+  ]);
 
-  assert.equal(exam.total, 8);
-  assert.equal(exam.passThreshold, 6);
-  assert.equal(exam.questions.length, 8);
-  assert.equal(exam.questions[0].answer, undefined);
-  assert.ok(exam.questions[0].options.A);
-});
-
-test('course exam grading accepts correct answers and rejects weak answers', () => {
-  const answers = courseExamAnswers('christian-dating-basics');
-  const passed = gradeCourseExam('christian-dating-basics', answers);
-  const failed = gradeCourseExam('christian-dating-basics', answers.map((item) => ({ ...item, a: 'A' })));
-
-  assert.equal(passed.passed, true);
-  assert.equal(passed.score, 8);
-  assert.equal(failed.passed, false);
-  assert.ok(failed.score < failed.passThreshold);
+  assert.equal(publicExam.passThreshold, 3);
+  assert.equal(publicExam.questions[0].options.A, '甲');
+  assert.equal(publicExam.questions[0].answer, undefined);
+  assert.deepEqual(result, { score: 2, total: 3, passThreshold: 3, passed: false });
 });
 
 test('marriage course exam is deep enough for a flagship course', () => {

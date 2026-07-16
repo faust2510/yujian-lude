@@ -23,8 +23,8 @@ const DEFAULTS = {
   'exposure.endorsement_bonus': { value: 50 },
   'match.require_verified_pastor': true,
   'match.require_faith_test': true,
-  'match.require_light_course': true,
-  'match.light_course_id': '22222222-2222-2222-2222-222222222222',
+  'match.require_light_course': false,
+  'match.light_course_id': '11111111-1111-1111-1111-111111111111',
   'limits.daily_intents_free': { value: 3 },
   'limits.daily_intents_vip': { value: 15 },
 };

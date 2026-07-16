@@ -24,6 +24,7 @@ import relationshipRoutes from './routes/relationships.routes.js';
 import communityRoutes from './routes/community.routes.js';
 import pastorCertRoutes from './routes/pastor-cert.routes.js';
 import chatRoutes from './routes/chat.routes.js';
+import courseAuthoringRoutes from './routes/course-authoring.routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -63,6 +64,7 @@ app.use('/api', relationshipRoutes);
 app.use('/api', communityRoutes);
 app.use('/api', pastorCertRoutes);
 app.use('/api', chatRoutes);
+app.use('/api', courseAuthoringRoutes);
 app.use('/api/admin', adminRoutes);
 
 app.get('/app', (_req, res) => {

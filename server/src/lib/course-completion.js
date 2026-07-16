@@ -9,6 +9,6 @@ export function computeCourseState({ unitsDone, totalUnits, pastorConfirmed = 0,
   return 'completed';
 }
 
-export function shouldGrantCourseCompletionRewards({ courseId, lightCourseId }) {
-  return !!courseId && String(courseId) !== String(lightCourseId || '');
+export function shouldGrantCourseCompletionRewards({ courseId, lightCourseId, rewardsEnabled = true }) {
+  return !!courseId && rewardsEnabled && String(courseId) !== String(lightCourseId || '');
 }

@@ -3,7 +3,7 @@ const ACTIONS = {
   faithProfile: { key: 'faithProfile', label: '补全信仰档案', to: '/profile' },
   faithTest: { key: 'faithTest', label: '通过信仰基础测试', to: '/faith-test' },
   endorsement: { key: 'endorsement', label: '获得牧者或引荐人背书', to: '/profile' },
-  lightCourse: { key: 'lightCourse', label: '完成恋爱必修课', to: '/courses' },
+  course: { key: 'course', label: '完成平台要求的课程', to: '/courses' },
 };
 
 function hasText(value) {
@@ -30,13 +30,14 @@ export function buildMatchQualification({
   faithTestPassed,
   endorsements,
   lightCourseCompleted,
+  lightCourseRequired = true,
 }) {
   const requirements = {
     profileComplete: isProfileComplete(profile),
     faithProfileComplete: isFaithProfileComplete(faith),
     faithTestPassed: !!faithTestPassed,
     endorsementVerified: hasVerifiedEndorsement(endorsements),
-    lightCourseCompleted: !!lightCourseCompleted,
+    lightCourseCompleted: lightCourseRequired ? !!lightCourseCompleted : true,
   };
 
   const missing = [];
@@ -44,13 +45,15 @@ export function buildMatchQualification({
   if (!requirements.faithProfileComplete) missing.push('faithProfile');
   if (!requirements.faithTestPassed) missing.push('faithTest');
   if (!requirements.endorsementVerified) missing.push('endorsement');
-  if (!requirements.lightCourseCompleted) missing.push('lightCourse');
+  if (lightCourseRequired && !requirements.lightCourseCompleted) missing.push('course');
 
   return {
     ...requirements,
     inPool: missing.length === 0,
     missing,
     nextActions: missing.map((key) => ACTIONS[key]),
-    gate: '需完成资料、信仰档案、信仰基础测试、牧者或引荐人背书，以及恋爱必修课后进入匹配池',
+    gate: lightCourseRequired
+      ? '需完成资料、信仰档案、信仰基础测试、牧者或引荐人背书，以及课程后进入匹配池'
+      : '需完成资料、信仰档案、信仰基础测试和牧者或引荐人背书后进入匹配池',
   };
 }

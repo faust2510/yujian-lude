@@ -177,18 +177,6 @@ async function completeCourse(client, {
   assert(after.progress?.latest_exam?.passed === true, `${label} latest exam should be passed`);
 }
 
-async function completeLightCourse(client) {
-  await completeCourse(client, {
-    slug: 'christian-dating-basics',
-    label: 'light course',
-    expectedUnits: 8,
-    expectedQuestions: 8,
-    expectedPassThreshold: 6,
-    expectedState: 'completed',
-    isMatchGateCourse: true,
-  });
-}
-
 async function completeDeepMarriageCourse(client) {
   await completeCourse(client, {
     slug: 'keller-meaning-of-marriage',
@@ -239,7 +227,6 @@ async function onboard(client, admin, index) {
   await passFaithTest(client);
   const endorsementId = await submitEndorsement(client, index);
   await reviewEndorsement(admin, endorsementId);
-  await completeLightCourse(client);
   await assertInPool(client, `user ${index}`);
 }
 

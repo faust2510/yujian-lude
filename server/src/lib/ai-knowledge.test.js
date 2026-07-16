@@ -8,7 +8,7 @@ test('retrieves marriage-boundary guidance with sources', () => {
 
   assert.equal(result.hit, true);
   assert.ok(result.chunks.length >= 1);
-  assert.ok(result.chunks.some((chunk) => chunk.source.includes('恋爱必修课')));
+  assert.ok(result.chunks.some((chunk) => chunk.source.includes('关系预备')));
 });
 
 test('builds an in-scope answer from bounded sources', () => {

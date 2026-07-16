@@ -41,6 +41,17 @@ export const courses = {
   submitExam: (slug, answers) => api.post(`/courses/${slug}/exam/submit`, { answers }),
 }
 
+export const courseAuthoring = {
+  mine: () => api.get('/pastor/courses'),
+  create: (draft) => api.post('/pastor/courses', draft),
+  detail: (id) => api.get(`/pastor/courses/${id}`),
+  save: (id, draft) => api.put(`/pastor/courses/${id}`, draft),
+  submit: (id) => api.post(`/pastor/courses/${id}/submit`),
+  reviewQueue: () => api.get('/admin/course-submissions?state=pending_review'),
+  review: (id, action, note, expectedState = 'pending_review') =>
+    api.patch(`/admin/course-submissions/${id}`, { action, note, expected_state: expectedState }),
+}
+
 export const textbooks = {
   list: () => api.get('/textbooks'),
   detail: (slug) => api.get(`/textbooks/${slug}`),

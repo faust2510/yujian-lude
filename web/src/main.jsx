@@ -21,6 +21,7 @@ import Community from './pages/Community'
 import UserTimeline from './pages/UserTimeline'
 import Vip from './pages/Vip'
 import Pastor from './pages/Pastor'
+import CourseAuthoring from './pages/CourseAuthoring'
 import Admin from './pages/Admin'
 import Chat from './pages/Chat'
 import './index.css'
@@ -49,6 +50,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="/community/user/:userId" element={<UserTimeline />} />
             <Route path="/vip" element={<Vip />} />
             <Route path="/pastor" element={<Pastor />} />
+            <Route path="/course-authoring" element={<CourseAuthoring />} />
             <Route path="/chat" element={<Chat />} />
             <Route path="/admin" element={<ProtectedRoute role="admin"><Admin /></ProtectedRoute>} />
           </Route>

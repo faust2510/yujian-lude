@@ -1,97 +1,4 @@
 export const COURSE_EXAMS = {
-  'christian-dating-basics': {
-    passThreshold: 6,
-    questions: [
-      {
-        id: 'basics-1',
-        q: '进入认识关系前，最重要的预备是什么？',
-        options: {
-          A: '尽快交换全部私人信息',
-          B: '先确认边界、节奏与属灵目标',
-          C: '只看第一印象和心动感觉',
-          D: '避开教会和成熟肢体的意见',
-        },
-        answer: 'B',
-      },
-      {
-        id: 'basics-2',
-        q: '认识初期合宜的沟通方式是：',
-        options: {
-          A: '真诚、清楚、循序渐进',
-          B: '暧昧试探，不表达真实期待',
-          C: '用压力逼对方快速承诺',
-          D: '只谈感觉，不谈信仰和责任',
-        },
-        answer: 'A',
-      },
-      {
-        id: 'basics-3',
-        q: '谈到信仰、家庭与未来期待时，合宜的态度是：',
-        options: {
-          A: '越晚谈越好，避免尴尬',
-          B: '只要喜欢就不需要讨论',
-          C: '在合适节奏中诚实沟通',
-          D: '让对方完全迁就自己',
-        },
-        answer: 'C',
-      },
-      {
-        id: 'basics-4',
-        q: '从心动走向负责任下一步，意味着：',
-        options: {
-          A: '把关系交给冲动决定',
-          B: '在祷告、沟通和群体见证中前行',
-          C: '隐藏重要事实以免失去机会',
-          D: '只要双方喜欢就不需要边界',
-        },
-        answer: 'B',
-      },
-      {
-        id: 'basics-5',
-        q: '关于线上认识中的安全边界，下列哪一项更成熟？',
-        options: {
-          A: '越快线下单独见面越能证明诚意',
-          B: '在身份、教会关系和基本处境更清楚前，保留必要隐私',
-          C: '为了表示信任，马上共享住址和财务信息',
-          D: '只要对方自称基督徒，就不需要分辨',
-        },
-        answer: 'B',
-      },
-      {
-        id: 'basics-6',
-        q: '当发现双方在城市、家庭责任或财务观上有明显差异时，应当：',
-        options: {
-          A: '假装没有差异，等婚后再说',
-          B: '用属灵话语要求对方迁就自己',
-          C: '尽早、具体、带着祷告和尊重沟通',
-          D: '立刻公开指责对方不属灵',
-        },
-        answer: 'C',
-      },
-      {
-        id: 'basics-7',
-        q: '引入牧者、引荐人或成熟肢体的意义主要是：',
-        options: {
-          A: '让第三方替自己决定要不要结婚',
-          B: '在群体见证中获得提醒、保护和更全面的分辨',
-          C: '制造压力，逼对方更快承诺',
-          D: '只为了完成平台流程',
-        },
-        answer: 'B',
-      },
-      {
-        id: 'basics-8',
-        q: '如果认识后发现并不合适，负责任的停止方式是：',
-        options: {
-          A: '突然消失，让对方自己明白',
-          B: '继续暧昧，保留备选可能',
-          C: '用羞辱性评价证明自己没错',
-          D: '清楚、温和、真实地说明，并尊重对方',
-        },
-        answer: 'D',
-      },
-    ],
-  },
   'keller-meaning-of-marriage': {
     passThreshold: 8,
     questions: [
@@ -239,5 +146,34 @@ export function gradeCourseExam(slug, answers = []) {
     total: exam.questions.length,
     passThreshold: exam.passThreshold,
     passed: score >= exam.passThreshold,
+  };
+}
+
+const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+export function publicPersistedCourseExam(exam, questions) {
+  return {
+    passThreshold: Math.ceil((questions.length * Number(exam.pass_threshold)) / 100),
+    total: questions.length,
+    questions: questions.map((question) => ({
+      id: question.id,
+      q: question.prompt,
+      options: Object.fromEntries(question.options.map((option, index) => [LETTERS[index], option])),
+    })),
+  };
+}
+
+export function gradePersistedCourseExam(exam, questions, answers = []) {
+  const byId = new Map(Array.isArray(answers) ? answers.map((item) => [item.id, item.a]) : []);
+  const score = questions.reduce((sum, question) => {
+    const correct = LETTERS[Number(question.correct_option)];
+    return sum + (byId.get(question.id) === correct ? 1 : 0);
+  }, 0);
+  const passThreshold = Math.ceil((questions.length * Number(exam.pass_threshold)) / 100);
+  return {
+    score,
+    total: questions.length,
+    passThreshold,
+    passed: score >= passThreshold,
   };
 }

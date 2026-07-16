@@ -130,7 +130,6 @@ const requiredSettings = [
 ];
 
 const requiredCourses = [
-  ['christian-dating-basics', 8],
   ['keller-meaning-of-marriage', 10],
 ];
 
