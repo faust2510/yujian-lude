@@ -22,6 +22,18 @@ test('application layout exposes the accepted Figma shell regions', () => {
   assert.match(layoutSource, /消息/)
 })
 
+test('Figma main column does not inherit the legacy main-content box model', () => {
+  assert.doesNotMatch(layoutSource, /className="(?:[^"]*\s)?main-content(?:\s[^"]*)?"/)
+  assert.match(layoutSource, /<main className="figma-main">/)
+})
+
+test('fixed desktop sidebar keeps explicit space in the three-column grid', () => {
+  assert.match(cssSource, /\.figma-app-shell \.figma-sidebar\s*\{[^}]*position:\s*fixed/s)
+  assert.match(cssSource, /\.figma-app-shell \.figma-sidebar\s*\{[^}]*width:\s*var\(--figma-sidebar\)/s)
+  assert.match(cssSource, /\.figma-app-shell \.figma-main\s*\{[^}]*grid-column:\s*2/s)
+  assert.match(cssSource, /\.figma-app-shell \.figma-right-rail\s*\{[^}]*grid-column:\s*3/s)
+})
+
 test('layout preserves existing routes, role visibility, outlet, and async logout flow', () => {
   for (const route of ['/', '/profile', '/faith-test', '/courses', '/course-authoring', '/textbooks', '/match', '/ai', '/relationships', '/chat', '/community', '/vip', '/admin']) {
     assert.match(layoutSource, new RegExp(`(?:to=|to:\\s*)["']${route.replaceAll('/', '\\/')}["']`))

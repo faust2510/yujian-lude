@@ -127,7 +127,7 @@ export default function AppLayout() {
         </details>
       </header>
 
-      <main className="main-content figma-main">
+      <main className="figma-main">
         <FigmaPageHeader title={pageTitle} description={pageDescription} eyebrow={pathname.startsWith('/ai') ? 'RUTH AI' : 'MEET RUTH'} />
         <div className="figma-main-content"><Outlet /></div>
       </main>
