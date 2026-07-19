@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { courseExamAnswers } from '../lib/course-exams.js';
+import { persistedCourseExamAnswers } from '../lib/course-exams.js';
 import { QUESTIONS } from '../lib/faith-questions.js';
 
 const { Pool } = pg;
@@ -86,6 +86,19 @@ async function makeAdmin(userId) {
   await pool.query(`UPDATE users SET role = 'admin' WHERE id = $1`, [userId]);
 }
 
+async function answersForPersistedCourse(slug) {
+  const { rows } = await pool.query(
+    `SELECT q.id, q.correct_option
+       FROM courses c
+       JOIN course_exams e ON e.course_id = c.id
+       JOIN course_exam_questions q ON q.exam_id = e.id
+      WHERE c.slug = $1
+      ORDER BY q.question_index`,
+    [slug]
+  );
+  return persistedCourseExamAnswers(rows);
+}
+
 async function completeProfile(client, index) {
   const profile = await client.put('/me/profile', {
     nickname: `路得测试${index}`,
@@ -169,7 +182,7 @@ async function completeCourse(client, {
   assert(exam.questions?.length === expectedQuestions, `${label} expected ${expectedQuestions} exam questions, got ${exam.questions?.length || 0}`);
   assert(exam.passThreshold === expectedPassThreshold, `${label} expected pass threshold ${expectedPassThreshold}, got ${exam.passThreshold}`);
   const result = await client.post(`/courses/${course.slug}/exam/submit`, {
-    answers: courseExamAnswers(course.slug),
+    answers: await answersForPersistedCourse(course.slug),
   });
   assert(result.passed, `${label} exam expected passed, got ${result.score}/${result.total}`);
   const after = await client.get(`/courses/${course.slug}`);

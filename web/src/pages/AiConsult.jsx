@@ -69,12 +69,12 @@ export default function AiConsult() {
   }
 
   return (
-    <div className="ai-page">
+    <div className="figma-core-screen figma-ai-workbench ai-page">
       <div className="ai-header-row">
         <div>
           <div className="ai-kicker">遇见路得咨询台</div>
-          <h1 className="page-title">AI 婚恋咨询</h1>
-          <p className="page-sub">围绕课程、边界、沟通、信仰档案和关系确认给出可执行建议。</p>
+          <h2>有边界的辅助建议</h2>
+          <p>围绕课程、边界、沟通、信仰档案和关系确认给出可执行建议。</p>
         </div>
         <span className="ai-scope-badge">有边界的辅助建议</span>
       </div>

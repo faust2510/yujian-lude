@@ -37,9 +37,8 @@ export default function Vip() {
   }
 
   return (
-    <>
-      <h1 className="page-title">会员套餐</h1>
-      <p className="page-sub">VIP 只买便利，完全不参与曝光排序 · 曝光只靠完成课程 + 牧者背书赢得</p>
+    <div className="figma-core-screen figma-membership-grid">
+      <section className="figma-fairness-promise"><strong>AI 是会员核心权益，不是匹配特权</strong><span>会员提供更高额度与成长便利，但永远不影响匹配或曝光排序。</span></section>
 
       {isVip && (
         <div className="card" style={{background:'#F0FAF4',border:'1px solid #B8E0C8',marginBottom:16}}>
@@ -92,6 +91,6 @@ export default function Vip() {
       <div className="card" style={{marginTop:16,fontSize:13,color:'var(--muted)'}}>
         提示：完成凯勒《婚姻的意义》精品课，可免费获得 14 天 VIP 体验。受装备的人不光排前面，还能尝到便利。
       </div>
-    </>
+    </div>
   )
 }

@@ -60,11 +60,12 @@ export default function Match() {
   }
 
   return (
-    <>
-      <h1 className="page-title">匿名匹配</h1>
-      <p className="page-sub">候选人均为匿名显示，双方都有意向后才开启私聊通道</p>
+    <div className="figma-core-screen figma-daily-picks">
+      <div className="figma-screen-tabs" aria-label="认识内容"><span className="is-active">今日精选</span><span>已表达心意</span></div>
 
-      <div className="card" style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'flex-end',marginBottom:8}}>
+      <details className="card figma-match-filters">
+        <summary>筛选偏好</summary>
+        <div className="figma-match-filter-fields">
         <div className="field" style={{margin:0,minWidth:100}}>
           <label>最小年龄</label>
           <input value={filters.min_age} onChange={e=>setFilters(p=>({...p,min_age:e.target.value}))} placeholder="20" />
@@ -80,7 +81,8 @@ export default function Match() {
         <button className="btn btn-outline" onClick={() => loadCandidates(filters)} disabled={loading}>
           {loading ? '筛选中…' : '筛选'}
         </button>
-      </div>
+        </div>
+      </details>
 
       {loading && <div style={{color:'var(--muted)',padding:20,fontSize:14}}>加载中…</div>}
 
@@ -118,9 +120,9 @@ export default function Match() {
       )}
 
       <div className="grid-2">
-        {candidates.map(c => (
-          <div className="card" key={c.id}>
-            <div style={{width:48,height:48,borderRadius:'50%',background:'var(--brand)',
+        {candidates.slice(0, 3).map(c => (
+          <div className="card figma-candidate-card" key={c.id}>
+            <div className="figma-candidate-avatar" style={{width:48,height:48,borderRadius:'50%',background:'var(--brand)',
               color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',
               fontFamily:'var(--font-serif)',fontSize:20,marginBottom:12}}>
               {(c.nickname||'?')[0]}
@@ -132,7 +134,7 @@ export default function Match() {
               {c.education}
             </div>
             {c.church_name && (
-              <div style={{fontSize:12,color:'var(--brand)',marginBottom:8}}>⛪ {c.church_name}</div>
+              <div className="figma-candidate-church" style={{fontSize:12,color:'var(--brand)',marginBottom:8}}>教会 · {c.church_name}</div>
             )}
             {c.has_badge && <span className="badge badge-green" style={{marginBottom:8}}>已完成婚姻装备</span>}
             {mutuals[c.id] ? (
@@ -155,6 +157,7 @@ export default function Match() {
           </div>
         ))}
       </div>
-    </>
+      <div className="figma-inline-notice">每日最多三位候选 · 双方心动后才开放私信 · 会员不影响匹配或曝光排序</div>
+    </div>
   )
 }

@@ -24,16 +24,16 @@ const secondaryNav = [
 ]
 
 const pageMeta = {
-  '/': ['首页', '在真实与边界中，慢慢认识值得认识的人。'],
+  '/': ['此刻', '看见今天值得回应的人、关系与成长。'],
   '/profile': ['我的资料', '清楚表达自己，也温柔守护隐私。'],
   '/faith-test': ['信仰测试', '在诚实回答中建立可理解的信仰档案。'],
   '/courses': ['成长', '用学习与练习，为一段健康关系做好预备。'],
   '/textbooks': ['教材', '把重要的关系知识读深、读懂。'],
-  '/match': ['认识', '每日精选，以真实、稳定与成长为共同起点。'],
-  '/ai': ['路得 AI 工作台', '有依据、可执行，并清楚说明限制的辅助建议。'],
+  '/match': ['每日精选', '以真实、稳定与成长为共同起点。'],
+  '/ai': ['路得 AI', '有依据、可执行，并清楚说明限制的辅助建议。'],
   '/relationships': ['关系', '看见关系进度，也守住彼此的边界。'],
   '/community': ['社区', '在共同学习与服事中认识同行者。'],
-  '/chat': ['消息', '双方心动后，在安全边界内慢慢交谈。'],
+  '/chat': ['书信', '双方心动后，在安全边界内慢慢交谈。'],
   '/vip': ['会员与积分', '成长便利与 AI 额度，不影响匹配或曝光排序。'],
   '/pastor': ['牧者工作台', '陪伴、审核与关系支持。'],
   '/course-authoring': ['课程工作台', '编写、审阅并发布成长课程。'],
@@ -81,7 +81,7 @@ export default function AppLayout() {
         <NavLink className="figma-brand" to="/" end>
           <span className="figma-brand-mark">路</span>
           <span className="figma-brand-name">遇见路得</span>
-          <span className="figma-brand-tagline">Relationship with grace</span>
+          <span className="figma-brand-tagline">在真实中相遇</span>
         </NavLink>
 
         <nav className="figma-primary-nav" aria-label="主要导航">
@@ -133,8 +133,10 @@ export default function AppLayout() {
       </main>
 
       <aside className="figma-right-rail" aria-label="相关推荐">
-        <h2>{pathname.startsWith('/community') ? '值得关注的小组' : '可能同行的人'}</h2>
-        {railItems.map(([initial, name, meta]) => <FigmaPersonRow key={name} initial={initial} name={name} meta={meta} />)}
+        <section className="figma-rail-card">
+          <h2>{pathname.startsWith('/community') ? '值得关注的小组' : '今日值得认识'}</h2>
+          {railItems.map(([initial, name, meta]) => <FigmaPersonRow key={name} initial={initial} name={name} meta={meta} />)}
+        </section>
         <FigmaNotice title="安心认识">
           敏感信息不公开展示。双方心动后才开放私信，联系方式与精确位置仍受保护。
         </FigmaNotice>

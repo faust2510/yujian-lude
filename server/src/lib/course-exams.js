@@ -151,6 +151,13 @@ export function gradeCourseExam(slug, answers = []) {
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+export function persistedCourseExamAnswers(questions = []) {
+  return questions.map((question) => ({
+    id: question.id,
+    a: LETTERS[Number(question.correct_option)],
+  }));
+}
+
 export function publicPersistedCourseExam(exam, questions) {
   return {
     passThreshold: Math.ceil((questions.length * Number(exam.pass_threshold)) / 100),

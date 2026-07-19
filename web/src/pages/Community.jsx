@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { community } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { FigmaIcon } from '../components/FigmaUi'
 
 function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso)) / 1000)
@@ -742,7 +743,7 @@ export default function Community() {
                 </div>
                 {ev.description && <p className="com-event-desc">{ev.description}</p>}
                 <div className="com-event-meta">
-                  {ev.location && <span>📍 {ev.location}</span>}
+                  {ev.location && <span><FigmaIcon name="map" size={14} /> {ev.location}</span>}
                   <span>{ev.attendee_count ?? 0} 人报名</span>
                   {ev.max_attendees && <span> / 上限 {ev.max_attendees}</span>}
                 </div>
@@ -845,33 +846,33 @@ export default function Community() {
               <div className="com-post-actions">
                 <button className={`com-action-btn ${post.liked_by_me ? 'liked' : ''}`}
                   onClick={() => toggleLike(post.id)}>
-                  {post.liked_by_me ? '❤️' : '🤍'} {post.like_count > 0 && post.like_count}
+                  <FigmaIcon name="heart" size={16} /> {post.like_count > 0 && post.like_count}
                 </button>
                 <button className="com-action-btn" onClick={() => toggleComments(post.id)}>
-                  💬 {post.comment_count > 0 && post.comment_count}
+                  <FigmaIcon name="message" size={16} /> {post.comment_count > 0 && post.comment_count}
                 </button>
                 <button className={`com-action-btn ${post.bookmarked_by_me ? 'bookmarked' : ''}`}
                   onClick={() => toggleBookmark(post.id)}>
-                  {post.bookmarked_by_me ? '⭐' : '☆'}
+                  <FigmaIcon name="bookmark" size={16} />
                 </button>
                 {post.author_id !== user.id && (
                   <button className="com-action-btn" onClick={() => setShowReport({ target_type: 'post', target_id: post.id })}>
-                    🚩
+                    <FigmaIcon name="flag" size={16} />
                   </button>
                 )}
                 {(user.id === post.author_id || isAdmin) && (
                   <>
                     {isAdmin && post.state !== 'pinned' && (
-                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'pin')}>📌</button>
+                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'pin')}><FigmaIcon name="pin" size={16} /></button>
                     )}
                     {isAdmin && post.state === 'pinned' && (
-                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'unpin')}>📌</button>
+                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'unpin')}><FigmaIcon name="pin" size={16} /></button>
                     )}
                     {isAdmin && post.state !== 'featured' && (
-                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'feature')}>⭐</button>
+                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'feature')}><FigmaIcon name="bookmark" size={16} /></button>
                     )}
                     <button className="com-action-btn" onClick={() => deletePost(post.id)} style={{ color: 'var(--muted)' }}>
-                      🗑️
+                      <FigmaIcon name="trash" size={16} />
                     </button>
                   </>
                 )}
@@ -950,7 +951,7 @@ export default function Community() {
   // ═══════════════════════════════════════════════════════════════
 
   return (
-    <div className="com-layout">
+    <div className="figma-core-screen figma-community-feed com-layout">
       <div className="com-main">
         {/* Top nav tabs */}
         <div className="com-tabs">
@@ -987,7 +988,7 @@ export default function Community() {
           </div>
           <div className="com-notif-bell" ref={notifRef} style={{ position: 'relative', cursor: 'pointer', padding: '4px 8px' }}>
             <span onClick={() => setShowNotifs(prev => !prev)}>
-              🔔{notifCount > 0 && <span className="com-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
+              <FigmaIcon name="bell" size={17} />{notifCount > 0 && <span className="com-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
             </span>
             {showNotifs && (
               <div className="com-notif-dropdown">
@@ -1013,7 +1014,7 @@ export default function Community() {
               </div>
             )}
           </div>
-          <button className="com-bookmark-btn" onClick={loadBookmarks} title="收藏">⭐</button>
+          <button className="com-bookmark-btn" onClick={loadBookmarks} title="收藏"><FigmaIcon name="bookmark" size={17} /></button>
 	        </div>
         {renderErrorBanner()}
 
@@ -1085,8 +1086,8 @@ export default function Community() {
           <div className="com-sidebar-section">
             <h3 className="com-sidebar-title">小组分类</h3>
             <div className="com-sidebar-info">
-              <p style={{ cursor: 'pointer' }} onClick={() => { setGroupCategory('region'); loadGroups('region') }}>📍 地区小组</p>
-              <p style={{ cursor: 'pointer' }} onClick={() => { setGroupCategory('interest'); loadGroups('interest') }}>🎯 兴趣小组</p>
+              <p style={{ cursor: 'pointer' }} onClick={() => { setGroupCategory('region'); loadGroups('region') }}><FigmaIcon name="map" size={15} /> 地区小组</p>
+              <p style={{ cursor: 'pointer' }} onClick={() => { setGroupCategory('interest'); loadGroups('interest') }}><FigmaIcon name="target" size={15} /> 兴趣小组</p>
             </div>
           </div>
         )}

@@ -191,9 +191,9 @@ export default function Courses() {
   }
 
   return (
-    <>
-      <h1 className="page-title">婚恋课程</h1>
-      <p className="page-sub">先阅读课程文本，再完成结课考试；通过后才计入课程资格</p>
+    <div className="figma-core-screen figma-growth-feed">
+      <div className="figma-screen-tabs" aria-label="成长内容"><span className="is-active">为你继续</span><span>探索内容</span></div>
+      <div className="figma-inline-notice">先阅读课程文本，再完成结课考试；通过后计入关系预备进度。</div>
 
       {error && (
         <div className="card" style={{color:'#B42318',fontSize:14,marginBottom:16}}>
@@ -225,7 +225,7 @@ export default function Courses() {
           onSubmitExam={submitExam}
         />
       ))}
-    </>
+    </div>
   )
 }
 

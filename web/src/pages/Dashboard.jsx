@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import { matches, points } from '../api/client'
 
 const GATE_STEPS = [
@@ -47,7 +46,6 @@ const GATE_STEPS = [
 ];
 
 export default function Dashboard() {
-  const { user } = useAuth()
   const [pts, setPts] = useState(null)
   const [qualification, setQualification] = useState(null)
   const [pointsLoading, setPointsLoading] = useState(true)
@@ -134,9 +132,28 @@ export default function Dashboard() {
     : null
 
   return (
-    <>
-      <h1 className="page-title">你好，{user?.nickname || user?.email?.split('@')[0]}</h1>
-      <p className="page-sub">欢迎回到遇见路得</p>
+    <div className="figma-core-screen figma-home-feed">
+      <div className="figma-screen-tabs" aria-label="首页内容"><span className="is-active">为你</span><span>正在关注</span></div>
+      <section className="figma-relationship-compass">
+        <div className="figma-compass-score"><strong>{qualificationLoading ? '…' : `${gatePct}%`}</strong><span>关系罗盘</span></div>
+        <div><span className="figma-section-label">今天最重要的一步</span><h2>你正在练习：真实而有边界地靠近</h2><p>{primaryNext?.desc || '完成当前预备任务，再认真认识一位候选。'}</p></div>
+        {primaryNext ? <Link className="btn btn-primary" to={primaryNext.to}>{primaryNext.action}</Link> : <Link className="btn btn-primary" to="/match">查看今日精选</Link>}
+      </section>
+
+      <article className="figma-feed-post">
+        <div className="figma-feed-author"><span>晨</span><div><strong>晨曦小组</strong><small>2 小时前 · 经安全审核</small></div></div>
+        <p>我们在本周共读中谈到：成熟的关系，不是更快抵达答案，而是更诚实地面对彼此的有限。</p>
+        <div className="figma-feed-actions"><span>♡ 24</span><span>○ 8</span><span>□ 保存</span></div>
+      </article>
+
+      <article className="figma-feed-post figma-feed-post-secondary">
+        <div className="figma-feed-author"><span>禾</span><div><strong>禾光共读</strong><small>2 小时前 · 经安全审核</small></div></div>
+        <p>今天的讨论没有标准答案。有人选择等待，有人选择坦诚提问。愿我们不把效率放在真实之前。</p>
+        <div className="figma-feed-actions"><span>♡ 24</span><span>○ 8</span><span>□ 保存</span></div>
+      </article>
+
+      <details className="figma-home-utilities">
+        <summary>查看任务与积分</summary>
 
       <div className="grid-2" style={{marginBottom:24}}>
         <div className="card">
@@ -277,6 +294,7 @@ export default function Dashboard() {
           </Link>
         ))}
       </div>
-    </>
+      </details>
+    </div>
   )
 }

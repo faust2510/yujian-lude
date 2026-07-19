@@ -120,9 +120,11 @@ export default function Profile() {
   }
 
   return (
-    <>
-      <h1 className="page-title">完善资料</h1>
-      <p className="page-sub">资料越完整，曝光分越高，越容易被匹配到</p>
+    <div className="figma-core-screen figma-profile-sheet">
+      <section className="figma-profile-identity">
+        <div className="figma-profile-avatar">{(form.nickname || user?.email || '安').slice(0, 1)}</div>
+        <div><span className="badge badge-green">基础资料已验证</span><h2>{form.nickname || '平安'}{form.city ? ` · ${form.city}` : ''}</h2><p>{form.intro || '愿意认真认识一段以婚姻为方向的关系。'}</p></div>
+      </section>
       {busy.initial && <div className="card" style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>正在加载你的资料…</div>}
 
       <div className="card" style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
@@ -236,6 +238,6 @@ export default function Profile() {
         <button className="btn btn-primary" disabled={busy.password}>{busy.password ? '修改中…' : '修改密码'}</button>
         {pwdMsg && <div className={messageClass(pwdMsg)}>{pwdMsg}</div>}
       </form>
-    </>
+    </div>
   )
 }

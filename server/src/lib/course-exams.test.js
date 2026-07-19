@@ -5,9 +5,20 @@ import {
   courseExamAnswers,
   gradeCourseExam,
   gradePersistedCourseExam,
+  persistedCourseExamAnswers,
   publicCourseExam,
   publicPersistedCourseExam,
 } from './course-exams.js';
+
+test('persisted exam verification answers use database question ids and option indexes', () => {
+  assert.deepEqual(persistedCourseExamAnswers([
+    { id: 'db-q1', correct_option: 2 },
+    { id: 'db-q2', correct_option: 0 },
+  ]), [
+    { id: 'db-q1', a: 'C' },
+    { id: 'db-q2', a: 'A' },
+  ]);
+});
 
 test('persisted exams expose options without correct answers and grade percentage thresholds', () => {
   const exam = { pass_threshold: 80 };

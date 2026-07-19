@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { chat } from '../api/client'
+import { FigmaIcon } from '../components/FigmaUi'
 
 function timeAgo(iso) {
   if (!iso) return ''
@@ -79,7 +80,7 @@ export default function Chat() {
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - var(--nav-h, 60px))', background: 'var(--bg)' }}>
+    <div className="figma-core-screen figma-letter-workspace" style={{ display: 'flex', height: 'calc(100vh - 112px)', background: 'var(--figma-silver)' }}>
       <div style={{ width: 280, borderRight: '1px solid var(--border)', overflowY: 'auto', background: 'var(--surface)', flexShrink: 0 }}>
         <div style={{
           padding: '16px 20px', borderBottom: '1px solid var(--border)',
@@ -90,7 +91,7 @@ export default function Chat() {
         )}
         {!loadingChannels && channels.length === 0 && (
           <div style={{ padding: 32, textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>💬</div>
+            <FigmaIcon name="message" size={32} className="figma-letter-empty-icon" />
             <p style={{ color: 'var(--muted)', fontSize: 13, lineHeight: 1.6 }}>
               暂无对话。<br />与候选人互相表达意向后，私信通道会自动开通。
             </p>
@@ -130,7 +131,7 @@ export default function Chat() {
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             color: 'var(--muted)', gap: 8
           }}>
-            <div style={{ fontSize: 40, opacity: 0.2 }}>✉️</div>
+            <FigmaIcon name="message" size={40} className="figma-letter-empty-icon" />
             <span style={{ fontSize: 14 }}>选择一个对话开始聊天</span>
           </div>
         ) : (
