@@ -1210,7 +1210,7 @@ textarea.com-modal-input { resize: vertical; font-family: inherit; }
 .empty-state { color:var(--muted); padding:48px 12px; text-align:center; }
 @media (max-width: 760px) { .course-authoring-layout { grid-template-columns:1fr; } .course-authoring-list { position:static; } }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .sidebar { display: none; }
   .main-content { margin-left: 0; padding: 16px; }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }

@@ -1,0 +1,1 @@
+export function XMobileTimelineRow({ title, meta, children }) { return <article className="x-mobile-timeline-row"><div className="x-mobile-timeline-dot" /><div><strong>{title}</strong>{meta && <span>{meta}</span>}{children}</div></article> }

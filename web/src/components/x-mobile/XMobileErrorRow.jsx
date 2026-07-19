@@ -1,0 +1,1 @@
+export function XMobileErrorRow({ message, onRetry }) { return <div className="x-mobile-error-row" role="alert"><span>{message}</span>{onRetry && <button type="button" onClick={onRetry}>重试</button>}</div> }

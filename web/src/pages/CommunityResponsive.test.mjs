@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const cssSource = readFileSync(path.join(__dirname, '..', 'index.css'), 'utf8')
 
 test('community mobile layout prevents horizontal overflow', () => {
-  const mobileBlock = cssSource.match(/@media \(max-width: 768px\) \{[\s\S]*?\n\}/)?.[0] || ''
+  const mobileBlock = cssSource.match(/@media \(max-width: 767px\) \{[\s\S]*?\n\}/)?.[0] || ''
 
   assert.match(mobileBlock, /\.com-layout\s*\{[^}]*width:\s*100%/s)
   assert.match(mobileBlock, /\.com-main\s*\{[^}]*max-width:\s*100%/s)

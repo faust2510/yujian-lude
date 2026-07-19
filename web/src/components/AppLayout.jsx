@@ -3,7 +3,9 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../contexts/AuthContext'
 import { profile } from '../api/client'
 import { useDesktopViewport } from '../hooks/useDesktopViewport'
+import useMobileViewport from '../hooks/useMobileViewport'
 import { FigmaIcon, FigmaNotice, FigmaPageHeader } from './FigmaUi'
+import XMobileShell from './x-mobile/XMobileShell'
 import '../figma-ui.css'
 
 const primaryNav = [
@@ -148,6 +150,7 @@ export default function AppLayout() {
   const railConfig = getDesktopRail(pathname)
   const secondaryItems = visibleSecondaryNav(user?.role)
   const isDesktopViewport = useDesktopViewport()
+  const isMobile = useMobileViewport()
 
   useEffect(() => {
     if (!isDesktopViewport) return undefined
@@ -176,6 +179,8 @@ export default function AppLayout() {
       })
     return () => { active = false }
   }, [isDesktopViewport, user?.id])
+
+  if (isMobile) return <XMobileShell user={user} logout={logout} />
 
   const handleLogout = async () => {
     await logout()

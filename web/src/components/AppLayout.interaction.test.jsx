@@ -38,6 +38,7 @@ function renderLayout(path = '/') {
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals()
   profileApi.get.mockReset()
   profileApi.get.mockResolvedValue({ data: { profile: { nickname: '平安', completion: 80 } } })
   authState = {
@@ -54,6 +55,24 @@ describe('AppLayout interactions', () => {
     expect(await screen.findByRole('link', { name: '资料完整度 72%' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: '资料与信任' })).toBeTruthy()
     expect(screen.getByRole('link', { name: /只填写真实资料/ })).toBeTruthy()
+  })
+
+  it('renders only the X mobile shell below 768px without loading desktop profile data', () => {
+    const listeners = new Set()
+    vi.stubGlobal('matchMedia', vi.fn((query) => ({
+      matches: query === '(max-width: 767px)',
+      addEventListener: (_event, listener) => listeners.add(listener),
+      removeEventListener: (_event, listener) => listeners.delete(listener),
+    })))
+
+    const { unmount } = renderLayout()
+
+    expect(screen.getByRole('navigation', { name: '主要导航' })).toBeTruthy()
+    expect(document.querySelector('.figma-sidebar')).toBeNull()
+    expect(document.querySelector('.figma-right-rail')).toBeNull()
+    expect(profileApi.get).not.toHaveBeenCalled()
+    unmount()
+    expect(listeners.size).toBe(0)
   })
 
   it('closes the mobile menu after navigating to a secondary route', async () => {

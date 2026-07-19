@@ -536,7 +536,7 @@
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .figma-app-shell {
     display: block;
     width: 100%;

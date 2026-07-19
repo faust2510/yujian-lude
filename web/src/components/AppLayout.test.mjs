@@ -82,20 +82,23 @@ test('desktop right rail is route-aware and avoids fabricated metrics', () => {
 })
 
 test('layout preserves existing routes, role visibility, outlet, and async logout flow', () => {
+  const navigationSource = readSource(path.join(__dirname, '..', 'navigation', 'appNavigation.js'))
   for (const route of ['/', '/profile', '/faith-test', '/courses', '/course-authoring', '/textbooks', '/match', '/ai', '/relationships', '/chat', '/community', '/vip', '/admin']) {
-    assert.match(layoutSource, new RegExp(`(?:to=|to:\\s*)["']${route.replaceAll('/', '\\/')}["']`))
+    assert.match(`${layoutSource}\n${navigationSource}`, new RegExp(`(?:to=|to:\\s*)["']${route.replaceAll('/', '\\/')}["']`))
   }
 
-  assert.match(layoutSource, /roles:\s*\['pastor', 'admin'\]/)
-  assert.match(layoutSource, /roles:\s*\['admin'\]/)
-  assert.match(layoutSource, /visibleSecondaryNav\(user\?\.role\)/)
+  assert.match(navigationSource, /roles:\s*\['pastor', 'admin'\]/)
+  assert.match(navigationSource, /roles:\s*\['admin'\]/)
+  assert.match(layoutSource, /filterDesktopSecondaryNav\(user\?\.role\)/)
+  assert.match(navigationSource, /desktopSecondaryNav = secondaryNav\.filter\(\(item\) => item\.to !== '\/pastor'\)/)
   assert.match(layoutSource, /await logout\(\)[\s\S]*?navigate\('\/login'\)/)
   assert.match(layoutSource, /<Outlet\s*\/>/)
   assert.doesNotMatch(layoutSource, /<NavLink to="\/pastor"/)
 })
 
 test('mobile header keeps secondary routes and logout reachable beyond the five-item bottom nav', () => {
-  assert.match(layoutSource, /const secondaryNav = \[[\s\S]*?\/profile[\s\S]*?\/faith-test[\s\S]*?\/textbooks[\s\S]*?\/ai[\s\S]*?\/relationships[\s\S]*?\/vip[\s\S]*?\/course-authoring[\s\S]*?\/admin/)
+  const navigationSource = readSource(path.join(__dirname, '..', 'navigation', 'appNavigation.js'))
+  assert.match(navigationSource, /secondaryNav = \[[\s\S]*?\/profile[\s\S]*?\/faith-test[\s\S]*?\/textbooks[\s\S]*?\/ai[\s\S]*?\/relationships[\s\S]*?\/vip[\s\S]*?\/pastor[\s\S]*?\/course-authoring[\s\S]*?\/admin/)
   assert.match(layoutSource, /figma-mobile-menu[\s\S]*?secondaryItems\.map[\s\S]*?setMobileMenuOpen\(false\)/)
   assert.match(layoutSource, /handleLogout/)
 })
@@ -106,16 +109,34 @@ test('small Figma chrome text uses AA-safe foreground tokens', () => {
   assert.match(cssSource, /\.figma-eyebrow[\s\S]*?color:\s*var\(--figma-gold-text\)/)
 })
 
-test('Figma shell locks the accepted desktop dimensions and mobile navigation height', () => {
+test('Figma shell locks the accepted desktop dimensions', () => {
   assert.match(cssSource, /--figma-artboard-width:\s*1440px/)
   assert.match(cssSource, /--figma-artboard-height:\s*1024px/)
-  assert.match(cssSource, /--figma-mobile-width:\s*390px/)
-  assert.match(cssSource, /--figma-mobile-height:\s*844px/)
   assert.match(cssSource, /--figma-sidebar:\s*236px/)
   assert.match(cssSource, /--figma-main:\s*900px/)
   assert.match(cssSource, /--figma-rail:\s*304px/)
   assert.match(cssSource, /\.figma-app-shell[\s\S]*?grid-template-columns:\s*var\(--figma-sidebar\)\s+minmax\(0,\s*var\(--figma-main\)\)\s+var\(--figma-rail\)/)
-  assert.match(cssSource, /\.figma-app-shell[\s\S]*?\.figma-mobile-nav\s*\{[^}]*height:\s*74px/s)
+})
+
+test('X mobile shell owns the 390x844 mobile tokens and is isolated from desktop rails', () => {
+  const mobileCss = readSource(path.join(__dirname, 'x-mobile', 'x-mobile.css'))
+  const mobileShellSource = readSource(path.join(__dirname, 'x-mobile', 'XMobileShell.jsx'))
+  assert.match(layoutSource, /useMobileViewport\(\)/)
+  assert.match(layoutSource, /return <XMobileShell user=\{user\} logout=\{logout\} \/>/)
+  assert.match(mobileShellSource, /<Outlet\s*\/>/)
+  assert.match(mobileCss, /--x-mobile-width:\s*390px/)
+  assert.match(mobileCss, /--x-mobile-height:\s*844px/)
+  assert.match(mobileCss, /--x-topbar-height:\s*53px/)
+  assert.match(mobileCss, /--x-tabs-height:\s*53px/)
+  assert.match(mobileCss, /--x-touch-target:\s*44px/)
+  assert.match(mobileCss, /\.x-mobile-error-row button[^}]*min-height:var\(--x-touch-target\)/)
+  assert.match(mobileCss, /\.x-mobile-action-bar > button[^}]*min-height:var\(--x-touch-target\)/)
+  assert.match(mobileCss, /\.x-mobile-form-row input[^}]*min-height:var\(--x-touch-target\)/)
+})
+
+test('the X shell is the sole mobile layout at 767px and old Figma mobile CSS stops before 768px', () => {
+  assert.match(cssSource, /@media \(max-width: 767px\) \{[\s\S]*?\.figma-app-shell \.figma-mobile-nav/s)
+  assert.doesNotMatch(cssSource, /@media \(max-width: 768px\) \{[\s\S]*?\.figma-app-shell \.figma-mobile-nav/s)
 })
 
 test('Figma shell carries the accepted relationship design palette', () => {
