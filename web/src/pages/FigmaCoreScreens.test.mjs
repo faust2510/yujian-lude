@@ -43,17 +43,23 @@ test('home is a relationship feed rather than a legacy dashboard stack', () => {
   assert.match(page('Dashboard'), /figma-feed-post/)
   assert.match(css, /\.figma-feed-post/)
   assert.match(css, /@media \(max-width:\s*767px\)[\s\S]*?\.figma-home-utilities[^}]*order:\s*3/)
+  assert.doesNotMatch(page('Dashboard'), /2 小时前|经安全审核|♡ 24|○ 8/)
+  assert.match(page('Dashboard'), /平台导读/)
 })
 
-test('mobile letter workspace hides the inline flex detail pane without overflow', () => {
-  assert.match(css, /@media \(max-width:\s*767px\)[\s\S]*?\.figma-letter-workspace\s*>\s*:last-child[^}]*display:\s*none\s*!important/)
+test('mobile letter workspace switches between list and active conversation', () => {
+  assert.match(page('Chat'), /is-thread-open/)
+  assert.match(page('Chat'), /返回书信列表/)
+  assert.match(css, /\.figma-letter-workspace\.is-thread-open\s*>\s*:first-child[^}]*display:\s*none\s*!important/)
+  assert.match(css, /\.figma-letter-workspace\.is-thread-open\s*>\s*:last-child[^}]*display:\s*flex\s*!important/)
   assert.doesNotMatch(page('Chat'), /[💬✉️]/u)
 })
 
-test('daily picks keeps filters secondary and renders at most three Figma candidate cards', () => {
+test('daily picks keeps filters secondary without truncating available candidates', () => {
   assert.match(page('Match'), /figma-match-filters/)
   assert.match(page('Match'), /figma-candidate-card/)
-  assert.match(page('Match'), /candidates\.slice\(0,\s*3\)/)
+  assert.match(page('Match'), /candidates\.map\(/)
+  assert.doesNotMatch(page('Match'), /candidates\.slice\(/)
   assert.doesNotMatch(page('Match'), /⛪/u)
   assert.match(page('Match'), /figma-candidate-card[\s\S]*figma-inline-notice/)
   assert.match(css, /\.figma-candidate-card/)
@@ -74,4 +80,21 @@ test('community actions use the Figma SVG icon set instead of legacy emoji', () 
   for (const icon of ['bookmark', 'flag', 'pin', 'trash', 'bell', 'map', 'target']) {
     assert.match(ui, new RegExp(`\\b${icon}:`))
   }
+  const community = page('Community')
+  for (const label of ['评论', '举报', '置顶', '取消置顶', '设为精华', '删除帖子', '通知']) {
+    assert.match(community, new RegExp(`aria-label=["']${label}["']`))
+  }
+  for (const label of ['点赞', '取消点赞', '收藏', '取消收藏']) {
+    assert.match(community, new RegExp(`["']${label}["']`))
+  }
+})
+
+test('profile trust badge reflects actual loading, completion, and email state', () => {
+  assert.match(page('Profile'), /profileTrustState/)
+  assert.match(page('Profile'), /email_verified/)
+  assert.doesNotMatch(page('Profile'), /<span className="badge badge-green">基础资料已验证<\/span>/)
+})
+
+test('mobile AI keeps consultation boundaries and escalation guidance reachable', () => {
+  assert.match(css, /@media \(max-width:\s*767px\)[\s\S]*?\.figma-ai-workbench \.ai-side[^}]*display:\s*block/)
 })

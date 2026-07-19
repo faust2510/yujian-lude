@@ -120,7 +120,7 @@ export default function Match() {
       )}
 
       <div className="grid-2">
-        {candidates.slice(0, 3).map(c => (
+        {candidates.map(c => (
           <div className="card figma-candidate-card" key={c.id}>
             <div className="figma-candidate-avatar" style={{width:48,height:48,borderRadius:'50%',background:'var(--brand)',
               color:'#fff',display:'flex',alignItems:'center',justifyContent:'center',

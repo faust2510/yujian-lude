@@ -26,6 +26,11 @@ export default function Profile() {
   const [verifyMsg, setVerifyMsg] = useState('')
   const [verifyLink, setVerifyLink] = useState('')
   const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, endorsement: false, password: false, verify: false })
+  const profileTrustState = busy.initial
+    ? { label: '资料核验中', className: 'badge badge-gray' }
+    : user?.email_verified && Number(form.completion) >= 100
+      ? { label: '基础资料已验证', className: 'badge badge-green' }
+      : { label: user?.email_verified ? '资料待完善' : '邮箱待验证', className: 'badge badge-yellow' }
 
   useEffect(() => {
     profile.get().then(r => {
@@ -80,6 +85,7 @@ export default function Profile() {
     try {
       const r = await profile.save(form)
       const completion = Number(r.data?.completion)
+      if (Number.isFinite(completion)) setForm(current => ({ ...current, completion }))
       setMsg(Number.isFinite(completion) ? `资料已保存，完整度 ${completion}%` : '资料已保存，曝光分已更新')
     }
     catch (err) { setMsg(err.response?.data?.error || '保存失败，请检查资料后重试') }
@@ -123,7 +129,7 @@ export default function Profile() {
     <div className="figma-core-screen figma-profile-sheet">
       <section className="figma-profile-identity">
         <div className="figma-profile-avatar">{(form.nickname || user?.email || '安').slice(0, 1)}</div>
-        <div><span className="badge badge-green">基础资料已验证</span><h2>{form.nickname || '平安'}{form.city ? ` · ${form.city}` : ''}</h2><p>{form.intro || '愿意认真认识一段以婚姻为方向的关系。'}</p></div>
+        <div><span className={profileTrustState.className}>{profileTrustState.label}</span><h2>{form.nickname || '平安'}{form.city ? ` · ${form.city}` : ''}</h2><p>{form.intro || '愿意认真认识一段以婚姻为方向的关系。'}</p></div>
       </section>
       {busy.initial && <div className="card" style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>正在加载你的资料…</div>}
 

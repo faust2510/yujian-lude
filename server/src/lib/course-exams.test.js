@@ -6,6 +6,7 @@ import {
   gradeCourseExam,
   gradePersistedCourseExam,
   persistedCourseExamAnswers,
+  persistedCourseExamAnswersForPublicQuestions,
   publicCourseExam,
   publicPersistedCourseExam,
 } from './course-exams.js';
@@ -18,6 +19,21 @@ test('persisted exam verification answers use database question ids and option i
     { id: 'db-q1', a: 'C' },
     { id: 'db-q2', a: 'A' },
   ]);
+});
+
+test('release answers fail closed when public and database question ids diverge', () => {
+  const rows = [
+    { id: 'db-q1', correct_option: 2 },
+    { id: 'db-q2', correct_option: 0 },
+  ];
+  assert.deepEqual(
+    persistedCourseExamAnswersForPublicQuestions([{ id: 'db-q1' }, { id: 'db-q2' }], rows),
+    [{ id: 'db-q1', a: 'C' }, { id: 'db-q2', a: 'A' }]
+  );
+  assert.throws(
+    () => persistedCourseExamAnswersForPublicQuestions([{ id: 'stale-q1' }], rows),
+    /公开考试题目与数据库不一致/
+  );
 });
 
 test('persisted exams expose options without correct answers and grade percentage thresholds', () => {

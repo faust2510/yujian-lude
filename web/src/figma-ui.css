@@ -824,6 +824,17 @@
   opacity: .35;
 }
 
+.figma-app-shell .figma-letter-back {
+  display: none;
+  padding: 5px 8px;
+  color: var(--figma-burgundy);
+  font: inherit;
+  font-size: 12px;
+  background: var(--figma-white);
+  border: 1px solid #C8AAB4;
+  border-radius: 8px;
+}
+
 .figma-app-shell .figma-profile-sheet {
   background: linear-gradient(180deg, var(--figma-paper), #FFF 220px);
 }
@@ -1120,6 +1131,19 @@
     display: none !important;
   }
 
+  .figma-app-shell .figma-letter-workspace.is-thread-open > :first-child {
+    display: none !important;
+  }
+
+  .figma-app-shell .figma-letter-workspace.is-thread-open > :last-child {
+    display: flex !important;
+    width: 100%;
+  }
+
+  .figma-app-shell .figma-letter-back {
+    display: inline-flex;
+  }
+
   .figma-app-shell .figma-profile-identity {
     grid-template-columns: 64px minmax(0, 1fr);
     gap: 14px;
@@ -1153,7 +1177,8 @@
   }
 
   .figma-app-shell .figma-ai-workbench .ai-side {
-    display: none;
+    display: block;
+    margin-top: 12px;
   }
 
   .figma-app-shell .figma-fairness-promise {

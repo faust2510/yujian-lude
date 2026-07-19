@@ -80,7 +80,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="figma-core-screen figma-letter-workspace" style={{ display: 'flex', height: 'calc(100vh - 112px)', background: 'var(--figma-silver)' }}>
+    <div className={`figma-core-screen figma-letter-workspace ${active ? 'is-thread-open' : ''}`} style={{ display: 'flex', height: 'calc(100vh - 112px)', background: 'var(--figma-silver)' }}>
       <div style={{ width: 280, borderRight: '1px solid var(--border)', overflowY: 'auto', background: 'var(--surface)', flexShrink: 0 }}>
         <div style={{
           padding: '16px 20px', borderBottom: '1px solid var(--border)',
@@ -138,9 +138,11 @@ export default function Chat() {
           <>
             <div style={{
               padding: '12px 20px', borderBottom: '1px solid var(--border)',
-              background: 'var(--surface)', fontWeight: 600, fontSize: 15
+              background: 'var(--surface)', fontWeight: 600, fontSize: 15,
+              display: 'flex', alignItems: 'center', gap: 12
             }}>
-              {active.other_nickname || '对方'}
+              <button type="button" className="figma-letter-back" onClick={() => setActive(null)}>返回书信列表</button>
+              <span>{active.other_nickname || '对方'}</span>
             </div>
             <div style={{
               flex: 1, overflowY: 'auto', padding: '20px 24px',

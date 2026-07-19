@@ -141,15 +141,15 @@ export default function Dashboard() {
       </section>
 
       <article className="figma-feed-post">
-        <div className="figma-feed-author"><span>晨</span><div><strong>晨曦小组</strong><small>2 小时前 · 经安全审核</small></div></div>
+        <div className="figma-feed-author"><span>路</span><div><strong>平台导读</strong><small>关系练习 · 今日</small></div></div>
         <p>我们在本周共读中谈到：成熟的关系，不是更快抵达答案，而是更诚实地面对彼此的有限。</p>
-        <div className="figma-feed-actions"><span>♡ 24</span><span>○ 8</span><span>□ 保存</span></div>
+        <div className="figma-feed-actions"><Link to="/community">进入社区讨论</Link></div>
       </article>
 
       <article className="figma-feed-post figma-feed-post-secondary">
-        <div className="figma-feed-author"><span>禾</span><div><strong>禾光共读</strong><small>2 小时前 · 经安全审核</small></div></div>
+        <div className="figma-feed-author"><span>书</span><div><strong>平台导读</strong><small>成长摘记 · 今日</small></div></div>
         <p>今天的讨论没有标准答案。有人选择等待，有人选择坦诚提问。愿我们不把效率放在真实之前。</p>
-        <div className="figma-feed-actions"><span>♡ 24</span><span>○ 8</span><span>□ 保存</span></div>
+        <div className="figma-feed-actions"><Link to="/courses">继续成长课程</Link></div>
       </article>
 
       <details className="figma-home-utilities">

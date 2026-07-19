@@ -158,6 +158,17 @@ export function persistedCourseExamAnswers(questions = []) {
   }));
 }
 
+export function persistedCourseExamAnswersForPublicQuestions(publicQuestions = [], questions = []) {
+  const byId = new Map(questions.map((question) => [question.id, question]));
+  const publicIds = new Set(publicQuestions.map((question) => question.id));
+  if (publicIds.size !== publicQuestions.length || byId.size !== questions.length || publicIds.size !== byId.size) {
+    throw new Error('公开考试题目与数据库不一致');
+  }
+  const ordered = publicQuestions.map((question) => byId.get(question.id));
+  if (ordered.some((question) => !question)) throw new Error('公开考试题目与数据库不一致');
+  return persistedCourseExamAnswers(ordered);
+}
+
 export function publicPersistedCourseExam(exam, questions) {
   return {
     passThreshold: Math.ceil((questions.length * Number(exam.pass_threshold)) / 100),

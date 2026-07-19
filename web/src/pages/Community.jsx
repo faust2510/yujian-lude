@@ -845,33 +845,35 @@ export default function Community() {
               )}
               <div className="com-post-actions">
                 <button className={`com-action-btn ${post.liked_by_me ? 'liked' : ''}`}
+                  aria-label={post.liked_by_me ? '取消点赞' : '点赞'}
                   onClick={() => toggleLike(post.id)}>
                   <FigmaIcon name="heart" size={16} /> {post.like_count > 0 && post.like_count}
                 </button>
-                <button className="com-action-btn" onClick={() => toggleComments(post.id)}>
+                <button className="com-action-btn" aria-label="评论" onClick={() => toggleComments(post.id)}>
                   <FigmaIcon name="message" size={16} /> {post.comment_count > 0 && post.comment_count}
                 </button>
                 <button className={`com-action-btn ${post.bookmarked_by_me ? 'bookmarked' : ''}`}
+                  aria-label={post.bookmarked_by_me ? '取消收藏' : '收藏'}
                   onClick={() => toggleBookmark(post.id)}>
                   <FigmaIcon name="bookmark" size={16} />
                 </button>
                 {post.author_id !== user.id && (
-                  <button className="com-action-btn" onClick={() => setShowReport({ target_type: 'post', target_id: post.id })}>
+                  <button className="com-action-btn" aria-label="举报" onClick={() => setShowReport({ target_type: 'post', target_id: post.id })}>
                     <FigmaIcon name="flag" size={16} />
                   </button>
                 )}
                 {(user.id === post.author_id || isAdmin) && (
                   <>
                     {isAdmin && post.state !== 'pinned' && (
-                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'pin')}><FigmaIcon name="pin" size={16} /></button>
+                      <button className="com-action-btn" aria-label="置顶" onClick={() => featurePost(post.id, 'pin')}><FigmaIcon name="pin" size={16} /></button>
                     )}
                     {isAdmin && post.state === 'pinned' && (
-                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'unpin')}><FigmaIcon name="pin" size={16} /></button>
+                      <button className="com-action-btn" aria-label="取消置顶" onClick={() => featurePost(post.id, 'unpin')}><FigmaIcon name="pin" size={16} /></button>
                     )}
                     {isAdmin && post.state !== 'featured' && (
-                      <button className="com-action-btn" onClick={() => featurePost(post.id, 'feature')}><FigmaIcon name="bookmark" size={16} /></button>
+                      <button className="com-action-btn" aria-label="设为精华" onClick={() => featurePost(post.id, 'feature')}><FigmaIcon name="bookmark" size={16} /></button>
                     )}
-                    <button className="com-action-btn" onClick={() => deletePost(post.id)} style={{ color: 'var(--muted)' }}>
+                    <button className="com-action-btn" aria-label="删除帖子" onClick={() => deletePost(post.id)} style={{ color: 'var(--muted)' }}>
                       <FigmaIcon name="trash" size={16} />
                     </button>
                   </>
@@ -987,9 +989,9 @@ export default function Community() {
             )}
           </div>
           <div className="com-notif-bell" ref={notifRef} style={{ position: 'relative', cursor: 'pointer', padding: '4px 8px' }}>
-            <span onClick={() => setShowNotifs(prev => !prev)}>
+            <button type="button" className="com-action-btn" aria-label="通知" onClick={() => setShowNotifs(prev => !prev)}>
               <FigmaIcon name="bell" size={17} />{notifCount > 0 && <span className="com-notif-badge">{notifCount > 99 ? '99+' : notifCount}</span>}
-            </span>
+            </button>
             {showNotifs && (
               <div className="com-notif-dropdown">
                 <div className="com-notif-header">
@@ -1014,7 +1016,7 @@ export default function Community() {
               </div>
             )}
           </div>
-          <button className="com-bookmark-btn" onClick={loadBookmarks} title="收藏"><FigmaIcon name="bookmark" size={17} /></button>
+          <button className="com-bookmark-btn" aria-label="收藏" onClick={loadBookmarks} title="收藏"><FigmaIcon name="bookmark" size={17} /></button>
 	        </div>
         {renderErrorBanner()}
 
