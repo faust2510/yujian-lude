@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { courses } from '../api/client'
+import useMobileViewport from '../hooks/useMobileViewport'
+import CoursesMobile from './mobile/CoursesMobile'
 
 const LETTERS = ['A', 'B', 'C', 'D']
 
@@ -75,6 +77,7 @@ export default function Courses() {
   const [submitting, setSubmitting] = useState({})
   const [msg, setMsg] = useState('')
   const [examState, setExamState] = useState({})
+  const isMobile = useMobileViewport()
 
   const loadCourses = async () => {
     setLoading(true)
@@ -188,6 +191,10 @@ export default function Courses() {
         },
       }))
     }
+  }
+
+  if (isMobile) {
+    return <CoursesMobile courses={list} progress={progress} submitting={submitting} examState={examState} loading={loading} error={error} message={msg} onRetry={loadCourses} onMarkRead={markRead} onLoadExam={loadExam} onSetExamAnswer={setExamAnswer} onSubmitExam={submitExam} />
   }
 
   return (

@@ -66,4 +66,11 @@ describe('XMobileShell interactions', () => {
     expect(links[0].className).toContain('x-mobile-touch-target')
     expect(links[4].textContent).toContain('书信')
   })
+
+  it('lets a chat detail own the full viewport without shell chrome', () => {
+    renderShell('/chat/c1')
+    expect(document.querySelector('.x-mobile-topbar')).toBeNull()
+    expect(screen.queryByRole('navigation', { name: '主要导航' })).toBeNull()
+    expect(document.querySelector('.x-mobile-shell')?.className).toContain('is-detail-page')
+  })
 })

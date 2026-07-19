@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { matches } from '../api/client'
+import useMobileViewport from '../hooks/useMobileViewport'
+import MatchMobile from './mobile/MatchMobile'
 
 const EMPTY_FILTERS = { min_age: '', max_age: '', city: '' }
 
@@ -14,6 +16,7 @@ export default function Match() {
   const [lockedStatus, setLockedStatus] = useState(null)
   const [error, setError] = useState('')
   const [acting, setActing] = useState({})
+  const isMobile = useMobileViewport()
 
   const loadCandidates = useCallback((nextFilters) => {
     setLoading(true)
@@ -57,6 +60,10 @@ export default function Match() {
     const blank = { ...EMPTY_FILTERS }
     setFilters(blank)
     loadCandidates(blank)
+  }
+
+  if (isMobile) {
+    return <MatchMobile candidates={candidates} filters={filters} messages={msg} mutuals={mutuals} acting={acting} lockedStatus={lockedStatus} loading={loading} error={error} onFiltersChange={setFilters} onApplyFilters={() => loadCandidates(filters)} onClearFilters={clearFilters} onExpress={express} onOpenChat={() => navigate('/chat')} onLockedAction={navigate} />
   }
 
   return (

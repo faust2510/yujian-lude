@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ai } from '../api/client'
 import { useDesktopViewport } from '../hooks/useDesktopViewport'
+import useMobileViewport from '../hooks/useMobileViewport'
+import AiConsultMobile from './mobile/AiConsultMobile'
 
 const safeGuidancePrompts = [
   '刚认识时怎样设定聊天节奏和线下见面边界？',
@@ -23,6 +25,7 @@ const escalationGuidance = [
 
 export default function AiConsult() {
   const isDesktopViewport = useDesktopViewport()
+  const isMobile = useMobileViewport()
   const [question, setQuestion] = useState('')
   const [history, setHistory] = useState([])
   const [answer, setAnswer] = useState(null)
@@ -71,6 +74,10 @@ export default function AiConsult() {
   const renderSource = (source) => {
     if (typeof source === 'string') return source
     return source.source || source.id || '平台知识库'
+  }
+
+  if (isMobile) {
+    return <AiConsultMobile question={question} history={history} answer={answer} loading={loading} error={error} boundaries={consultationBoundaries} escalation={escalationGuidance} prompts={safeGuidancePrompts} renderSource={renderSource} onQuestionChange={setQuestion} onAsk={ask} onSelectPrompt={selectPrompt} />
   }
 
   return (

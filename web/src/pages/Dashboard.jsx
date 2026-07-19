@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { matches, points } from '../api/client'
+import useMobileViewport from '../hooks/useMobileViewport'
+import DashboardMobile from './mobile/DashboardMobile'
 
 const GATE_STEPS = [
   {
@@ -56,6 +58,7 @@ export default function Dashboard() {
   const [msg, setMsg] = useState('')
   const [msgType, setMsgType] = useState('success')
   const [checkinBusy, setCheckinBusy] = useState(false)
+  const isMobile = useMobileViewport()
 
   const loadDashboard = useCallback(async () => {
     setPointsLoading(true)
@@ -130,6 +133,10 @@ export default function Dashboard() {
         desc: nextStep?.desc || serverStep?.desc || '完成这个步骤后，系统会继续提示下一项入池任务。',
       }
     : null
+
+  if (isMobile) {
+    return <DashboardMobile points={pts} qualification={qualification} gateSteps={GATE_STEPS} gateDone={gateDone} gatePct={gatePct} primaryNext={primaryNext} pointsLoading={pointsLoading} qualificationLoading={qualificationLoading} pointsError={pointsError} qualificationError={qualificationError} checkedIn={checkedIn} checkinBusy={checkinBusy} message={msg} onCheckin={doCheckin} onRetry={loadDashboard} />
+  }
 
   return (
     <div className="figma-core-screen figma-home-feed figma-desktop-home-section">

@@ -16,5 +16,6 @@ export default function XMobileShell({ user, logout, hideTabs = false }) {
   const menuRef = useRef(null)
   const handleLogout = async () => { await logout(); navigate('/login') }
   const avatarLabel = user?.name?.slice(0, 1) || user?.email?.slice(0, 1)?.toUpperCase() || '我'
-  return <div className="x-mobile-shell"><XMobileTopBar title={getTitle(pathname)} avatarLabel={avatarLabel} onMenu={() => setOpen(true)} menuRef={menuRef} /><main className="x-mobile-main"><Outlet /></main>{!hideTabs && <XMobileBottomNav items={primaryNav} />}<XMobileDrawer open={open} onClose={() => setOpen(false)} items={filterSecondaryNav(user?.role)} onLogout={handleLogout} returnFocusRef={menuRef} /></div>
+  const isChatDetail = /^\/chat\/[^/]+/.test(pathname)
+  return <div className={`x-mobile-shell ${isChatDetail ? 'is-detail-page' : ''}`}>{!isChatDetail ? <XMobileTopBar title={getTitle(pathname)} avatarLabel={avatarLabel} onMenu={() => setOpen(true)} menuRef={menuRef} /> : null}<main className="x-mobile-main"><Outlet /></main>{!hideTabs && !isChatDetail ? <XMobileBottomNav items={primaryNav} /> : null}<XMobileDrawer open={open} onClose={() => setOpen(false)} items={filterSecondaryNav(user?.role)} onLogout={handleLogout} returnFocusRef={menuRef} /></div>
 }

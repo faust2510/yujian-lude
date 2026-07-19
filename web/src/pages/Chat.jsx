@@ -2,6 +2,9 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { chat } from '../api/client'
 import { FigmaIcon } from '../components/FigmaUi'
+import { useNavigate, useParams } from 'react-router-dom'
+import useMobileViewport from '../hooks/useMobileViewport'
+import ChatMobile from './mobile/ChatMobile'
 
 function timeAgo(iso) {
   if (!iso) return ''
@@ -14,6 +17,9 @@ function timeAgo(iso) {
 
 export default function Chat() {
   const { user } = useAuth()
+  const { channelId } = useParams()
+  const navigate = useNavigate()
+  const isMobile = useMobileViewport()
   const [channels, setChannels] = useState([])
   const [active, setActive] = useState(null)
   const [messages, setMessages] = useState([])
@@ -57,6 +63,16 @@ export default function Chat() {
   useEffect(() => { loadChannels() }, [loadChannels])
 
   useEffect(() => {
+    if (!isMobile) return
+    if (!channelId) {
+      setActive(null)
+      return
+    }
+    const selected = channels.find((channel) => String(channel.id) === String(channelId))
+    if (selected) setActive(selected)
+  }, [channelId, channels, isMobile])
+
+  useEffect(() => {
     if (!active) return
     setMessages([])
     loadMessages(active.id)
@@ -77,6 +93,10 @@ export default function Chat() {
     } finally {
       setSending(false)
     }
+  }
+
+  if (isMobile) {
+    return <ChatMobile user={user} channels={channels} active={active} messages={messages} text={text} sending={sending} loadingChannels={loadingChannels} loadingMessages={loadingMessages} error={error} bottomRef={bottomRef} onRetry={active ? () => loadMessages(active.id) : loadChannels} onTextChange={setText} onSend={send} onBack={() => navigate('/chat')} />
   }
 
   return (

@@ -52,6 +52,7 @@ createRoot(document.getElementById('root')).render(
             <Route path="/pastor" element={<Pastor />} />
             <Route path="/course-authoring" element={<CourseAuthoring />} />
             <Route path="/chat" element={<Chat />} />
+            <Route path="/chat/:channelId" element={<Chat />} />
             <Route path="/admin" element={<ProtectedRoute role="admin"><Admin /></ProtectedRoute>} />
           </Route>
         </Routes>
