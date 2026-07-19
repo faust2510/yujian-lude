@@ -1,7 +1,9 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { community } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import useMobileViewport from '../hooks/useMobileViewport'
+import UserTimelineMobile from './mobile/UserTimelineMobile'
 
 function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso)) / 1000)
@@ -24,9 +26,11 @@ export default function UserTimeline() {
   const { userId } = useParams()
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
+  const isMobile = useMobileViewport()
   const currentUserId = currentUser?.id
 
   const [profile, setProfile] = useState(null)
+  const [profileLoading, setProfileLoading] = useState(false)
   const [posts, setPosts] = useState([])
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
@@ -34,37 +38,63 @@ export default function UserTimeline() {
   const [followed, setFollowed] = useState(false)
   const [error, setError] = useState('')
   const [profileError, setProfileError] = useState('')
+  const profileRequestRef = useRef(0)
+  const postsRequestRef = useRef(0)
 
-  useEffect(() => {
-    if (!userId || userId === currentUserId) return
+  const loadProfile = useCallback(async () => {
+    const requestId = profileRequestRef.current + 1
+    profileRequestRef.current = requestId
+    if (!userId || userId === currentUserId) {
+      setProfile(null)
+      setProfileLoading(false)
+      return
+    }
+    setProfile(null)
     setProfileError('')
-    community.userProfile(userId).then(r => {
+    setProfileLoading(true)
+    try {
+      const r = await community.userProfile(userId)
+      if (profileRequestRef.current !== requestId) return
       setProfile(r.data.profile)
       setFollowed(r.data.profile.followed_by_me)
-    }).catch(e => {
+    } catch (e) {
+      if (profileRequestRef.current !== requestId) return
       setProfileError(e.response?.data?.error || '用户资料加载失败')
-    })
+    } finally {
+      if (profileRequestRef.current === requestId) setProfileLoading(false)
+    }
   }, [currentUserId, userId])
 
+  useEffect(() => { loadProfile() }, [loadProfile])
+
   const loadPosts = useCallback(async (p = 1) => {
+    const requestId = postsRequestRef.current + 1
+    postsRequestRef.current = requestId
     setLoading(true)
     setError('')
     try {
       const res = await community.userPosts(userId, { page: p })
+      if (postsRequestRef.current !== requestId) return
       const newPosts = res.data.posts ?? []
       setPosts(prev => p === 1 ? newPosts : [...prev, ...newPosts])
       setPage(p)
       setHasMore(newPosts.length >= 20)
     } catch (e) {
+      if (postsRequestRef.current !== requestId) return
       setError(e.response?.data?.error || '动态加载失败')
     } finally {
-      setLoading(false)
+      if (postsRequestRef.current === requestId) setLoading(false)
     }
   }, [userId])
 
   useEffect(() => {
-    if (userId) loadPosts(1)
-  }, [loadPosts, userId])
+    if (userId && userId !== currentUserId) loadPosts(1)
+    else {
+      postsRequestRef.current += 1
+      setPosts([])
+      setLoading(false)
+    }
+  }, [currentUserId, loadPosts, userId])
 
   const toggleFollow = async () => {
     try {
@@ -90,6 +120,10 @@ export default function UserTimeline() {
     } catch (e) {
       setError(e.response?.data?.error || '点赞失败')
     }
+  }
+
+  if (isMobile) {
+    return <UserTimelineMobile profile={profile} posts={posts} followed={followed} loading={loading} profileLoading={profileLoading} error={error} profileError={profileError} isSelf={userId === currentUserId} hasMore={hasMore} onBack={() => navigate('/community')} onFollow={toggleFollow} onLike={toggleLike} onLoadMore={() => loadPosts(page + 1)} onRetryPosts={() => loadPosts(1)} onRetryProfile={loadProfile} />
   }
 
   if (profileError && userId !== currentUserId) {

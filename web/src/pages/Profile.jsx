@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { profile, auth } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import useMobileViewport from '../hooks/useMobileViewport'
+import ProfileMobile from './mobile/ProfileMobile'
 
 function messageClass(text) {
   return /失败|错误|不一致|只能|重试|请确认/.test(text || '') ? 'error-msg' : 'success-msg'
@@ -8,6 +10,7 @@ function messageClass(text) {
 
 export default function Profile() {
   const { user, refreshMe } = useAuth()
+  const isMobile = useMobileViewport()
   const [form, setForm] = useState({
     nickname:'', city:'', birth_year:'', education:'',
     goal:'', preference:'', intro:'', privacy_ok: false
@@ -123,6 +126,10 @@ export default function Profile() {
     } catch {
       setEndorsementMsg('只能删除待审核的背书人')
     }
+  }
+
+  if (isMobile) {
+    return <ProfileMobile user={user} form={form} faith={faith} endorsements={endorsements} endorsement={endorsement} password={pwd} busy={busy} message={msg} faithMessage={faithMsg} endorsementMessage={endorsementMsg} passwordMessage={pwdMsg} verifyMessage={verifyMsg} verifyLink={verifyLink} onProfileChange={(key, value) => setForm(current => ({ ...current, [key]: value }))} onFaithChange={(key, value) => setFaith(current => ({ ...current, [key]: value }))} onEndorsementChange={(key, value) => setEndorsement(current => ({ ...current, [key]: value }))} onPasswordChange={(key, value) => setPwd(current => ({ ...current, [key]: value }))} onSaveProfile={saveProfile} onSaveFaith={saveFaith} onAddEndorsement={addEndorsement} onRemoveEndorsement={removeEndorsement} onChangePassword={changePwd} onSendVerify={sendVerify} />
   }
 
   return (

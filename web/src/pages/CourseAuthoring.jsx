@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { courseAuthoring } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import useMobileViewport from '../hooks/useMobileViewport'
+import CourseAuthoringMobile from './mobile/CourseAuthoringMobile'
 
 const emptyQuestion = () => ({ prompt: '', options: ['', ''], correct_option: 0, explanation: '' })
 const emptyDraft = () => ({
@@ -42,6 +44,7 @@ function normalizeDraft(course) {
 
 export default function CourseAuthoring() {
   const { user } = useAuth()
+  const isMobile = useMobileViewport()
   const isAdmin = user?.role === 'admin'
   const [courses, setCourses] = useState([])
   const [reviewQueue, setReviewQueue] = useState([])
@@ -168,6 +171,10 @@ export default function CourseAuthoring() {
 
   const activeCourse = isAdmin ? (reviewQueue.find(item => item.id === selectedId) || selected) : selected
   const editable = !isAdmin && !['pending_review', 'published', 'archived'].includes(activeCourse?.publication_state)
+
+  if (isMobile) {
+    return <CourseAuthoringMobile courses={courses} reviewQueue={reviewQueue} selectedId={selectedId} draft={draft} isAdmin={isAdmin} editable={editable} busy={busy} error={error} status={status} reviewNote={reviewNote} onReviewNoteChange={setReviewNote} onOpenCourse={openCourse} onCloseCourse={() => setSelectedId(null)} onCreate={createCourse} onDraftChange={(key, value) => setDraft(current => ({ ...current, [key]: value }))} onUpdateUnit={updateUnit} onUpdateQuestion={updateQuestion} onUpdateOption={updateOption} onAddUnit={() => setDraft(current => ({ ...current, units: [...current.units, { title: '', material: '', is_pastor_node: false }] }))} onRemoveUnit={(index) => setDraft(current => ({ ...current, units: current.units.filter((_, currentIndex) => currentIndex !== index) }))} onAddQuestion={() => setDraft(current => ({ ...current, exam: { ...current.exam, questions: [...current.exam.questions, emptyQuestion()] } }))} onRemoveQuestion={(index) => setDraft(current => ({ ...current, exam: { ...current.exam, questions: current.exam.questions.filter((_, currentIndex) => currentIndex !== index) } }))} onSave={save} onSubmit={submit} onReview={review} />
+  }
 
   return (
     <>

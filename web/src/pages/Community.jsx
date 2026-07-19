@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { community } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { FigmaIcon } from '../components/FigmaUi'
+import useMobileViewport from '../hooks/useMobileViewport'
+import CommunityMobile from './mobile/CommunityMobile'
 
 function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso)) / 1000)
@@ -49,6 +51,7 @@ export default function Community() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
   const user = currentUser ?? {}
+  const isMobile = useMobileViewport()
 
   // ─── view state ───
   const [view, setView] = useState('global') // 'global' | 'groups' | 'group-detail'
@@ -951,6 +954,36 @@ export default function Community() {
   // ═══════════════════════════════════════════════════════════════
   // RENDER: MAIN
   // ═══════════════════════════════════════════════════════════════
+
+  const mobileRetry = () => {
+    if (view === 'groups') return loadGroups(groupCategory, groupSearch)
+    if (view === 'group-detail') {
+      if (activeTab === 'members') return loadMembers(selectedGroup.id)
+      if (activeTab === 'events') return loadEvents(selectedGroup.id)
+      return loadPosts(1, { groupId: selectedGroup.id, postType: activeTab === 'announcements' ? 'announcement' : undefined })
+    }
+    if (activeTag) return loadPosts(1, { tag: activeTag })
+    return loadPosts(1, { tab: activeTab })
+  }
+
+  const mobileLoadMore = () => {
+    if (view === 'group-detail') return loadPosts(page + 1, { groupId: selectedGroup.id, postType: activeTab === 'announcements' ? 'announcement' : undefined })
+    if (activeTag) return loadPosts(page + 1, { tag: activeTag })
+    return loadPosts(page + 1, { tab: activeTab })
+  }
+
+  const markNotificationsRead = async () => {
+    try {
+      await community.readNotifications()
+      setNotifCount(0)
+    } catch (e) {
+      setError(getErrorMessage(e, '通知状态更新失败'))
+    }
+  }
+
+  if (isMobile) {
+    return <CommunityMobile controller={{ view, activeTab, groups, groupCategory, groupSearch, loadingGroups, selectedGroup, groupDetail, members, pendingRequests, events, showCreateGroup, newGroup, creatingGroup, showCreateEvent, newEvent, posts, page, hasMore, loading, error, content, title, imageUrl, posting, openComments, comments, commentBodies, notifCount, notifList, showNotifs, followed, suggestedUsers, searchQuery, activeTag, showBookmarks, bookmarks, showReport, reportReason, reportDetail, currentUser: user, isAdmin, isMember, setGroupCategory, setGroupSearch, setShowCreateGroup, setNewGroup, setShowCreateEvent, setNewEvent, setContent, setTitle, setImageUrl, setCommentBodies, setShowNotifs, setShowBookmarks, setShowReport, setReportReason, setReportDetail, setSearchQuery, changeTab: view === 'group-detail' ? switchGroupTab : switchGlobalTab, goGlobal: goToGlobal, goGroups: goToGroups, openGroup: goToGroup, retry: mobileRetry, loadMore: mobileLoadMore, loadGroups, createGroup, joinGroup, moderateMember, submitPost, deletePost, moderatePost, featurePost, submitReport, toggleLike, toggleComments, toggleBookmark, submitComment, toggleFollow, loadBookmarks, search: doSearch, createEvent, rsvpEvent, openUser, markNotificationsRead }} />
+  }
 
   return (
     <div className="figma-core-screen figma-community-feed figma-desktop-community-section com-layout">

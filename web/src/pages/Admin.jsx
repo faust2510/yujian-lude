@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { admin } from '../api/client'
+import useMobileViewport from '../hooks/useMobileViewport'
+import AdminMobile, { AdminMobileRow, AdminMobileSection, AdminMobileState } from './mobile/AdminMobile'
 
 const tabs = [
   ['overview', '概览'],
@@ -50,6 +52,19 @@ function ActionButton({ children, onClick, disabled, primary = false }) {
 
 export default function Admin() {
   const [tab, setTab] = useState('overview')
+  const isMobile = useMobileViewport()
+  const content = <>
+    {tab === 'overview' && <OverviewTab mobile={isMobile} />}
+    {tab === 'endorsements' && <EndorsementsTab mobile={isMobile} />}
+    {tab === 'users' && <UsersTab mobile={isMobile} />}
+    {tab === 'reports' && <ReportsTab mobile={isMobile} />}
+    {tab === 'applications' && <ApplicationsTab mobile={isMobile} />}
+    {tab === 'audit' && <AuditTab mobile={isMobile} />}
+    {tab === 'settings' && <SettingsTab mobile={isMobile} />}
+  </>
+
+  if (isMobile) return <AdminMobile activeTab={tab} onTabChange={setTab}>{content}</AdminMobile>
+
   return (
     <>
       <h1 className="page-title">管理台</h1>
@@ -62,18 +77,12 @@ export default function Admin() {
         ))}
       </div>
 
-      {tab === 'overview' && <OverviewTab />}
-      {tab === 'endorsements' && <EndorsementsTab />}
-      {tab === 'users' && <UsersTab />}
-      {tab === 'reports' && <ReportsTab />}
-      {tab === 'applications' && <ApplicationsTab />}
-      {tab === 'audit' && <AuditTab />}
-      {tab === 'settings' && <SettingsTab />}
+      {content}
     </>
   )
 }
 
-function OverviewTab() {
+function OverviewTab({ mobile = false }) {
   const [stats, setStats] = useState(null)
   const [error, setError] = useState('')
 
@@ -90,6 +99,8 @@ function OverviewTab() {
     ['社区申请', stats.pendingCommunityAdminApplications],
     ['完课', stats.courseCompletions],
   ] : []
+
+  if (mobile) return <AdminMobileSection title="运营概览"><AdminMobileState error={error} loading={!stats && !error} />{cards.map(([label, value]) => <AdminMobileRow key={label} title={label} meta={String(value ?? 0)} />)}{stats?.auditLogs?.length ? <><div className="x-mobile-section-header"><h2>最近审计</h2></div>{stats.auditLogs.slice(0, 8).map(log => <AdminMobileRow key={log.id} title={`${log.action} · ${log.target_type}`} meta={`${log.actor_nickname || log.actor_email || '系统'} · ${formatDate(log.created_at)}`} detail={JSON.stringify(log.detail || {})} />)}</> : null}</AdminMobileSection>
 
   return (
     <div className="card">
@@ -115,7 +126,7 @@ function OverviewTab() {
   )
 }
 
-function SettingsTab() {
+function SettingsTab({ mobile = false }) {
   const [settings, setSettings] = useState([])
   const [edited, setEdited] = useState({})
   const [saved, setSaved] = useState('')
@@ -125,15 +136,17 @@ function SettingsTab() {
     admin.settings().then(r => setSettings(r.data.settings || [])).catch(err => setError(getErrorMessage(err, '配置加载失败')))
   }, [])
 
-  const save = async (key) => {
+  const save = async (key, value = edited[key]) => {
     try {
-      await admin.updateSetting(key, parseSettingValue(edited[key]))
+      await admin.updateSetting(key, parseSettingValue(value))
       setSaved(key)
       setTimeout(()=>setSaved(''), 1500)
     } catch (err) {
       setError(getErrorMessage(err, '保存失败'))
     }
   }
+
+  if (mobile) return <AdminMobileSection title="平台配置"><AdminMobileState error={error} loading={settings.length === 0 && !error} />{settings.map(setting => <AdminMobileRow key={setting.key} title={setting.label || setting.key} meta={setting.key} actions={<button type="button" className="x-mobile-button-primary x-mobile-touch-target" onClick={() => save(setting.key, edited[setting.key] ?? settingValue(setting.value))}>{saved === setting.key ? '已保存' : '保存'}</button>}><input className="x-mobile-admin-input" aria-label={`${setting.label || setting.key}配置值`} value={edited[setting.key] ?? settingValue(setting.value)} onChange={(event) => setEdited(current => ({ ...current, [setting.key]: event.target.value }))} /></AdminMobileRow>)}</AdminMobileSection>
 
   return (
     <div className="card">
@@ -155,7 +168,7 @@ function SettingsTab() {
   )
 }
 
-function EndorsementsTab() {
+function EndorsementsTab({ mobile = false }) {
   const [state, setState] = useState('pending')
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -184,6 +197,8 @@ function EndorsementsTab() {
       setError(getErrorMessage(err, '审核操作失败，请稍后重试'))
     }
   }
+
+  if (mobile) return <AdminMobileSection title="背书审核" controls={<select aria-label="背书状态" value={state} onChange={(event) => setState(event.target.value)}><option value="pending">待审</option><option value="verified">已通过</option><option value="rejected">已驳回</option></select>}><AdminMobileState error={error} loading={loading} empty={!loading && items.length === 0 ? '暂无背书' : ''} onRetry={() => load(state)} />{items.map(item => <AdminMobileRow key={item.id} title={`${item.name} · ${item.kind === 'pastor' ? '牧者' : '引荐人'}`} meta={`申请人：${item.nickname || item.email} · ${item.state}`} detail={`教会：${item.church || '未填写'} · 联系：${item.contact}${item.note ? ` · ${item.note}` : ''}`} actions={item.state === 'pending' ? <><button type="button" className="x-mobile-button-primary x-mobile-touch-target" onClick={() => review(item.id, 'verified')}>通过</button><button type="button" className="x-mobile-button-secondary x-mobile-touch-target" onClick={() => review(item.id, 'rejected')}>驳回</button></> : null} />)}</AdminMobileSection>
 
   return (
     <div className="card">
@@ -221,9 +236,10 @@ function EndorsementsTab() {
   )
 }
 
-function UsersTab() {
+function UsersTab({ mobile = false }) {
   const [users, setUsers] = useState([])
   const [filters, setFilters] = useState({ q: '', role: '', banned: '', email_verified: '' })
+  const [mobileFilters, setMobileFilters] = useState(filters)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -252,6 +268,8 @@ function UsersTab() {
       setError(getErrorMessage(err, '用户操作失败'))
     }
   }
+
+  if (mobile) return <AdminMobileSection title="用户治理"><form className="x-mobile-admin-filters" onSubmit={(event) => { event.preventDefault(); const changed = Object.keys(filters).some(key => filters[key] !== mobileFilters[key]); if (changed) setFilters(mobileFilters); else load() }}><input aria-label="邮箱或昵称" placeholder="邮箱/昵称" value={mobileFilters.q} onChange={(event) => setMobileFilters(current => ({ ...current, q: event.target.value }))} /><select aria-label="角色" value={mobileFilters.role} onChange={(event) => setMobileFilters(current => ({ ...current, role: event.target.value }))}><option value="">全部角色</option><option value="free">free</option><option value="vip">vip</option><option value="pastor">pastor</option><option value="admin">admin</option></select><select aria-label="封禁状态" value={mobileFilters.banned} onChange={(event) => setMobileFilters(current => ({ ...current, banned: event.target.value }))}><option value="">封禁状态</option><option value="true">已封禁</option><option value="false">未封禁</option></select><select aria-label="邮箱状态" value={mobileFilters.email_verified} onChange={(event) => setMobileFilters(current => ({ ...current, email_verified: event.target.value }))}><option value="">邮箱状态</option><option value="true">已验证</option><option value="false">未验证</option></select><button className="x-mobile-button-primary x-mobile-touch-target" disabled={loading}>{loading ? '查询中…' : '查询'}</button></form><AdminMobileState error={error} loading={loading} empty={!loading && users.length === 0 ? '暂无用户' : ''} onRetry={load} />{users.map(user => <AdminMobileRow key={user.id} title={user.nickname || user.email} meta={`${user.email} · ${user.city || '未知城市'}`} detail={`${user.email_verified ? '邮箱已验证' : '邮箱未验证'} · 背书 ${user.verified_endorsements || 0}${user.is_banned ? ' · 已封禁' : ''}`} actions={<><select aria-label={`设置 ${user.nickname || user.email} 的角色`} value={user.role} onChange={(event) => updateUser(() => admin.updateRole(user.id, event.target.value))}><option value="free">free</option><option value="vip">vip</option><option value="pastor">pastor</option><option value="admin">admin</option></select><button type="button" className="x-mobile-button-secondary x-mobile-touch-target" onClick={() => updateUser(() => admin.banUser(user.id, !user.is_banned))}>{user.is_banned ? '解封' : '封禁'}</button></>} />)}</AdminMobileSection>
 
   return (
     <div className="card">
@@ -294,18 +312,22 @@ function UsersTab() {
   )
 }
 
-function ReportsTab() {
+function ReportsTab({ mobile = false }) {
   const [state, setState] = useState('pending')
   const [reports, setReports] = useState([])
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async (nextState = state) => {
     try {
+      setLoading(true)
       setError('')
       const r = await admin.reports(nextState)
       setReports(r.data.reports || [])
     } catch (err) {
       setError(getErrorMessage(err, '举报列表加载失败'))
+    } finally {
+      setLoading(false)
     }
   }, [state])
 
@@ -328,6 +350,8 @@ function ReportsTab() {
       setError(getErrorMessage(err, '删除帖子失败'))
     }
   }
+
+  if (mobile) return <AdminMobileSection title="举报处理" controls={<select aria-label="举报状态" value={state} onChange={(event) => setState(event.target.value)}><option value="pending">待处理</option><option value="resolved">已处理</option><option value="dismissed">已忽略</option></select>}><AdminMobileState error={error} loading={loading} empty={!loading && reports.length === 0 ? '暂无举报' : ''} onRetry={() => load(state)} />{reports.map(report => <AdminMobileRow key={report.id} title={`${report.reason} · ${report.target_type}`} meta={`举报人：${report.reporter_nickname || '用户'} · ${formatDate(report.created_at)}`} detail={report.detail} actions={<>{report.state === 'pending' ? <><button type="button" className="x-mobile-button-primary x-mobile-touch-target" onClick={() => review(report.id, 'resolve')}>标记已处理</button><button type="button" className="x-mobile-button-secondary x-mobile-touch-target" onClick={() => review(report.id, 'dismiss')}>忽略</button></> : null}{report.target_type === 'post' ? <button type="button" className="x-mobile-button-secondary x-mobile-touch-target" onClick={() => removePost(report.target_id)}>删除目标帖</button> : null}</>} />)}</AdminMobileSection>
 
   return (
     <div className="card">
@@ -355,13 +379,15 @@ function ReportsTab() {
   )
 }
 
-function ApplicationsTab() {
+function ApplicationsTab({ mobile = false }) {
   const [pastors, setPastors] = useState([])
   const [communityAdmins, setCommunityAdmins] = useState([])
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
   const load = async () => {
     try {
+      setLoading(true)
       setError('')
       const [pastorRes, communityRes] = await Promise.all([
         admin.pastorApplications(),
@@ -371,6 +397,8 @@ function ApplicationsTab() {
       setCommunityAdmins(communityRes.data.applications || [])
     } catch (err) {
       setError(getErrorMessage(err, '申请列表加载失败'))
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -393,6 +421,8 @@ function ApplicationsTab() {
       setError(getErrorMessage(err, '社区申请审核失败'))
     }
   }
+
+  if (mobile) return <AdminMobileSection title="认证与申请"><AdminMobileState error={error} loading={loading} empty={!loading && pastors.length === 0 && communityAdmins.length === 0 ? '暂无申请' : ''} onRetry={load} />{pastors.length ? <div className="x-mobile-section-header"><h2>牧者认证</h2></div> : null}{pastors.map(item => <AdminMobileRow key={item.id} title={`${item.nickname || item.email} · ${item.church_name || '未填写教会'}`} meta={`${item.contact_email || item.email} · ${item.state}`} actions={item.state === 'pending' ? <><button type="button" className="x-mobile-button-primary x-mobile-touch-target" onClick={() => reviewPastor(item.id, 'approve')}>通过</button><button type="button" className="x-mobile-button-secondary x-mobile-touch-target" onClick={() => reviewPastor(item.id, 'reject')}>驳回</button></> : null} />)}{communityAdmins.length ? <div className="x-mobile-section-header"><h2>社区管理员申请</h2></div> : null}{communityAdmins.map(item => <AdminMobileRow key={`community-${item.id}`} title={`${item.nickname || item.email} · ${item.group_name || '全站'}`} meta={item.state} detail={item.reason || '未填写理由'} actions={item.state === 'pending' ? <><button type="button" className="x-mobile-button-primary x-mobile-touch-target" onClick={() => reviewCommunity(item.id, 'approve')}>通过</button><button type="button" className="x-mobile-button-secondary x-mobile-touch-target" onClick={() => reviewCommunity(item.id, 'reject')}>驳回</button></> : null} />)}</AdminMobileSection>
 
   return (
     <div className="card">
@@ -420,13 +450,27 @@ function ApplicationsTab() {
   )
 }
 
-function AuditTab() {
+function AuditTab({ mobile = false }) {
   const [logs, setLogs] = useState([])
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    admin.auditLogs().then(r => setLogs(r.data.auditLogs || [])).catch(err => setError(getErrorMessage(err, '审计日志加载失败')))
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await admin.auditLogs()
+      setLogs(response.data.auditLogs || [])
+    } catch (err) {
+      setError(getErrorMessage(err, '审计日志加载失败'))
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => { load() }, [load])
+
+  if (mobile) return <AdminMobileSection title="管理员审计"><AdminMobileState error={error} loading={loading} empty={!loading && logs.length === 0 ? '暂无审计记录' : ''} onRetry={load} />{logs.map(log => <AdminMobileRow key={log.id} title={`${log.action} · ${log.target_type}`} meta={`${log.actor_nickname || log.actor_email || '系统'} · ${formatDate(log.created_at)}`} detail={JSON.stringify(log.detail || {})} />)}</AdminMobileSection>
 
   return (
     <div className="card">
