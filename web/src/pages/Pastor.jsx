@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { pastorCert } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
+import useMobileViewport from '../hooks/useMobileViewport'
+import PastorMobile from './mobile/PastorMobile'
 
 export default function Pastor() {
   const { user } = useAuth()
@@ -10,6 +12,7 @@ export default function Pastor() {
     church_name: '', presbytery: '', ordination_info: '', contact: '', statement: ''
   })
   const [msg, setMsg] = useState('')
+  const isMobile = useMobileViewport()
 
   useEffect(() => {
     pastorCert.status().then(r => setStatus(r.data)).catch(() => setStatus({ certification: null }))
@@ -33,6 +36,10 @@ export default function Pastor() {
 
   const isPastor = user?.role === 'pastor'
   const certState = status?.certification?.state
+
+  if (isMobile) {
+    return <PastorMobile form={form} message={msg} isPastor={isPastor} certState={certState} onFieldChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))} onSubmit={submit} />
+  }
 
   return (
     <>

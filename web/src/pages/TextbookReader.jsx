@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { textbooks } from '../api/client'
+import useMobileViewport from '../hooks/useMobileViewport'
+import TextbookReaderMobile from './mobile/TextbookReaderMobile'
 
 export default function TextbookReader() {
   const { slug, index } = useParams()
@@ -10,6 +12,8 @@ export default function TextbookReader() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+  const isMobile = useMobileViewport()
   const returnTo = new URLSearchParams(location.search).get('returnTo')
 
   useEffect(() => {
@@ -28,7 +32,7 @@ export default function TextbookReader() {
     }
     loadChapter()
     return () => { alive = false }
-  }, [slug, index])
+  }, [slug, index, reloadKey])
 
   const markRead = async () => {
     setSaving(true)
@@ -41,6 +45,10 @@ export default function TextbookReader() {
     } finally {
       setSaving(false)
     }
+  }
+
+  if (isMobile) {
+    return <TextbookReaderMobile data={data} loading={loading} error={error} saving={saving} returnTo={returnTo} onBack={() => navigate(returnTo || `/textbooks/${slug}`)} onMarkRead={markRead} onRetry={() => setReloadKey((key) => key + 1)} />
   }
 
   if (loading) return <div className="card muted-small">章节加载中...</div>

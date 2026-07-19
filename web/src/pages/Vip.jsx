@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { vip as vipApi, points } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import { useDesktopViewport } from '../hooks/useDesktopViewport'
+import useMobileViewport from '../hooks/useMobileViewport'
+import VipMobile from './mobile/VipMobile'
 
 const legacyMobileFallbackPlans = [
   { tier: 'basic', name: '基础会员', price: 29, period: '月', perks: ['高级筛选', '谁看过我', '每日更多主动次数'] },
@@ -11,6 +13,7 @@ const legacyMobileFallbackPlans = [
 export default function Vip() {
   const { user } = useAuth()
   const isDesktopViewport = useDesktopViewport()
+  const isMobile = useMobileViewport()
   const [plans, setPlans] = useState([])
   const [pts, setPts] = useState(null)
   const [days, setDays] = useState(1)
@@ -19,6 +22,7 @@ export default function Vip() {
   const [plansLoading, setPlansLoading] = useState(true)
   const [plansError, setPlansError] = useState('')
   const [pointsError, setPointsError] = useState('')
+  const [plansReloadKey, setPlansReloadKey] = useState(0)
 
   useEffect(() => {
     setPlansLoading(true)
@@ -26,8 +30,8 @@ export default function Vip() {
     vipApi.plans()
       .then(r => setPlans(r.data.plans || []))
       .catch(err => {
-        setPlans(isDesktopViewport ? [] : legacyMobileFallbackPlans)
-        if (isDesktopViewport) setPlansError(err.response?.data?.error || '会员方案加载失败，请稍后重试')
+        setPlans(isDesktopViewport || isMobile ? [] : legacyMobileFallbackPlans)
+        if (isDesktopViewport || isMobile) setPlansError(err.response?.data?.error || '会员方案加载失败，请稍后重试')
       })
       .finally(() => setPlansLoading(false))
     points.balance()
@@ -35,7 +39,7 @@ export default function Vip() {
       .catch(err => {
         if (isDesktopViewport) setPointsError(err.response?.data?.error || '积分余额加载失败')
       })
-  }, [isDesktopViewport])
+  }, [isDesktopViewport, isMobile, plansReloadKey])
 
   const isVip = user?.is_vip
   const earned = pts?.earned ?? 0
@@ -53,6 +57,10 @@ export default function Vip() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (isMobile) {
+    return <VipMobile plans={plans} earned={earned} days={days} loading={loading} message={msg} plansError={plansError} isVip={isVip} vipUntil={user?.vip_until} onDaysChange={setDays} onRedeem={doRedeem} onRetryPlans={() => setPlansReloadKey((key) => key + 1)} />
   }
 
   return (

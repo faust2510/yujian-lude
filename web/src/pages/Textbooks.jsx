@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { textbooks } from '../api/client'
+import useMobileViewport from '../hooks/useMobileViewport'
+import TextbooksMobile from './mobile/TextbooksMobile'
 
 export default function Textbooks() {
   const { slug } = useParams()
@@ -9,6 +11,8 @@ export default function Textbooks() {
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
+  const isMobile = useMobileViewport()
 
   useEffect(() => {
     let alive = true
@@ -28,7 +32,7 @@ export default function Textbooks() {
     }
     load()
     return () => { alive = false }
-  }, [])
+  }, [reloadKey])
 
   useEffect(() => {
     let alive = true
@@ -50,7 +54,11 @@ export default function Textbooks() {
     }
     loadDetail()
     return () => { alive = false }
-  }, [slug])
+  }, [slug, reloadKey])
+
+  if (isMobile) {
+    return <TextbooksMobile slug={slug} list={list} detail={detail} loading={loading} detailLoading={detailLoading} error={error} onRetry={() => setReloadKey((key) => key + 1)} />
+  }
 
   return (
     <div className="textbook-page">

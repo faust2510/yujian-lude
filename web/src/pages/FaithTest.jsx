@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { faithTest } from '../api/client'
+import useMobileViewport from '../hooks/useMobileViewport'
+import FaithTestMobile from './mobile/FaithTestMobile'
 
 const LETTERS = ['A', 'B', 'C', 'D']
 
@@ -12,6 +14,7 @@ export default function FaithTest() {
   const [starting, setStarting] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const isMobile = useMobileViewport()
 
   const loadStatus = useCallback(async () => {
     setLoading(true)
@@ -64,6 +67,10 @@ export default function FaithTest() {
   const latest = status?.latest
   const answered = questions ? Object.keys(answers).length : 0
   const total = questions?.length || 20
+
+  if (isMobile) {
+    return <FaithTestMobile status={status} questions={questions} answers={answers} result={result} loading={loading} starting={starting} submitting={submitting} error={error} total={total} answered={answered} onRetry={questions ? start : loadStatus} onStart={start} onAnswer={(questionId, optionIndex) => setAnswers((current) => ({ ...current, [questionId]: optionIndex }))} onSubmit={submit} />
+  }
 
   return (
     <>

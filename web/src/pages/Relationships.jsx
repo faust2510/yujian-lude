@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { chat, relationships } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import useMobileViewport from '../hooks/useMobileViewport'
+import RelationshipsMobile from './mobile/RelationshipsMobile'
 
 function stageLabel(rel) {
   if (rel.state === 'confirmed') return { text: '已确立', cls: 'badge-green' }
@@ -19,6 +21,7 @@ export default function Relationships() {
   const [busy, setBusy] = useState('')
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
+  const isMobile = useMobileViewport()
 
   const load = async () => {
     setLoading(true)
@@ -77,6 +80,10 @@ export default function Relationships() {
   }
 
   const activeChannels = channels.filter(channel => channel.other_id)
+
+  if (isMobile) {
+    return <RelationshipsMobile data={data} channels={activeChannels} user={user} loading={loading} busy={busy} message={msg} error={error} onRetry={load} onStart={startRelationship} onConfirm={requestConfirm} onApprove={approveSide} onEnd={endRel} />
+  }
 
   return (
     <>
