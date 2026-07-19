@@ -30,7 +30,7 @@ export default function Vip() {
     vipApi.plans()
       .then(r => setPlans(r.data.plans || []))
       .catch(err => {
-        setPlans(isDesktopViewport || isMobile ? [] : legacyMobileFallbackPlans)
+        setPlans(isMobile ? [] : isDesktopViewport ? [] : legacyMobileFallbackPlans)
         if (isDesktopViewport || isMobile) setPlansError(err.response?.data?.error || '会员方案加载失败，请稍后重试')
       })
       .finally(() => setPlansLoading(false))

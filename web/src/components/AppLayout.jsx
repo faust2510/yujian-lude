@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { profile } from '../api/client'
 import { useDesktopViewport } from '../hooks/useDesktopViewport'
 import useMobileViewport from '../hooks/useMobileViewport'
+import { filterDesktopSecondaryNav } from '../navigation/appNavigation'
 import { FigmaIcon, FigmaNotice, FigmaPageHeader } from './FigmaUi'
 import XMobileShell from './x-mobile/XMobileShell'
 import '../figma-ui.css'
@@ -14,17 +15,6 @@ const primaryNav = [
   { label: '成长', to: '/courses', icon: 'book' },
   { label: '社区', to: '/community', icon: 'users' },
   { label: '消息', to: '/chat', icon: 'message' },
-]
-
-const secondaryNav = [
-  { label: '完善资料', to: '/profile', icon: 'user' },
-  { label: '信仰测试', to: '/faith-test', icon: 'compass' },
-  { label: '教材', to: '/textbooks', icon: 'book' },
-  { label: 'AI 咨询', to: '/ai', icon: 'spark' },
-  { label: '关系', to: '/relationships', icon: 'heart' },
-  { label: '套餐', to: '/vip', icon: 'crown' },
-  { label: '课程工作台', to: '/course-authoring', icon: 'book', roles: ['pastor', 'admin'] },
-  { label: '管理台', to: '/admin', icon: 'settings', roles: ['admin'] },
 ]
 
 const pageMeta = {
@@ -136,10 +126,6 @@ function DesktopRail({ config }) {
   )
 }
 
-function visibleSecondaryNav(role) {
-  return secondaryNav.filter((item) => !item.roles || item.roles.includes(role))
-}
-
 export default function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -148,7 +134,7 @@ export default function AppLayout() {
   const [profileSummary, setProfileSummary] = useState({ loading: true, error: '', nickname: '', completion: null })
   const [pageTitle, pageDescription] = getPageMeta(pathname)
   const railConfig = getDesktopRail(pathname)
-  const secondaryItems = visibleSecondaryNav(user?.role)
+  const secondaryItems = filterDesktopSecondaryNav(user?.role)
   const isDesktopViewport = useDesktopViewport()
   const isMobile = useMobileViewport()
 
