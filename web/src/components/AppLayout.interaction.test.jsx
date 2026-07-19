@@ -9,9 +9,19 @@ let authState = {
   logout: vi.fn(),
 }
 
+const { profileApi } = vi.hoisted(() => ({
+  profileApi: { get: vi.fn() },
+}))
+
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => authState,
 }))
+
+vi.mock('../api/client', () => ({
+  profile: profileApi,
+}))
+
+profileApi.get.mockResolvedValue({ data: { profile: { nickname: '平安', completion: 80 } } })
 
 function renderLayout(path = '/') {
   return render(
@@ -28,6 +38,8 @@ function renderLayout(path = '/') {
 
 afterEach(() => {
   cleanup()
+  profileApi.get.mockReset()
+  profileApi.get.mockResolvedValue({ data: { profile: { nickname: '平安', completion: 80 } } })
   authState = {
     user: { email: 'user@example.com', name: '平安', role: 'user' },
     logout: vi.fn(),
@@ -35,6 +47,15 @@ afterEach(() => {
 })
 
 describe('AppLayout interactions', () => {
+  it('renders the server profile completion and route-aware desktop rail', async () => {
+    profileApi.get.mockResolvedValue({ data: { profile: { nickname: '路得', completion: 72 } } })
+    renderLayout('/profile')
+
+    expect(await screen.findByRole('link', { name: '资料完整度 72%' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '资料与信任' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /只填写真实资料/ })).toBeTruthy()
+  })
+
   it('closes the mobile menu after navigating to a secondary route', async () => {
     const user = userEvent.setup()
     renderLayout()

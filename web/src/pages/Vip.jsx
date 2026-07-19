@@ -1,22 +1,41 @@
 import { useEffect, useState } from 'react'
 import { vip as vipApi, points } from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
+import { useDesktopViewport } from '../hooks/useDesktopViewport'
+
+const legacyMobileFallbackPlans = [
+  { tier: 'basic', name: '基础会员', price: 29, period: '月', perks: ['高级筛选', '谁看过我', '每日更多主动次数'] },
+  { tier: 'pro', name: '进阶会员', price: 59, period: '月', perks: ['基础会员全部权益', '全部高级筛选维度', '优先顾问响应'] },
+]
 
 export default function Vip() {
   const { user } = useAuth()
+  const isDesktopViewport = useDesktopViewport()
   const [plans, setPlans] = useState([])
   const [pts, setPts] = useState(null)
   const [days, setDays] = useState(1)
   const [msg, setMsg] = useState('')
   const [loading, setLoading] = useState(false)
+  const [plansLoading, setPlansLoading] = useState(true)
+  const [plansError, setPlansError] = useState('')
+  const [pointsError, setPointsError] = useState('')
 
   useEffect(() => {
-    vipApi.plans().then(r => setPlans(r.data.plans || [])).catch(() => setPlans([
-      { tier: 'basic', name: '基础会员', price: 29, period: '月', perks: ['高级筛选', '谁看过我', '每日更多主动次数'] },
-      { tier: 'pro', name: '进阶会员', price: 59, period: '月', perks: ['基础会员全部权益', '全部高级筛选维度', '优先顾问响应'] },
-    ]))
-    points.balance().then(r => setPts(r.data)).catch(() => {})
-  }, [])
+    setPlansLoading(true)
+    setPlansError('')
+    vipApi.plans()
+      .then(r => setPlans(r.data.plans || []))
+      .catch(err => {
+        setPlans(isDesktopViewport ? [] : legacyMobileFallbackPlans)
+        if (isDesktopViewport) setPlansError(err.response?.data?.error || '会员方案加载失败，请稍后重试')
+      })
+      .finally(() => setPlansLoading(false))
+    points.balance()
+      .then(r => setPts(r.data))
+      .catch(err => {
+        if (isDesktopViewport) setPointsError(err.response?.data?.error || '积分余额加载失败')
+      })
+  }, [isDesktopViewport])
 
   const isVip = user?.is_vip
   const earned = pts?.earned ?? 0
@@ -37,7 +56,7 @@ export default function Vip() {
   }
 
   return (
-    <div className="figma-core-screen figma-membership-grid">
+    <div className="figma-core-screen figma-membership-grid figma-desktop-vip-section">
       <section className="figma-fairness-promise"><strong>AI 是会员核心权益，不是匹配特权</strong><span>会员提供更高额度与成长便利，但永远不影响匹配或曝光排序。</span></section>
 
       {isVip && (
@@ -53,8 +72,9 @@ export default function Vip() {
       <div className="card" style={{marginBottom:24}}>
         <h3 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:8}}>积分兑换 VIP 体验</h3>
         <p style={{fontSize:13,color:'var(--muted)',marginBottom:12}}>
-          当前积分：<strong style={{color:'var(--brand)'}}>{earned}</strong> 分 · 兑换比例：100 分 / 天
+          当前积分：<strong style={{color:'var(--brand)'}}>{pts ? earned : isDesktopViewport ? '—' : earned}</strong> 分 · 兑换比例：100 分 / 天
         </p>
+        {isDesktopViewport && pointsError && <div className="error-msg" role="alert">{pointsError}</div>}
         <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
           <label style={{fontSize:14}}>兑换天数</label>
           <input type="number" min={1} max={Math.floor(earned/100)||1} value={days}
@@ -70,6 +90,9 @@ export default function Vip() {
 
       {/* 套餐信息展示（仅供参考，付费待实现） */}
       <h3 style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:12}}>套餐介绍</h3>
+      {isDesktopViewport && plansLoading && <div className="figma-membership-state" aria-busy="true">正在读取会员方案…</div>}
+      {isDesktopViewport && !plansLoading && plansError && <div className="figma-membership-state is-error" role="alert">{plansError}</div>}
+      {isDesktopViewport && !plansLoading && !plansError && plans.length === 0 && <div className="figma-membership-state">暂无可用会员方案</div>}
       <div className="grid-2">
         {plans.map(p => (
           <div className="card" key={p.tier} style={{textAlign:'center'}}>

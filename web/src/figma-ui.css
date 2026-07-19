@@ -21,13 +21,217 @@
   --figma-text: #5F555A;
   --figma-muted: #81777B;
   --figma-muted-text: #6D6367;
-  display: grid;
-  grid-template-columns: var(--figma-sidebar) minmax(0, var(--figma-main)) var(--figma-rail);
   width: min(100%, var(--figma-artboard-width));
   min-height: 100vh;
   margin: 0 auto;
   color: var(--figma-ink);
   background: var(--figma-ivory);
+}
+
+@media (min-width: 769px) {
+  .figma-app-shell {
+    --brand: var(--figma-burgundy);
+    --brand-dark: var(--figma-burgundy-dark);
+    --brand-soft: var(--figma-burgundy-pale);
+    --brand-2: var(--figma-burgundy-soft);
+    --bg: var(--figma-paper);
+    --surface: var(--figma-white);
+    --fg: var(--figma-ink);
+    --muted: var(--figma-muted-text);
+    --border: var(--figma-border);
+    display: grid;
+    grid-template-columns: var(--figma-sidebar) minmax(0, 1fr);
+  }
+
+  .figma-app-shell .figma-nav-label,
+  .figma-app-shell .figma-secondary-nav {
+    display: none;
+  }
+
+  .figma-app-shell .figma-primary-nav {
+    gap: 10px;
+  }
+
+  .figma-app-shell .figma-primary-nav a {
+    min-height: 54px;
+    padding: 0 18px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+
+  .figma-app-shell .figma-account-copy .figma-profile-completion {
+    overflow: hidden;
+    color: var(--figma-muted-text);
+    font-size: 11px;
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .figma-app-shell .figma-account-copy .figma-profile-completion:hover {
+    color: var(--figma-burgundy);
+  }
+
+  .figma-app-shell .figma-right-rail {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .figma-app-shell .figma-rail-link {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 16px;
+    gap: 10px;
+    align-items: center;
+    min-height: 72px;
+    color: var(--figma-ink);
+    text-decoration: none;
+    border-top: 1px solid #EEE9E6;
+  }
+
+  .figma-app-shell .figma-rail-link:first-of-type {
+    border-top: 0;
+  }
+
+  .figma-app-shell .figma-rail-link:hover strong {
+    color: var(--figma-burgundy);
+  }
+
+  .figma-app-shell .figma-rail-link-icon {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    color: var(--figma-burgundy);
+    place-items: center;
+    background: var(--figma-ivory);
+    border: 1px solid #D8C49B;
+    border-radius: 50%;
+  }
+
+  .figma-app-shell .figma-rail-link > span:nth-child(2) {
+    display: grid;
+    gap: 4px;
+  }
+
+  .figma-app-shell .figma-rail-link strong {
+    font-size: 13px;
+    line-height: 1.35;
+  }
+
+  .figma-app-shell .figma-rail-link small {
+    color: var(--figma-muted-text);
+    font-size: 11px;
+    line-height: 1.55;
+  }
+
+  .figma-app-shell .figma-core-screen {
+    min-height: calc(var(--figma-artboard-height) - 112px);
+  }
+
+  .figma-app-shell .figma-core-screen .card,
+  .figma-app-shell .figma-core-screen .field input,
+  .figma-app-shell .figma-core-screen .field select,
+  .figma-app-shell .figma-core-screen .field textarea {
+    border-color: var(--figma-border);
+  }
+
+  .figma-app-shell .figma-core-screen .field input,
+  .figma-app-shell .figma-core-screen .field select,
+  .figma-app-shell .figma-core-screen .field textarea {
+    background: var(--figma-paper);
+  }
+
+  .figma-app-shell .figma-community-feed.com-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .figma-app-shell .figma-community-feed .com-sidebar {
+    display: none;
+  }
+
+  .figma-app-shell .figma-community-feed .com-main {
+    max-width: none;
+  }
+
+  .figma-app-shell .figma-profile-sheet.figma-desktop-profile-section {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+    align-items: start;
+  }
+
+  .figma-app-shell .figma-profile-sheet .figma-profile-identity {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .figma-app-shell .figma-profile-sheet > .card {
+    height: auto;
+    margin-bottom: 0;
+  }
+
+  .figma-app-shell .figma-membership-grid > .grid-2 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .figma-app-shell .figma-membership-state {
+    margin-bottom: 16px;
+    padding: 18px;
+    color: var(--figma-muted-text);
+    font-size: 13px;
+    text-align: center;
+    background: var(--figma-paper);
+    border: 1px solid var(--figma-border);
+    border-radius: 12px;
+  }
+
+  .figma-app-shell .figma-membership-state.is-error {
+    color: #9E2F2F;
+    background: #FFF8F7;
+    border-color: #E4BBB5;
+  }
+
+  .figma-app-shell .figma-ai-workbench .ai-header-row {
+    min-height: 158px;
+    padding: 28px 30px;
+  }
+
+  .figma-app-shell .figma-ai-workbench .ai-header-row h2 {
+    margin: 5px 0 7px;
+    font-family: "Noto Serif SC", "Songti SC", serif;
+    font-size: 25px;
+    line-height: 1.35;
+  }
+
+  .figma-app-shell .figma-ai-workbench .ai-header-row p {
+    margin: 0;
+    color: #F6EDEF;
+    font-size: 13px;
+  }
+
+  .figma-app-shell .figma-ai-workbench .ai-history-error {
+    display: grid;
+    gap: 10px;
+    color: #9E2F2F;
+    font-size: 12px;
+  }
+
+  .figma-app-shell .figma-ai-workbench .ai-history-error .btn {
+    width: max-content;
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .figma-app-shell {
+    grid-template-columns: var(--figma-sidebar) minmax(0, var(--figma-main)) var(--figma-rail);
+  }
+
+  .figma-app-shell .figma-right-rail {
+    display: block;
+  }
 }
 
 .figma-app-shell,
@@ -1196,5 +1400,29 @@
   .figma-app-shell .figma-fairness-promise span {
     margin-top: 4px;
     font-size: 11px;
+  }
+}
+
+/* Keep desktop-only navigation and community overrides after the shared rules they replace. */
+@media (min-width: 769px) {
+  .figma-app-shell .figma-nav-label,
+  .figma-app-shell .figma-secondary-nav,
+  .figma-app-shell .figma-community-feed .com-sidebar {
+    display: none;
+  }
+
+  .figma-app-shell .figma-primary-nav {
+    gap: 10px;
+  }
+
+  .figma-app-shell .figma-primary-nav a {
+    min-height: 54px;
+    padding: 0 18px;
+    font-size: 15px;
+    border-radius: 12px;
+  }
+
+  .figma-app-shell .figma-community-feed.com-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

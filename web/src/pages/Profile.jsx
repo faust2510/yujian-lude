@@ -126,7 +126,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="figma-core-screen figma-profile-sheet">
+    <div className="figma-core-screen figma-profile-sheet figma-desktop-profile-section">
       <section className="figma-profile-identity">
         <div className="figma-profile-avatar">{(form.nickname || user?.email || '安').slice(0, 1)}</div>
         <div><span className={profileTrustState.className}>{profileTrustState.label}</span><h2>{form.nickname || '平安'}{form.city ? ` · ${form.city}` : ''}</h2><p>{form.intro || '愿意认真认识一段以婚姻为方向的关系。'}</p></div>

@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { FigmaIcon, FigmaNotice, FigmaPageHeader, FigmaPersonRow } from './FigmaUi'
+import { profile } from '../api/client'
+import { useDesktopViewport } from '../hooks/useDesktopViewport'
+import { FigmaIcon, FigmaNotice, FigmaPageHeader } from './FigmaUi'
 import '../figma-ui.css'
 
 const primaryNav = [
@@ -40,21 +42,96 @@ const pageMeta = {
   '/admin': ['管理台', '维护平台秩序与用户安全。'],
 }
 
-const people = [
-  ['禾', '晨光里的读书人', '华东 · 92%'],
-  ['恩', '喜欢徒步与诗篇', '华南 · 88%'],
-  ['路', '在服务中学习倾听', '华北 · 84%'],
-]
-
-const groups = [
-  ['书', '晨光共读', '128 人'],
-  ['城', '城市同行', '46 人'],
-  ['言', '沟通练习场', '92 人'],
-]
+const desktopRailByRoute = {
+  '/': {
+    title: '今日值得认识',
+    items: [
+      { icon: 'heart', label: '查看每日精选', detail: '认识真实、稳定、愿意成长的人', to: '/match' },
+      { icon: 'book', label: '继续关系预备', detail: '把今天的练习完成一点', to: '/courses' },
+      { icon: 'users', label: '进入同行社区', detail: '在共同学习中慢慢认识', to: '/community' },
+    ],
+  },
+  '/match': {
+    title: '认识之前',
+    items: [
+      { icon: 'shield', label: '资格来自真实状态', detail: '资料、信仰、背书与课程共同构成', to: '/profile' },
+      { icon: 'message', label: '双方心动才通信', detail: '没有单方面开启私信的捷径', to: '/chat' },
+    ],
+  },
+  '/courses': {
+    title: '成长路径',
+    items: [
+      { icon: 'book', label: '先读，再练习', detail: '学习进度以服务端记录为准', to: '/courses' },
+      { icon: 'spark', label: '带着问题咨询', detail: '让路得 AI 帮你整理行动步骤', to: '/ai' },
+    ],
+  },
+  '/community': {
+    title: '社区边界',
+    items: [
+      { icon: 'users', label: '尊重真实的人', detail: '关注、评论与举报都保留清晰责任', to: '/community' },
+      { icon: 'bookmark', label: '收藏值得回看的内容', detail: '让关系学习沉淀下来', to: '/community' },
+    ],
+  },
+  '/chat': {
+    title: '安心书信',
+    items: [
+      { icon: 'shield', label: '先确认，再靠近', detail: '只有真实开放的会话会出现在这里', to: '/match' },
+      { icon: 'flag', label: '遇到不适及时停下', detail: '保留证据并使用社区举报入口', to: '/community' },
+    ],
+  },
+  '/profile': {
+    title: '资料与信任',
+    items: [
+      { icon: 'user', label: '只填写真实资料', detail: '保存结果与完整度都来自服务端', to: '/profile' },
+      { icon: 'compass', label: '完成信仰测试', detail: '诚实回答比追求速度更重要', to: '/faith-test' },
+    ],
+  },
+  '/ai': {
+    title: '咨询边界',
+    items: [
+      { icon: 'spark', label: '辅助辨别，不替你决定', detail: '建议会说明依据与适用范围', to: '/ai' },
+      { icon: 'users', label: '重要决定回到真实关系', detail: '让牧者、引荐人与专业人士参与', to: '/pastor' },
+    ],
+  },
+  '/vip': {
+    title: '公平承诺',
+    items: [
+      { icon: 'crown', label: '会员只增加成长便利', detail: '不会改变匹配资格或曝光顺序', to: '/vip' },
+      { icon: 'book', label: '积分来自真实成长', detail: '签到、学习与完成任务都会如实记录', to: '/courses' },
+    ],
+  },
+}
 
 function getPageMeta(pathname) {
   const key = Object.keys(pageMeta).find((route) => route !== '/' && pathname.startsWith(route)) || '/'
   return pageMeta[key]
+}
+
+function getDesktopRail(pathname) {
+  const key = Object.keys(desktopRailByRoute).find((route) => route !== '/' && pathname.startsWith(route)) || '/'
+  return desktopRailByRoute[key]
+}
+
+function DesktopRail({ config }) {
+  const items = config?.items || []
+
+  return (
+    <aside className="figma-right-rail" aria-label="页面辅助信息">
+      <section className="figma-rail-card">
+        <h2>{config?.title || '页面提示'}</h2>
+        {items.map((item) => (
+          <Link className="figma-rail-link" key={`${item.to}-${item.label}`} to={item.to}>
+            <span className="figma-rail-link-icon"><FigmaIcon name={item.icon} size={18} /></span>
+            <span><strong>{item.label}</strong><small>{item.detail}</small></span>
+            <FigmaIcon name="chevronRight" size={16} />
+          </Link>
+        ))}
+      </section>
+      <FigmaNotice title="安心认识">
+        敏感信息不公开展示。双方心动后才开放私信，联系方式与精确位置仍受保护。
+      </FigmaNotice>
+    </aside>
+  )
 }
 
 function visibleSecondaryNav(role) {
@@ -66,9 +143,39 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [profileSummary, setProfileSummary] = useState({ loading: true, error: '', nickname: '', completion: null })
   const [pageTitle, pageDescription] = getPageMeta(pathname)
-  const railItems = pathname.startsWith('/community') ? groups : people
+  const railConfig = getDesktopRail(pathname)
   const secondaryItems = visibleSecondaryNav(user?.role)
+  const isDesktopViewport = useDesktopViewport()
+
+  useEffect(() => {
+    if (!isDesktopViewport) return undefined
+    let active = true
+    setProfileSummary(current => ({ ...current, loading: true, error: '' }))
+    profile.get()
+      .then((response) => {
+        if (!active) return
+        const currentProfile = response.data?.profile || {}
+        const completion = Number(currentProfile.completion)
+        setProfileSummary({
+          loading: false,
+          error: '',
+          nickname: currentProfile.nickname || '',
+          completion: Number.isFinite(completion) ? Math.max(0, Math.min(100, completion)) : null,
+        })
+      })
+      .catch((error) => {
+        if (!active) return
+        setProfileSummary({
+          loading: false,
+          error: error.response?.data?.error || '资料状态暂不可用',
+          nickname: '',
+          completion: null,
+        })
+      })
+    return () => { active = false }
+  }, [isDesktopViewport, user?.id])
 
   const handleLogout = async () => {
     await logout()
@@ -103,8 +210,16 @@ export default function AppLayout() {
         <div className="figma-account">
           <div className="figma-avatar" aria-hidden="true">{user?.email?.slice(0, 1)?.toUpperCase() || '安'}</div>
           <div className="figma-account-copy">
-            <strong>{user?.name || '平安'}</strong>
-            <span>{user?.email || '我的资料'}</span>
+            <strong>{profileSummary.nickname || user?.email?.split('@')[0] || '平安'}</strong>
+            <Link className="figma-profile-completion" to="/profile">
+              {profileSummary.loading
+                ? '资料完整度读取中…'
+                : profileSummary.error
+                  ? profileSummary.error
+                  : profileSummary.completion === null
+                    ? '资料完整度待计算'
+                    : `资料完整度 ${profileSummary.completion}%`}
+            </Link>
           </div>
           <button type="button" className="figma-icon-button" onClick={handleLogout} aria-label="退出登录" title="退出登录">
             <FigmaIcon name="logout" size={18} />
@@ -132,15 +247,7 @@ export default function AppLayout() {
         <div className="figma-main-content"><Outlet /></div>
       </main>
 
-      <aside className="figma-right-rail" aria-label="相关推荐">
-        <section className="figma-rail-card">
-          <h2>{pathname.startsWith('/community') ? '值得关注的小组' : '今日值得认识'}</h2>
-          {railItems.map(([initial, name, meta]) => <FigmaPersonRow key={name} initial={initial} name={name} meta={meta} />)}
-        </section>
-        <FigmaNotice title="安心认识">
-          敏感信息不公开展示。双方心动后才开放私信，联系方式与精确位置仍受保护。
-        </FigmaNotice>
-      </aside>
+      <DesktopRail config={railConfig} />
 
       <nav className="figma-mobile-nav" aria-label="移动端主要导航">
         {primaryNav.map((item) => (

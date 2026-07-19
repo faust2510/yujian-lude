@@ -80,7 +80,7 @@ export default function Chat() {
   }
 
   return (
-    <div className={`figma-core-screen figma-letter-workspace ${active ? 'is-thread-open' : ''}`} style={{ display: 'flex', height: 'calc(100vh - 112px)', background: 'var(--figma-silver)' }}>
+    <div className={`figma-core-screen figma-letter-workspace figma-desktop-chat-section ${active ? 'is-thread-open' : ''}`} style={{ display: 'flex', height: 'calc(100vh - 112px)', background: 'var(--figma-silver)' }}>
       <div style={{ width: 280, borderRight: '1px solid var(--border)', overflowY: 'auto', background: 'var(--surface)', flexShrink: 0 }}>
         <div style={{
           padding: '16px 20px', borderBottom: '1px solid var(--border)',

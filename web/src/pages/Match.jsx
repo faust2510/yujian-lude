@@ -60,7 +60,7 @@ export default function Match() {
   }
 
   return (
-    <div className="figma-core-screen figma-daily-picks">
+    <div className="figma-core-screen figma-daily-picks figma-desktop-match-section">
       <div className="figma-screen-tabs" aria-label="认识内容"><span className="is-active">今日精选</span><span>已表达心意</span></div>
 
       <details className="card figma-match-filters">

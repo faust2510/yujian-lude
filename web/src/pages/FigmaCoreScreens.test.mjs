@@ -21,10 +21,27 @@ const markers = {
   Vip: 'figma-membership-grid',
 }
 
+const desktopSectionMarkers = {
+  Dashboard: 'figma-desktop-home-section',
+  Match: 'figma-desktop-match-section',
+  Courses: 'figma-desktop-growth-section',
+  Community: 'figma-desktop-community-section',
+  Chat: 'figma-desktop-chat-section',
+  Profile: 'figma-desktop-profile-section',
+  AiConsult: 'figma-desktop-ai-section',
+  Vip: 'figma-desktop-vip-section',
+}
+
 for (const [file, marker] of Object.entries(markers)) {
   test(`${file} exposes its Figma core screen`, () => {
     assert.match(page(file), new RegExp(marker))
     assert.match(css, new RegExp(`\\.${marker}`))
+  })
+}
+
+for (const [file, marker] of Object.entries(desktopSectionMarkers)) {
+  test(`${file} exposes a desktop-only section marker`, () => {
+    assert.ok(page(file).includes(marker), `${file} must expose ${marker}`)
   })
 }
 
@@ -72,6 +89,34 @@ test('desktop shell uses the accepted Figma brand copy and carded recommendation
   assert.match(layout, /今日值得认识/)
   assert.match(layout, /figma-rail-card/)
   assert.match(css, /\.figma-rail-card/)
+})
+
+test('VIP API failures do not inject prototype plans', () => {
+  assert.ok(
+    !/\.catch\s*\(\s*\(\)\s*=>\s*setPlans\s*\(\s*\[/s.test(page('Vip')),
+    'VIP failures must render an error state instead of injecting prototype plans',
+  )
+  assert.match(page('Vip'), /isDesktopViewport\s*\?\s*\[\]\s*:\s*legacyMobileFallbackPlans/)
+  assert.match(page('Vip'), /isDesktopViewport\s*&&\s*plansLoading/)
+})
+
+test('new AI and VIP error states are scoped to desktop viewports', () => {
+  assert.match(page('AiConsult'), /isDesktopViewport\s*&&\s*historyError/)
+  assert.match(page('Vip'), /isDesktopViewport\s*&&\s*pointsError/)
+  assert.match(css, /@media \(min-width:\s*769px\)[\s\S]*?\.ai-history-error/)
+})
+
+test('desktop community uses the shell rail instead of a nested 236px sidebar', () => {
+  const community = page('Community')
+  const hasNestedSidebar = /className=["']com-sidebar["']/.test(community)
+  const hidesNestedSidebarOnDesktop = /@media \(min-width:\s*769px\)[\s\S]*?\.figma-app-shell \.figma-community-feed \.com-sidebar\s*\{[^}]*display:\s*none/s.test(css)
+
+  assert.match(
+    css,
+    /@media \(min-width:\s*769px\)[\s\S]*?\.figma-app-shell \.figma-community-feed\.com-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+    'desktop community must collapse the nested sidebar column',
+  )
+  assert.ok(!hasNestedSidebar || hidesNestedSidebarOnDesktop, 'nested community sidebar must be absent or hidden on desktop')
 })
 
 test('community actions use the Figma SVG icon set instead of legacy emoji', () => {

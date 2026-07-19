@@ -191,7 +191,7 @@ export default function Courses() {
   }
 
   return (
-    <div className="figma-core-screen figma-growth-feed">
+    <div className="figma-core-screen figma-growth-feed figma-desktop-growth-section">
       <div className="figma-screen-tabs" aria-label="成长内容"><span className="is-active">为你继续</span><span>探索内容</span></div>
       <div className="figma-inline-notice">先阅读课程文本，再完成结课考试；通过后计入关系预备进度。</div>
 

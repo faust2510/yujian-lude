@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ai } from '../api/client'
+import { useDesktopViewport } from '../hooks/useDesktopViewport'
 
 const safeGuidancePrompts = [
   '刚认识时怎样设定聊天节奏和线下见面边界？',
@@ -21,22 +22,26 @@ const escalationGuidance = [
 ]
 
 export default function AiConsult() {
+  const isDesktopViewport = useDesktopViewport()
   const [question, setQuestion] = useState('')
   const [history, setHistory] = useState([])
   const [answer, setAnswer] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [historyError, setHistoryError] = useState('')
 
-  const loadHistory = async () => {
+  const loadHistory = useCallback(async () => {
+    setHistoryError('')
     try {
       const r = await ai.history()
       setHistory(r.data.history || [])
-    } catch {
+    } catch (err) {
       setHistory([])
+      if (isDesktopViewport) setHistoryError(err.response?.data?.error || '咨询记录加载失败，请重试')
     }
-  }
+  }, [isDesktopViewport])
 
-  useEffect(() => { loadHistory() }, [])
+  useEffect(() => { loadHistory() }, [loadHistory])
 
   const ask = async (e) => {
     e.preventDefault()
@@ -69,7 +74,7 @@ export default function AiConsult() {
   }
 
   return (
-    <div className="figma-core-screen figma-ai-workbench ai-page">
+    <div className="figma-core-screen figma-ai-workbench figma-desktop-ai-section ai-page">
       <div className="ai-header-row">
         <div>
           <div className="ai-kicker">遇见路得咨询台</div>
@@ -159,7 +164,13 @@ export default function AiConsult() {
               <h2>最近咨询</h2>
               <span>{history.length}</span>
             </div>
-            {history.length === 0 && <p className="muted-small">暂无咨询记录</p>}
+            {isDesktopViewport && historyError && (
+              <div className="ai-history-error" role="alert">
+                <span>{historyError}</span>
+                <button className="btn btn-outline" type="button" onClick={loadHistory}>重试</button>
+              </div>
+            )}
+            {(!isDesktopViewport || !historyError) && history.length === 0 && <p className="muted-small">暂无咨询记录</p>}
             {history.slice(0, 6).map((item, index) => (
               <button
                 className="ai-history-item"

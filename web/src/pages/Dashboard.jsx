@@ -132,7 +132,7 @@ export default function Dashboard() {
     : null
 
   return (
-    <div className="figma-core-screen figma-home-feed">
+    <div className="figma-core-screen figma-home-feed figma-desktop-home-section">
       <div className="figma-screen-tabs" aria-label="首页内容"><span className="is-active">为你</span><span>正在关注</span></div>
       <section className="figma-relationship-compass">
         <div className="figma-compass-score"><strong>{qualificationLoading ? '…' : `${gatePct}%`}</strong><span>关系罗盘</span></div>

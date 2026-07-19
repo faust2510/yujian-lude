@@ -953,7 +953,7 @@ export default function Community() {
   // ═══════════════════════════════════════════════════════════════
 
   return (
-    <div className="figma-core-screen figma-community-feed com-layout">
+    <div className="figma-core-screen figma-community-feed figma-desktop-community-section com-layout">
       <div className="com-main">
         {/* Top nav tabs */}
         <div className="com-tabs">
