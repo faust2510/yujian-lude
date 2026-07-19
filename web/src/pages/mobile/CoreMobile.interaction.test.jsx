@@ -51,6 +51,15 @@ describe('core X mobile route views', () => {
     expect(onSend).toHaveBeenCalledOnce()
   })
 
+  it('formats chat timestamps instead of exposing raw ISO values', () => {
+    const timestamp = '2026-07-19T19:00:18.030Z'
+    const channel = { id: 'c1', other_nickname: '安然', last_msg: '你好', last_at: timestamp }
+    const { rerender } = render(<MemoryRouter><ChatMobile channels={[channel]} /></MemoryRouter>)
+    expect(screen.queryByText(timestamp)).toBeNull()
+    rerender(<MemoryRouter><ChatMobile user={{ id: 'u1' }} active={channel} messages={[{ id: 'm1', sender_id: 'u1', body: '平安', created_at: timestamp }]} onTextChange={() => {}} onSend={() => {}} onBack={() => {}} /></MemoryRouter>)
+    expect(screen.queryByText(timestamp)).toBeNull()
+  })
+
   it('keeps AI boundaries, history, sources and human escalation in the mobile flow', () => {
     render(<AiConsultMobile question="" history={[]} boundaries={['不替代医疗建议']} escalation={['紧急情况请联系真人']} prompts={[]} onQuestionChange={() => {}} onAsk={() => {}} />)
     expect(screen.getByText('咨询边界')).toBeTruthy()

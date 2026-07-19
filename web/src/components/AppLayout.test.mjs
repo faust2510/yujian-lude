@@ -132,6 +132,7 @@ test('X mobile shell owns the 390x844 mobile tokens and is isolated from desktop
   assert.match(mobileCss, /\.x-mobile-error-row button[^}]*min-height:var\(--x-touch-target\)/)
   assert.match(mobileCss, /\.x-mobile-action-bar > button[^}]*min-height:var\(--x-touch-target\)/)
   assert.match(mobileCss, /\.x-mobile-form-row input[^}]*min-height:var\(--x-touch-target\)/)
+  assert.match(mobileCss, /\.x-mobile-shell\.is-detail-page\s*\{[^}]*padding-bottom:\s*0/)
 })
 
 test('the X shell is the sole mobile layout at 767px and old Figma mobile CSS stops before 768px', () => {
