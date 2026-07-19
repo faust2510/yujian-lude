@@ -11,6 +11,7 @@
   --figma-burgundy-pale: #F7EFF2;
   --figma-burgundy-soft: #F1E4E8;
   --figma-gold: #A8864A;
+  --figma-gold-text: #6F5427;
   --figma-ivory: #F8F4EB;
   --figma-paper: #FCFAF5;
   --figma-white: #fff;
@@ -19,6 +20,7 @@
   --figma-ink: #251F22;
   --figma-text: #5F555A;
   --figma-muted: #81777B;
+  --figma-muted-text: #6D6367;
   display: grid;
   grid-template-columns: var(--figma-sidebar) minmax(0, var(--figma-main)) var(--figma-rail);
   width: min(100%, var(--figma-artboard-width));
@@ -76,7 +78,7 @@
 .figma-app-shell .figma-brand-tagline,
 .figma-app-shell .figma-nav-label,
 .figma-app-shell .figma-eyebrow {
-  color: var(--figma-gold);
+  color: var(--figma-gold-text);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: .11em;
@@ -111,7 +113,7 @@
 
 .figma-app-shell .figma-nav-label {
   margin: 28px 14px 8px;
-  color: var(--figma-muted);
+  color: var(--figma-muted-text);
 }
 
 .figma-app-shell .figma-secondary-nav a {
@@ -161,7 +163,7 @@
 .figma-app-shell .figma-account-copy span,
 .figma-app-shell .figma-person-copy span {
   overflow: hidden;
-  color: var(--figma-muted);
+  color: var(--figma-muted-text);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -173,7 +175,7 @@
   width: 30px;
   height: 30px;
   padding: 0;
-  color: var(--figma-muted);
+  color: var(--figma-muted-text);
   background: transparent;
   border: 0;
   border-radius: 8px;
@@ -212,7 +214,7 @@
 
 .figma-app-shell .figma-page-header p {
   margin: 0;
-  color: var(--figma-muted);
+  color: var(--figma-muted-text);
   font-size: 12px;
 }
 
@@ -287,7 +289,7 @@
 
 .figma-app-shell .figma-tabs button {
   padding: 10px 12px;
-  color: var(--figma-muted);
+  color: var(--figma-muted-text);
   background: transparent;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -445,7 +447,7 @@
     gap: 4px;
     align-items: center;
     justify-content: center;
-    color: var(--figma-muted);
+    color: var(--figma-muted-text);
     font-size: 10px;
     text-decoration: none;
   }

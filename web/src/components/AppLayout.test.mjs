@@ -39,16 +39,24 @@ test('layout preserves existing routes, role visibility, outlet, and async logou
     assert.match(layoutSource, new RegExp(`(?:to=|to:\\s*)["']${route.replaceAll('/', '\\/')}["']`))
   }
 
-  assert.match(layoutSource, /user\?\.role === 'pastor' \|\| user\?\.role === 'admin'/)
-  assert.match(layoutSource, /user\?\.role === 'admin'/)
+  assert.match(layoutSource, /roles:\s*\['pastor', 'admin'\]/)
+  assert.match(layoutSource, /roles:\s*\['admin'\]/)
+  assert.match(layoutSource, /visibleSecondaryNav\(user\?\.role\)/)
   assert.match(layoutSource, /await logout\(\)[\s\S]*?navigate\('\/login'\)/)
   assert.match(layoutSource, /<Outlet\s*\/>/)
   assert.doesNotMatch(layoutSource, /<NavLink to="\/pastor"/)
 })
 
 test('mobile header keeps secondary routes and logout reachable beyond the five-item bottom nav', () => {
-  assert.match(layoutSource, /figma-mobile-menu[\s\S]*?to="\/profile"[\s\S]*?to="\/faith-test"[\s\S]*?to="\/textbooks"[\s\S]*?to="\/ai"[\s\S]*?to="\/relationships"[\s\S]*?to="\/vip"/)
-  assert.match(layoutSource, /figma-mobile-menu[\s\S]*?to="\/course-authoring"[\s\S]*?to="\/admin"[\s\S]*?onClick=\{handleLogout\}/)
+  assert.match(layoutSource, /const secondaryNav = \[[\s\S]*?\/profile[\s\S]*?\/faith-test[\s\S]*?\/textbooks[\s\S]*?\/ai[\s\S]*?\/relationships[\s\S]*?\/vip[\s\S]*?\/course-authoring[\s\S]*?\/admin/)
+  assert.match(layoutSource, /figma-mobile-menu[\s\S]*?secondaryItems\.map[\s\S]*?setMobileMenuOpen\(false\)/)
+  assert.match(layoutSource, /handleLogout/)
+})
+
+test('small Figma chrome text uses AA-safe foreground tokens', () => {
+  assert.match(cssSource, /--figma-gold-text:\s*#6F5427/i)
+  assert.match(cssSource, /--figma-muted-text:\s*#6D6367/i)
+  assert.match(cssSource, /\.figma-eyebrow[\s\S]*?color:\s*var\(--figma-gold-text\)/)
 })
 
 test('Figma shell locks the accepted desktop dimensions and mobile navigation height', () => {

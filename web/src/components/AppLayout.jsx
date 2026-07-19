@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { FigmaIcon, FigmaNotice, FigmaPageHeader, FigmaPersonRow } from './FigmaUi'
@@ -9,6 +10,17 @@ const primaryNav = [
   { label: '成长', to: '/courses', icon: 'book' },
   { label: '社区', to: '/community', icon: 'users' },
   { label: '消息', to: '/chat', icon: 'message' },
+]
+
+const secondaryNav = [
+  { label: '完善资料', to: '/profile', icon: 'user' },
+  { label: '信仰测试', to: '/faith-test', icon: 'compass' },
+  { label: '教材', to: '/textbooks', icon: 'book' },
+  { label: 'AI 咨询', to: '/ai', icon: 'spark' },
+  { label: '关系', to: '/relationships', icon: 'heart' },
+  { label: '套餐', to: '/vip', icon: 'crown' },
+  { label: '课程工作台', to: '/course-authoring', icon: 'book', roles: ['pastor', 'admin'] },
+  { label: '管理台', to: '/admin', icon: 'settings', roles: ['admin'] },
 ]
 
 const pageMeta = {
@@ -45,12 +57,18 @@ function getPageMeta(pathname) {
   return pageMeta[key]
 }
 
+function visibleSecondaryNav(role) {
+  return secondaryNav.filter((item) => !item.roles || item.roles.includes(role))
+}
+
 export default function AppLayout() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const { pathname } = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [pageTitle, pageDescription] = getPageMeta(pathname)
   const railItems = pathname.startsWith('/community') ? groups : people
+  const secondaryItems = visibleSecondaryNav(user?.role)
 
   const handleLogout = async () => {
     await logout()
@@ -77,18 +95,9 @@ export default function AppLayout() {
 
         <div className="figma-nav-label">更多功能</div>
         <nav className="figma-secondary-nav" aria-label="功能导航">
-          <NavLink to="/profile"><FigmaIcon name="user" size={17} /><span>完善资料</span></NavLink>
-          <NavLink to="/faith-test"><FigmaIcon name="compass" size={17} /><span>信仰测试</span></NavLink>
-          <NavLink to="/textbooks"><FigmaIcon name="book" size={17} /><span>教材</span></NavLink>
-          <NavLink to="/ai"><FigmaIcon name="spark" size={17} /><span>AI 咨询</span></NavLink>
-          <NavLink to="/relationships"><FigmaIcon name="heart" size={17} /><span>关系</span></NavLink>
-          <NavLink to="/vip"><FigmaIcon name="crown" size={17} /><span>套餐</span></NavLink>
-          {(user?.role === 'pastor' || user?.role === 'admin') && (
-            <NavLink to="/course-authoring"><FigmaIcon name="book" size={17} /><span>课程工作台</span></NavLink>
-          )}
-          {user?.role === 'admin' && (
-            <NavLink to="/admin"><FigmaIcon name="settings" size={17} /><span>管理台</span></NavLink>
-          )}
+          {secondaryItems.map((item) => (
+            <NavLink key={item.to} to={item.to}><FigmaIcon name={item.icon} size={17} /><span>{item.label}</span></NavLink>
+          ))}
         </nav>
 
         <div className="figma-account">
@@ -105,24 +114,15 @@ export default function AppLayout() {
 
       <header className="figma-mobile-header">
         <div><span className="figma-eyebrow">遇见路得</span><h1>{pageTitle}</h1></div>
-        <details className="figma-mobile-menu">
-          <summary aria-label="打开更多功能">
+        <details className="figma-mobile-menu" open={mobileMenuOpen} onToggle={(event) => setMobileMenuOpen(event.currentTarget.open)}>
+          <summary aria-label={mobileMenuOpen ? '关闭更多功能' : '打开更多功能'}>
             <span className="figma-avatar" aria-hidden="true">{user?.email?.slice(0, 1)?.toUpperCase() || '安'}</span>
           </summary>
           <nav className="figma-mobile-menu-links" aria-label="移动端更多功能">
-            <NavLink to="/profile"><FigmaIcon name="user" size={18} /><span>完善资料</span></NavLink>
-            <NavLink to="/faith-test"><FigmaIcon name="compass" size={18} /><span>信仰测试</span></NavLink>
-            <NavLink to="/textbooks"><FigmaIcon name="book" size={18} /><span>教材</span></NavLink>
-            <NavLink to="/ai"><FigmaIcon name="spark" size={18} /><span>AI 咨询</span></NavLink>
-            <NavLink to="/relationships"><FigmaIcon name="heart" size={18} /><span>关系</span></NavLink>
-            <NavLink to="/vip"><FigmaIcon name="crown" size={18} /><span>套餐</span></NavLink>
-            {(user?.role === 'pastor' || user?.role === 'admin') && (
-              <NavLink to="/course-authoring"><FigmaIcon name="book" size={18} /><span>课程工作台</span></NavLink>
-            )}
-            {user?.role === 'admin' && (
-              <NavLink to="/admin"><FigmaIcon name="settings" size={18} /><span>管理台</span></NavLink>
-            )}
-            <button type="button" onClick={handleLogout}><FigmaIcon name="logout" size={18} /><span>退出登录</span></button>
+            {secondaryItems.map((item) => (
+              <NavLink key={item.to} to={item.to} onClick={() => setMobileMenuOpen(false)}><FigmaIcon name={item.icon} size={18} /><span>{item.label}</span></NavLink>
+            ))}
+            <button type="button" onClick={() => { setMobileMenuOpen(false); handleLogout() }}><FigmaIcon name="logout" size={18} /><span>退出登录</span></button>
           </nav>
         </details>
       </header>

@@ -24,8 +24,8 @@ test('textbook routes are protected under the app basename', () => {
   assert.match(mainSource, /path="\/textbooks"/)
   assert.match(mainSource, /path="\/textbooks\/:slug"/)
   assert.match(mainSource, /path="\/textbooks\/:slug\/chapters\/:index"/)
-  assert.match(layoutSource, /to="\/textbooks"/)
-  assert.match(layoutSource, />教材</)
+  assert.match(layoutSource, /to:\s*'\/textbooks'/)
+  assert.match(layoutSource, /label:\s*'教材'/)
 })
 
 test('textbook pages and reader styles are present and mobile safe', () => {
