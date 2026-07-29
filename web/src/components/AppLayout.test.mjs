@@ -64,6 +64,15 @@ test('desktop sidebar has exactly five primary destinations and a real profile c
   assert.ok(layoutSource.includes('资料完整度'), 'sidebar must label the profile completion value')
 })
 
+test('desktop sidebar gives the AI teaching assistant a prominent entry before secondary navigation', () => {
+  assert.match(layoutSource, /<Link className="figma-ai-shortcut" to="\/ai"[^>]*>[\s\S]*?路得 AI[\s\S]*?<\/Link>/)
+  assert.ok(layoutSource.indexOf('figma-ai-shortcut') < layoutSource.indexOf('figma-nav-label'))
+})
+
+test('desktop account avatar and name link together to profile editing', () => {
+  assert.match(layoutSource, /<Link className="figma-account-profile" to="\/profile"[^>]*>[\s\S]*?figma-avatar[\s\S]*?figma-account-copy[\s\S]*?<\/Link>/)
+})
+
 test('desktop recommendations never ship fixed prototype scores or group counts', () => {
   for (const fabricatedValue of ['92%', '88%', '84%', '128 人', '46 人', '92 人']) {
     assert.ok(!layoutSource.includes(fabricatedValue), `remove fixed prototype value: ${fabricatedValue}`)

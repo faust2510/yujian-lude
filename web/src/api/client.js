@@ -20,6 +20,8 @@ export const auth = {
 export const profile = {
   get: () => api.get('/me/profile'),
   save: (data) => api.put('/me/profile', data),
+  uploadAvatar: (file) => api.post('/me/avatar', file, { headers: { 'Content-Type': file.type } }),
+  removeAvatar: () => api.delete('/me/avatar'),
   saveFaith: (data) => api.put('/me/faith', data),
   addEndorsement: (data) => api.post('/me/endorsements', data),
   removeEndorsement: (id) => api.delete(`/me/endorsements/${id}`),
@@ -39,6 +41,7 @@ export const courses = {
     api.post(`/courses/${slug}/units/${index}/submit`, data),
   exam: (slug) => api.get(`/courses/${slug}/exam`),
   submitExam: (slug, answers) => api.post(`/courses/${slug}/exam/submit`, { answers }),
+  materials: (slug) => api.get(`/courses/${slug}/materials`),
 }
 
 export const courseAuthoring = {
@@ -47,9 +50,11 @@ export const courseAuthoring = {
   detail: (id) => api.get(`/pastor/courses/${id}`),
   save: (id, draft) => api.put(`/pastor/courses/${id}`, draft),
   submit: (id) => api.post(`/pastor/courses/${id}/submit`),
-  reviewQueue: () => api.get('/admin/course-submissions?state=pending_review'),
+  uploadMaterial: (id, file, licenseNote) => api.post(`/pastor/courses/${id}/materials`, file, { headers: { 'Content-Type': file.type, 'X-License-Note': licenseNote, 'X-File-Name': file.name } }),
+  confirmMaterial: (id, materialId) => api.post(`/pastor/courses/${id}/materials/${materialId}/confirm`),
+  reviewQueue: () => api.get('/pastor/course-submissions?state=pending_review'),
   review: (id, action, note, expectedState = 'pending_review') =>
-    api.patch(`/admin/course-submissions/${id}`, { action, note, expected_state: expectedState }),
+    api.patch(`/pastor/course-submissions/${id}`, { action, note, expected_state: expectedState }),
 }
 
 export const textbooks = {

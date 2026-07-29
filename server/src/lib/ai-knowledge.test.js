@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildAiAnswer, retrieveAiKnowledge } from './ai-knowledge.js';
+import { buildAiAnswer, isAiQuestionOutOfScope, retrieveAiKnowledge } from './ai-knowledge.js';
 
 test('retrieves marriage-boundary guidance with sources', () => {
   const result = retrieveAiKnowledge('认识初期应该怎样设定边界和聊天节奏？');
@@ -9,6 +9,10 @@ test('retrieves marriage-boundary guidance with sources', () => {
   assert.equal(result.hit, true);
   assert.ok(result.chunks.length >= 1);
   assert.ok(result.chunks.some((chunk) => chunk.source.includes('关系预备')));
+});
+
+test('classifies predestination-style spouse verdict requests as out of scope before retrieval', () => {
+  assert.equal(isAiQuestionOutOfScope('请直接判断这个人是不是神预定给我的配偶'), true);
 });
 
 test('builds an in-scope answer from bounded sources', () => {
@@ -24,6 +28,7 @@ test('refuses medical legal emergency and prophecy-like questions', () => {
     '我需要离婚诉讼法律建议怎么办？',
     '我有自杀冲动，你直接告诉我怎么处理',
     '你能预言这个人是不是神给我的配偶吗？',
+    '请直接判断这个人是不是神预定给我的配偶',
   ]) {
     const answer = buildAiAnswer(question);
     assert.equal(answer.outOfScope, true, question);

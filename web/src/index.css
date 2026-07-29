@@ -1207,6 +1207,9 @@ textarea.com-modal-input { resize: vertical; font-family: inherit; }
 .field-inline input:last-child { flex:1; }
 .course-authoring-preview details { border-top:1px solid var(--border); padding:12px 0; }
 .course-authoring-preview p { white-space:pre-wrap; color:var(--muted); line-height:1.7; }
+.course-authoring-material-preview { border:1px solid var(--border); border-radius:8px; padding:14px; background:#FFFDF7; }
+.course-authoring-material-preview p { color:var(--muted); margin:8px 0; }
+.course-authoring-material-preview pre, .x-mobile-status-panel pre { max-height:220px; overflow:auto; padding:10px; white-space:pre-wrap; background:#fff; border:1px solid var(--border); border-radius:6px; font:12px/1.6 var(--font-sans); }
 .empty-state { color:var(--muted); padding:48px 12px; text-align:center; }
 @media (max-width: 760px) { .course-authoring-layout { grid-template-columns:1fr; } .course-authoring-list { position:static; } }
 

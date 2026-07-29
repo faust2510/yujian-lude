@@ -63,6 +63,8 @@ CREATE TABLE profiles (
     goal         TEXT,                                   -- 婚恋目标
     preference   TEXT,                                   -- 期望对象
     intro        TEXT,                                   -- 自我介绍
+    avatar_key   TEXT,
+    signature    TEXT CHECK (signature IS NULL OR char_length(signature) <= 80),
     privacy_ok   BOOLEAN NOT NULL DEFAULT FALSE,         -- 隐私授权
     completion   SMALLINT NOT NULL DEFAULT 0,            -- 资料完整度 0-100（服务端计算）
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -126,6 +128,9 @@ CREATE TABLE courses (
     submitted_at  TIMESTAMPTZ,
     published_at  TIMESTAMPTZ,
     authoring_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    template_type TEXT NOT NULL DEFAULT 'system_course' CHECK (template_type IN ('system_course', 'reading_guide', 'short_lesson')),
+    scripture_references TEXT,
+    ai_eligible BOOLEAN NOT NULL DEFAULT TRUE,
     sort_order    SMALLINT NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -169,6 +174,20 @@ CREATE TABLE course_exam_questions (
     UNIQUE (exam_id, question_key)
 );
 CREATE INDEX idx_course_exam_questions_exam ON course_exam_questions(exam_id, question_index);
+
+CREATE TABLE course_material_uploads (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    course_id UUID NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    uploaded_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    original_name TEXT NOT NULL,
+    media_type TEXT NOT NULL CHECK (media_type IN ('application/epub+zip', 'application/pdf')),
+    storage_key TEXT NOT NULL UNIQUE,
+    license_note TEXT NOT NULL,
+    extracted_text TEXT,
+    extraction_state TEXT NOT NULL DEFAULT 'pending' CHECK (extraction_state IN ('pending', 'confirmed', 'rejected')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    confirmed_at TIMESTAMPTZ
+);
 
 CREATE TABLE course_progress (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -315,10 +334,19 @@ CREATE TABLE ai_consultations (
     question     TEXT NOT NULL,
     answer       TEXT,
     rag_sources  JSONB,                                  -- 命中的知识库片段引用
+    citations    JSONB,
+    model_name   TEXT,
     out_of_scope BOOLEAN NOT NULL DEFAULT FALSE,         -- 超范围 → 引导找牧者
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_ai_consultations_user ON ai_consultations(user_id, created_at DESC);
+
+CREATE TABLE ai_daily_usage (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    usage_date DATE NOT NULL,
+    request_count INTEGER NOT NULL DEFAULT 0 CHECK (request_count >= 0),
+    PRIMARY KEY (user_id, usage_date)
+);
 
 -- ============================================================
 -- 10. app_settings — 管理员可改的全局配置（不写死在代码）

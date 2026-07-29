@@ -15,7 +15,7 @@ function Status({ children }) {
   return children ? <div className="x-mobile-status-row" role="status">{children}</div> : null
 }
 
-export default function ProfileMobile({ user, form = {}, faith = {}, endorsements = [], endorsement = {}, password = {}, busy = {}, message = '', faithMessage = '', endorsementMessage = '', passwordMessage = '', verifyMessage = '', verifyLink = '', onProfileChange, onFaithChange, onEndorsementChange, onPasswordChange, onSaveProfile, onSaveFaith, onAddEndorsement, onRemoveEndorsement, onChangePassword, onSendVerify }) {
+export default function ProfileMobile({ user, form = {}, faith = {}, endorsements = [], endorsement = {}, password = {}, busy = {}, message = '', faithMessage = '', endorsementMessage = '', passwordMessage = '', verifyMessage = '', verifyLink = '', onProfileChange, onAvatarUpload, onAvatarRemove, onFaithChange, onEndorsementChange, onPasswordChange, onSaveProfile, onSaveFaith, onAddEndorsement, onRemoveEndorsement, onChangePassword, onSendVerify }) {
   const [editing, setEditing] = useState(false)
   const [section, setSection] = useState('profile')
 
@@ -48,6 +48,7 @@ export default function ProfileMobile({ user, form = {}, faith = {}, endorsement
 
       {section === 'profile' ? (
         <form onSubmit={onSaveProfile}>
+          <XMobileFormRow label="头像" htmlFor="profile-avatar"><input id="profile-avatar" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy.avatar} onChange={(event) => onAvatarUpload?.(event.target.files?.[0])} />{form.avatar_key ? <button type="button" className="x-mobile-button-secondary" onClick={onAvatarRemove} disabled={busy.avatar}>移除头像</button> : null}</XMobileFormRow>
           <XMobileFormRow label="昵称" htmlFor="profile-nickname"><input id="profile-nickname" value={form.nickname || ''} onChange={(event) => onProfileChange?.('nickname', event.target.value)} /></XMobileFormRow>
           <XMobileFormRow label="城市" htmlFor="profile-city"><input id="profile-city" value={form.city || ''} onChange={(event) => onProfileChange?.('city', event.target.value)} /></XMobileFormRow>
           <XMobileFormRow label="出生年份" htmlFor="profile-birth-year"><input id="profile-birth-year" inputMode="numeric" value={form.birth_year || ''} onChange={(event) => onProfileChange?.('birth_year', event.target.value)} /></XMobileFormRow>
@@ -55,6 +56,7 @@ export default function ProfileMobile({ user, form = {}, faith = {}, endorsement
           <XMobileFormRow label="婚恋目标" htmlFor="profile-goal"><select id="profile-goal" value={form.goal || ''} onChange={(event) => onProfileChange?.('goal', event.target.value)}><option value="">请选择</option><option value="serious">认真寻找婚姻对象</option><option value="explore">先了解，慢慢来</option></select></XMobileFormRow>
           <XMobileFormRow label="择偶期待" htmlFor="profile-preference"><textarea id="profile-preference" rows="4" value={form.preference || ''} onChange={(event) => onProfileChange?.('preference', event.target.value)} /></XMobileFormRow>
           <XMobileFormRow label="自我介绍" htmlFor="profile-intro"><textarea id="profile-intro" rows="5" value={form.intro || ''} onChange={(event) => onProfileChange?.('intro', event.target.value)} /></XMobileFormRow>
+          <XMobileFormRow label="个人签名" htmlFor="profile-signature"><input id="profile-signature" maxLength={80} value={form.signature || ''} onChange={(event) => onProfileChange?.('signature', event.target.value)} /></XMobileFormRow>
           <label className="x-mobile-check-row x-mobile-touch-target"><input type="checkbox" checked={Boolean(form.privacy_ok)} onChange={(event) => onProfileChange?.('privacy_ok', event.target.checked)} /><span>我同意将资料用于平台内的匿名匹配</span></label>
           <Status>{message}</Status>
           <div className="x-mobile-action-stack"><button className="x-mobile-button-primary x-mobile-touch-target" disabled={busy.profile}>{busy.profile ? '保存中…' : '保存资料'}</button></div>

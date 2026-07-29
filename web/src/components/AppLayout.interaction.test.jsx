@@ -52,7 +52,9 @@ describe('AppLayout interactions', () => {
     profileApi.get.mockResolvedValue({ data: { profile: { nickname: '路得', completion: 72 } } })
     renderLayout('/profile')
 
-    expect(await screen.findByRole('link', { name: '资料完整度 72%' })).toBeTruthy()
+    const completion = await screen.findByText('资料完整度 72%')
+    expect(completion.closest('a')?.getAttribute('href')).toBe('/profile')
+    expect(screen.getByRole('link', { name: '编辑个人资料' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: '资料与信任' })).toBeTruthy()
     expect(screen.getByRole('link', { name: /只填写真实资料/ })).toBeTruthy()
   })

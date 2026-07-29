@@ -315,6 +315,47 @@
   background: var(--figma-burgundy-pale);
 }
 
+.figma-app-shell .figma-ai-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  margin-top: 18px;
+  padding: 10px 12px;
+  color: var(--figma-burgundy-dark);
+  text-decoration: none;
+  background: linear-gradient(135deg, #F7EFF2, #F8F4EB);
+  border: 1px solid #E7D6DC;
+  border-radius: 12px;
+}
+
+.figma-app-shell .figma-ai-shortcut:hover,
+.figma-app-shell .figma-ai-shortcut:focus-visible {
+  color: var(--figma-burgundy-dark);
+  border-color: var(--figma-gold);
+  outline: none;
+}
+
+.figma-app-shell .figma-ai-shortcut-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  color: var(--figma-white);
+  background: var(--figma-burgundy);
+  border-radius: 10px;
+}
+
+.figma-app-shell .figma-ai-shortcut > span:nth-child(2) {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.figma-app-shell .figma-ai-shortcut strong { font-size: 14px; }
+.figma-app-shell .figma-ai-shortcut small { color: var(--figma-muted-text); font-size: 11px; }
+
 .figma-app-shell .figma-nav-label {
   margin: 28px 14px 8px;
   color: var(--figma-muted-text);
@@ -334,6 +375,22 @@
   margin-top: auto;
   padding: 18px 8px 0;
   border-top: 1px solid var(--figma-border);
+}
+
+.figma-app-shell .figma-account-profile {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: 12px;
+}
+
+.figma-app-shell .figma-account-profile:hover {
+  color: inherit;
+  background: var(--figma-burgundy-pale);
 }
 
 .figma-app-shell .figma-avatar {
@@ -1068,6 +1125,13 @@
   background: linear-gradient(135deg, var(--figma-burgundy-soft), var(--figma-ivory));
   border: 1px solid var(--figma-gold);
   border-radius: 50%;
+}
+
+.figma-app-shell .figma-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
 }
 
 .figma-app-shell .figma-profile-identity h2 {

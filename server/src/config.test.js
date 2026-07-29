@@ -74,3 +74,7 @@ test('production accepts explicit safe settings', () => {
 
   assert.doesNotThrow(() => validateConfig(config));
 });
+
+test('reads the release-only AI test switch explicitly', () => {
+  assert.equal(buildConfig({ AI_TEST_MODE: 'true' }).aiTestMode, true);
+});

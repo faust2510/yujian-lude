@@ -45,7 +45,7 @@ function makeDb() {
       if (/UPDATE courses/.test(sql)) {
         const course = this.rows[0];
         if (course && /authoring_payload/.test(sql)) {
-          course.authoring_payload = JSON.parse(params[5]);
+          course.authoring_payload = JSON.parse(params.at(-1));
           course.title = params[1];
           course.description = params[3];
         }

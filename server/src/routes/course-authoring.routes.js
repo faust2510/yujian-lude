@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { Router } from 'express';
 
 import { query, tx } from '../db.js';
@@ -6,12 +8,16 @@ import { requireAuth, requireRole } from '../auth.js';
 import { isCertifiedPastor } from '../lib/certified-pastor.js';
 import {
   canEditCourse,
+  canReviewCourse,
   nextPublicationState,
   normalizeCourseDraft,
   serializeCourseMaterial,
   validateCourseSubmission,
 } from '../lib/course-authoring.js';
 import { writeAdminAudit } from '../lib/admin-audit.js';
+import { config } from '../config.js';
+import { extractSearchablePdf } from '../lib/textbook-pdf.js';
+import { parseEpub } from '../lib/textbook-epub.js';
 
 const defaultDb = { query };
 const PUBLICATION_STATES = new Set(['draft', 'pending_review', 'changes_requested', 'published', 'archived']);
@@ -37,7 +43,7 @@ async function first(db, sql, params = []) {
 }
 
 function emptyDraft() {
-  return { title: '', subtitle: null, description: '', cover_image: null, units: [], exam: { pass_threshold: 80, questions: [] } };
+  return { title: '', subtitle: null, description: '', cover_image: null, template_type: 'system_course', scripture_references: null, ai_eligible: true, units: [], exam: { pass_threshold: 80, questions: [] } };
 }
 
 function storageDraft(input) {
@@ -76,7 +82,8 @@ async function getCourse(db, id, { authorId = null } = {}) {
   const course = await first(
     db,
     `SELECT c.id, c.slug, c.title, c.subtitle, c.description, c.cover_image,
-            c.sort_order, c.created_at, c.updated_at, c.author_id, c.publication_state,
+            c.sort_order, c.created_at, c.updated_at, c.author_id, c.publication_state, c.template_type,
+            c.scripture_references, c.ai_eligible,
             c.rewards_enabled, c.review_note, c.reviewed_by, c.reviewed_at,
             c.submitted_at, c.published_at, c.is_published, c.authoring_payload,
             u.email AS author_email, p.nickname AS author_nickname,
@@ -113,6 +120,9 @@ async function getCourse(db, id, { authorId = null } = {}) {
       subtitle: course.subtitle ?? null,
       description: course.description ?? '',
       cover_image: course.cover_image ?? null,
+      template_type: course.template_type ?? 'system_course',
+      scripture_references: course.scripture_references ?? null,
+      ai_eligible: course.ai_eligible !== false,
       units,
       exam: { pass_threshold: exam?.pass_threshold ?? 80, questions },
     };
@@ -143,6 +153,29 @@ function requireCourseAuthor({ certifyUser = isCertifiedAuthor, db }) {
     }
     return next();
   };
+}
+
+function requireCourseReviewer({ certifyUser = isCertifiedAuthor, db }) {
+  return async (req, res, next) => {
+    if (!req.user) return res.status(401).json({ error: '请先登录' });
+    if (req.user.role === 'admin') return next();
+    if (req.user.role !== 'pastor' || !(await certifyUser(db, req.user.id))) {
+      return res.status(403).json({ error: '只有认证牧者或管理员可以审核课程' });
+    }
+    return next();
+  };
+}
+
+async function readUpload(req, maxBytes = 25 * 1024 * 1024) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBytes) throw routeError(413, '教材文件不能超过 25 MiB');
+    chunks.push(chunk);
+  }
+  if (!size) throw routeError(400, '教材文件不能为空');
+  return Buffer.concat(chunks);
 }
 
 async function replaceRelationalContent(db, courseId, draft) {
@@ -194,12 +227,13 @@ export function createCourseAuthoringRouter({
 } = {}) {
   const router = Router();
   const requireAuthor = requireCourseAuthor({ db, certifyUser });
+  const requireReviewer = requireCourseReviewer({ db, certifyUser });
 
   router.get('/pastor/courses', requireAuthor, async (req, res) => {
     const authorFilter = req.user.role === 'admin' ? '' : 'WHERE c.author_id = $1';
     const params = req.user.role === 'admin' ? [] : [req.user.id];
     const { rows } = await db.query(
-      `SELECT c.id, c.slug, c.title, c.description, c.publication_state, c.review_note,
+      `SELECT c.id, c.slug, c.title, c.description, c.template_type, c.scripture_references, c.ai_eligible, c.publication_state, c.review_note,
               c.author_id, c.rewards_enabled, c.submitted_at, c.published_at,
               c.created_at, c.updated_at
          FROM courses c ${authorFilter}
@@ -215,14 +249,14 @@ export function createCourseAuthoringRouter({
     const course = await first(
       db,
       `INSERT INTO courses
-         (author_id, slug, title, subtitle, description, cover_image,
+         (author_id, slug, title, subtitle, description, cover_image, template_type, scripture_references, ai_eligible,
           is_published, publication_state, rewards_enabled, authoring_payload)
-       VALUES ($1, $2, $3, $4, $5, $6, FALSE, 'draft', FALSE, $7::jsonb)
-       RETURNING id, slug, title, subtitle, description, cover_image, is_published,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE, 'draft', FALSE, $10::jsonb)
+       RETURNING id, slug, title, subtitle, description, cover_image, template_type, scripture_references, ai_eligible, is_published,
                  publication_state, rewards_enabled, author_id, authoring_payload,
                  created_at, updated_at`,
       [req.user.id, slug, draft.title || '未命名课程', draft.subtitle, draft.description || null,
-        draft.cover_image, JSON.stringify(draft)],
+        draft.cover_image, draft.template_type, draft.scripture_references, draft.ai_eligible, JSON.stringify(draft)],
     );
     return res.status(201).json({ course: coursePayload(course) });
   });
@@ -243,11 +277,11 @@ export function createCourseAuthoringRouter({
       await transaction(async (connection) => {
         await connection.query(
           `UPDATE courses
-              SET title = $2, subtitle = $3, description = $4, cover_image = $5,
-                  authoring_payload = $6::jsonb, updated_at = now()
+              SET title = $2, subtitle = $3, description = $4, cover_image = $5, template_type = $6,
+                  scripture_references = $7, ai_eligible = $8, authoring_payload = $9::jsonb, updated_at = now()
             WHERE id = $1`,
           [req.params.id, draft.title || '未命名课程', draft.subtitle, draft.description || null,
-            draft.cover_image, JSON.stringify(draft)],
+            draft.cover_image, draft.template_type, draft.scripture_references, draft.ai_eligible, JSON.stringify(draft)],
         );
         await replaceRelationalContent(connection, req.params.id, draft);
       });
@@ -268,6 +302,9 @@ export function createCourseAuthoringRouter({
       subtitle: course.subtitle,
       description: course.description,
       cover_image: course.cover_image,
+      template_type: course.template_type,
+      scripture_references: course.scripture_references,
+      ai_eligible: course.ai_eligible,
       units: course.units,
       exam: course.exam,
     });
@@ -300,6 +337,75 @@ export function createCourseAuthoringRouter({
     }
   });
 
+  router.post('/pastor/courses/:id/materials', requireAuthor, async (req, res) => {
+    const course = await authorCourse(req, db);
+    if (!course) return res.status(404).json({ error: '课程不存在' });
+    if (!canEditCourse(req.user, course)) return res.status(409).json({ error: '当前状态不可上传教材' });
+    const mediaType = String(req.headers['content-type'] || '').split(';')[0].toLowerCase();
+    if (!['application/pdf', 'application/epub+zip'].includes(mediaType)) return res.status(415).json({ error: '仅支持可搜索 PDF 或 EPUB' });
+    const licenseNote = String(req.headers['x-license-note'] || '').trim();
+    if (!licenseNote) return res.status(400).json({ error: '请填写教材版权或授权说明' });
+    try {
+      const data = await readUpload(req);
+      const extension = mediaType === 'application/pdf' ? '.pdf' : '.epub';
+      const storageKey = `teaching/${crypto.randomUUID()}${extension}`;
+      const outputPath = path.join(config.mediaDir, 'teaching', path.basename(storageKey));
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+      await fs.writeFile(outputPath, data, { flag: 'wx' });
+      const extracted = mediaType === 'application/pdf'
+        ? await extractSearchablePdf(outputPath)
+        : { text: (await parseEpub(outputPath)).chapters.map((chapter) => `${chapter.title}\n${chapter.bodyText}`).join('\n\n') };
+      if (!extracted.text.trim()) throw routeError(400, '教材没有可用章节正文');
+      const fileName = String(req.headers['x-file-name'] || `教材${extension}`).slice(0, 200);
+      const result = await db.query(
+        `INSERT INTO course_material_uploads (course_id, uploaded_by, original_name, media_type, storage_key, license_note, extracted_text)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, original_name, media_type, extraction_state`,
+        [course.id, req.user.id, fileName, mediaType, storageKey, licenseNote, extracted.text],
+      );
+      return res.status(201).json({ material: result.rows[0], preview: extracted.text.slice(0, 1200) });
+    } catch (error) {
+      if (error.status) return sendRouteError(res, error);
+      return res.status(400).json({ error: error.message || '教材导入失败' });
+    }
+  });
+
+  router.post('/pastor/courses/:id/materials/:materialId/confirm', requireAuthor, async (req, res) => {
+    const course = await authorCourse(req, db);
+    if (!course) return res.status(404).json({ error: '课程不存在' });
+    const result = await db.query(
+      `UPDATE course_material_uploads SET extraction_state='confirmed', confirmed_at=now()
+        WHERE id=$1 AND course_id=$2 AND uploaded_by=$3 AND extracted_text IS NOT NULL
+        RETURNING id, original_name, extraction_state, confirmed_at`,
+      [req.params.materialId, course.id, req.user.id],
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: '待确认教材不存在' });
+    return res.json({ material: result.rows[0] });
+  });
+
+  router.get('/courses/:slug/materials', requireAuth, async (req, res) => {
+    const { rows } = await db.query(
+      `SELECT m.id, m.original_name, m.media_type, m.created_at
+         FROM course_material_uploads m JOIN courses c ON c.id=m.course_id
+        WHERE c.slug=$1 AND c.is_published=TRUE AND c.publication_state='published'
+          AND m.extraction_state='confirmed' ORDER BY m.created_at`,
+      [req.params.slug],
+    );
+    return res.json({ materials: rows.map((row) => ({ ...row, url: `/api/courses/${req.params.slug}/materials/${row.id}/download` })) });
+  });
+
+  router.get('/courses/:slug/materials/:materialId/download', requireAuth, async (req, res) => {
+    const material = await first(
+      db,
+      `SELECT m.storage_key, m.original_name, m.media_type FROM course_material_uploads m JOIN courses c ON c.id=m.course_id
+        WHERE c.slug=$1 AND m.id=$2 AND c.is_published=TRUE AND c.publication_state='published'
+          AND m.extraction_state='confirmed'`,
+      [req.params.slug, req.params.materialId],
+    );
+    if (!material) return res.status(404).json({ error: '教材附件不存在' });
+    res.type(material.media_type);
+    return res.download(path.join(config.mediaDir, path.basename(path.dirname(material.storage_key)), path.basename(material.storage_key)), material.original_name);
+  });
+
   const requireAdmin = [requireAuth, requireRole('admin')];
 
   router.get('/admin/course-submissions', ...requireAdmin, async (req, res) => {
@@ -321,6 +427,20 @@ export function createCourseAuthoringRouter({
         WHERE c.publication_state = $1
         ORDER BY c.submitted_at ASC NULLS LAST, c.updated_at ASC`,
       [state],
+    );
+    return res.json({ courses: rows });
+  });
+
+  router.get('/pastor/course-submissions', requireReviewer, async (req, res) => {
+    const state = String(req.query.state ?? 'pending_review');
+    if (!PUBLICATION_STATES.has(state)) return res.status(400).json({ error: '非法课程状态' });
+    const { rows } = await db.query(
+      `SELECT c.id, c.slug, c.title, c.description, c.template_type, c.publication_state, c.review_note,
+              c.author_id, c.submitted_at, c.updated_at, u.email AS author_email, p.nickname AS author_nickname
+         FROM courses c LEFT JOIN users u ON u.id = c.author_id LEFT JOIN profiles p ON p.user_id = c.author_id
+        WHERE c.publication_state = $1 AND c.author_id <> $2
+        ORDER BY c.submitted_at ASC NULLS LAST, c.updated_at ASC`,
+      [state, req.user.id],
     );
     return res.json({ courses: rows });
   });
@@ -402,6 +522,31 @@ export function createCourseAuthoringRouter({
     } catch (error) {
       return sendRouteError(res, error);
     }
+  });
+
+  router.patch('/pastor/course-submissions/:id', requireReviewer, async (req, res) => {
+    const { action: requestedAction, note = '', expected_state: expectedState = 'pending_review' } = req.body ?? {};
+    const action = { approve: 'publish', reject: 'request_changes' }[requestedAction] ?? requestedAction;
+    if (!['publish', 'request_changes'].includes(action)) return res.status(400).json({ error: 'action 须为 publish 或 request_changes' });
+    if (action === 'request_changes' && !String(note).trim()) return res.status(400).json({ error: '退回修改必须填写审核意见' });
+    try {
+      const updated = await transaction(async (connection) => {
+        const current = await first(connection, 'SELECT id, author_id, publication_state FROM courses WHERE id=$1 FOR UPDATE', [req.params.id]);
+        if (!current) throw routeError(404, '课程不存在');
+        if (!canReviewCourse(req.user, current)) throw routeError(403, '不能审核自己的课程或当前课程状态');
+        if (current.publication_state !== expectedState) throw routeError(409, '课程状态已变化，请刷新后重试');
+        const nextState = nextPublicationState(current.publication_state, action === 'publish' ? 'approve' : action);
+        const result = await connection.query(
+          `UPDATE courses SET publication_state=$2::course_publication_state, is_published=($2='published'),
+             published_at=CASE WHEN $2='published' THEN now() ELSE published_at END, review_note=$3,
+             reviewed_by=$4, reviewed_at=now(), updated_at=now() WHERE id=$1 RETURNING id`,
+          [req.params.id, nextState, action === 'request_changes' ? String(note).trim() : null, req.user.id],
+        );
+        await writeAdminAudit(connection, { actorId: req.user.id, action: `course.${action}`, targetType: 'course', targetId: req.params.id, detail: { reviewer_role: 'pastor' } });
+        return result.rows[0];
+      });
+      return res.json({ course: await getCourse(db, updated.id) });
+    } catch (error) { return sendRouteError(res, error); }
   });
 
   return router;

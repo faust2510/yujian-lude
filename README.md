@@ -26,6 +26,8 @@ cp server/.env.example server/.env
 
 至少确认 `server/.env` 中的 `DATABASE_URL`、`PORT`、`SESSION_SECRET`。生产环境建议设置 `NODE_ENV=production`，如果走 HTTPS 且需要 secure cookie，再设置 `COOKIE_SECURE=true`。只有本地调试需要直接看邮箱/重置 token 时才设置 `EXPOSE_DEV_TOKENS=true`。真实 `.env` 不要提交到 git。
 
+AI 教导助手使用 OpenAI 兼容接口，配置 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 与可选的 `AI_DAILY_LIMIT`；头像和教材私有文件目录由 `MEDIA_DIR` 配置。牧者上传可搜索 PDF 时服务器需要安装 Poppler 的 `pdftotext`；扫描版 PDF 不受支持。
+
 准备本地 PostgreSQL fresh 数据库并初始化：
 
 ```bash

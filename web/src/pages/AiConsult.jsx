@@ -55,7 +55,7 @@ export default function AiConsult() {
     setAnswer(null)
     try {
       const r = await ai.ask(text)
-      setAnswer({ question: text, ...r.data })
+      setAnswer({ question: text, ...r.data, sources: r.data.citations || [] })
       setQuestion('')
       await loadHistory()
     } catch (err) {
@@ -73,7 +73,9 @@ export default function AiConsult() {
 
   const renderSource = (source) => {
     if (typeof source === 'string') return source
-    return source.source || source.id || '平台知识库'
+    return [source.title || source.source || '平台知识库', source.chapter, source.location]
+      .filter(Boolean)
+      .join(' · ')
   }
 
   if (isMobile) {

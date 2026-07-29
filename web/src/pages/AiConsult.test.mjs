@@ -18,6 +18,8 @@ test('AI consult page exposes a consultation desk layout', () => {
   assert.match(pageSource, /ai-history-error/)
   assert.match(pageSource, /role="alert"/)
   assert.match(pageSource, /onClick=\{loadHistory\}/)
+  assert.match(pageSource, /source\.title \|\| source\.source/)
+  assert.match(pageSource, /source\.chapter, source\.location/)
   assert.match(cssSource, /\.ai-page/)
   assert.match(cssSource, /\.ai-prompt-chip/)
   assert.match(cssSource, /\.ai-boundary-panel/)

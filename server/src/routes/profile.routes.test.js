@@ -13,3 +13,10 @@ test('endorsement creation response includes church for immediate UI display', (
     /RETURNING\s+id,\s*kind,\s*name,\s*church,\s*state/i
   );
 });
+
+test('profile API persists a bounded signature and exposes authenticated avatar endpoints', () => {
+  assert.match(source, /signature/);
+  assert.match(source, /normalizedSignature\.length\s*>\s*80/);
+  assert.match(source, /router\.post\('\/me\/avatar'/);
+  assert.match(source, /router\.delete\('\/me\/avatar'/);
+});
