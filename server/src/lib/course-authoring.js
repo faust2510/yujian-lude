@@ -38,6 +38,8 @@ function normalizeMaterial(material) {
   return typeof material === 'string' ? material.trim() : (material ?? '');
 }
 
+const TEACHING_TEMPLATES = new Set(['system_course', 'reading_guide', 'short_lesson']);
+
 export function normalizeCourseDraft(draft = {}) {
   const units = list(draft.units).map((unit = {}, index) => ({
     ...unit,
@@ -62,6 +64,9 @@ export function normalizeCourseDraft(draft = {}) {
     subtitle: optionalText(draft.subtitle),
     description: text(draft.description),
     cover_image: optionalText(draft.cover_image),
+    template_type: TEACHING_TEMPLATES.has(draft.template_type) ? draft.template_type : 'system_course',
+    scripture_references: optionalText(draft.scripture_references),
+    ai_eligible: draft.ai_eligible !== false,
     units,
     exam: {
       ...sourceExam,
@@ -155,7 +160,9 @@ export function canEditCourse(user, course) {
 }
 
 export function canReviewCourse(user, course) {
-  return user?.role === 'admin' && course?.publication_state === 'pending_review';
+  if (!user || !course || course.publication_state !== 'pending_review') return false;
+  if (user.role === 'admin') return true;
+  return user.role === 'pastor' && String(user.id) !== String(course.author_id);
 }
 
 export function nextPublicationState(currentState, action) {

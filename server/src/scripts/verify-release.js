@@ -183,6 +183,7 @@ async function startServer(tempDatabaseUrl, port) {
       COOKIE_SECURE: 'true',
       NODE_ENV: 'production',
       EXPOSE_DEV_TOKENS: 'false',
+      AI_TEST_MODE: 'true',
     }),
     stdio: 'inherit',
   });

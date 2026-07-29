@@ -22,6 +22,12 @@ export function buildConfig(env = process.env) {
     nodeEnv: env.NODE_ENV || 'development',
     cookieSecure: String(env.COOKIE_SECURE || 'false') === 'true',
     exposeDevTokens: String(env.EXPOSE_DEV_TOKENS || 'false') === 'true',
+    aiBaseUrl: String(env.AI_BASE_URL || '').replace(/\/$/, ''),
+    aiApiKey: env.AI_API_KEY || '',
+    aiModel: env.AI_MODEL || '',
+    aiDailyLimit: Number(env.AI_DAILY_LIMIT || 10),
+    aiTestMode: String(env.AI_TEST_MODE || 'false') === 'true',
+    mediaDir: env.MEDIA_DIR || path.join(__dirname, '..', 'storage'),
   };
 }
 
@@ -48,6 +54,9 @@ export function validateConfig(value) {
   }
   if (errors.length) {
     throw new Error(`Invalid server configuration: ${errors.join('; ')}`);
+  }
+  if (!Number.isInteger(value.aiDailyLimit) || value.aiDailyLimit < 1 || value.aiDailyLimit > 100) {
+    throw new Error('AI_DAILY_LIMIT must be an integer from 1 to 100');
   }
   return value;
 }

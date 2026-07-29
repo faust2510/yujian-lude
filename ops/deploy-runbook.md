@@ -49,6 +49,12 @@ git fetch origin main
 git checkout main
 git reset --hard origin/main
 
+# 仅首次或尚未安装时：PDF 教材导入需要 Poppler
+if ! command -v pdftotext >/dev/null; then
+  sudo apt-get update
+  sudo apt-get install -y poppler-utils
+fi
+
 npm ci --prefix server
 npm ci --prefix web
 npm run build --prefix web

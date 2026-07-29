@@ -13,7 +13,7 @@ export default function Profile() {
   const isMobile = useMobileViewport()
   const [form, setForm] = useState({
     nickname:'', city:'', birth_year:'', education:'',
-    goal:'', preference:'', intro:'', privacy_ok: false
+    goal:'', preference:'', intro:'', signature:'', avatar_key: null, privacy_ok: false
   })
   const [faith, setFaith] = useState({
     church_name:'', presbytery:'', region:'', denomination:'',
@@ -28,7 +28,7 @@ export default function Profile() {
   const [pwdMsg, setPwdMsg] = useState('')
   const [verifyMsg, setVerifyMsg] = useState('')
   const [verifyLink, setVerifyLink] = useState('')
-  const [busy, setBusy] = useState({ initial: true, profile: false, faith: false, endorsement: false, password: false, verify: false })
+  const [busy, setBusy] = useState({ initial: true, profile: false, avatar: false, faith: false, endorsement: false, password: false, verify: false })
   const profileTrustState = busy.initial
     ? { label: '资料核验中', className: 'badge badge-gray' }
     : user?.email_verified && Number(form.completion) >= 100
@@ -47,6 +47,29 @@ export default function Profile() {
 
   const set = key => e => setForm(p => ({...p, [key]: e.target.value}))
   const setF = key => e => setFaith(p => ({...p, [key]: e.target.value}))
+
+  const uploadAvatar = async (file) => {
+    if (!file) return
+    setBusy(p => ({ ...p, avatar: true }))
+    setMsg('')
+    try {
+      const r = await profile.uploadAvatar(file)
+      const key = String(r.data?.avatarUrl || '').split('/').pop()
+      setForm(current => ({ ...current, avatar_key: key || current.avatar_key }))
+      setMsg('头像已更新')
+    } catch (err) { setMsg(err.response?.data?.error || '头像上传失败，请重试') }
+    finally { setBusy(p => ({ ...p, avatar: false })) }
+  }
+
+  const removeAvatar = async () => {
+    setBusy(p => ({ ...p, avatar: true }))
+    try {
+      await profile.removeAvatar()
+      setForm(current => ({ ...current, avatar_key: null }))
+      setMsg('头像已移除')
+    } catch (err) { setMsg(err.response?.data?.error || '头像移除失败，请重试') }
+    finally { setBusy(p => ({ ...p, avatar: false })) }
+  }
 
   const changePwd = async (e) => {
     e.preventDefault()
@@ -129,13 +152,13 @@ export default function Profile() {
   }
 
   if (isMobile) {
-    return <ProfileMobile user={user} form={form} faith={faith} endorsements={endorsements} endorsement={endorsement} password={pwd} busy={busy} message={msg} faithMessage={faithMsg} endorsementMessage={endorsementMsg} passwordMessage={pwdMsg} verifyMessage={verifyMsg} verifyLink={verifyLink} onProfileChange={(key, value) => setForm(current => ({ ...current, [key]: value }))} onFaithChange={(key, value) => setFaith(current => ({ ...current, [key]: value }))} onEndorsementChange={(key, value) => setEndorsement(current => ({ ...current, [key]: value }))} onPasswordChange={(key, value) => setPwd(current => ({ ...current, [key]: value }))} onSaveProfile={saveProfile} onSaveFaith={saveFaith} onAddEndorsement={addEndorsement} onRemoveEndorsement={removeEndorsement} onChangePassword={changePwd} onSendVerify={sendVerify} />
+    return <ProfileMobile user={user} form={form} faith={faith} endorsements={endorsements} endorsement={endorsement} password={pwd} busy={busy} message={msg} faithMessage={faithMsg} endorsementMessage={endorsementMsg} passwordMessage={pwdMsg} verifyMessage={verifyMsg} verifyLink={verifyLink} onProfileChange={(key, value) => setForm(current => ({ ...current, [key]: value }))} onAvatarUpload={uploadAvatar} onAvatarRemove={removeAvatar} onFaithChange={(key, value) => setFaith(current => ({ ...current, [key]: value }))} onEndorsementChange={(key, value) => setEndorsement(current => ({ ...current, [key]: value }))} onPasswordChange={(key, value) => setPwd(current => ({ ...current, [key]: value }))} onSaveProfile={saveProfile} onSaveFaith={saveFaith} onAddEndorsement={addEndorsement} onRemoveEndorsement={removeEndorsement} onChangePassword={changePwd} onSendVerify={sendVerify} />
   }
 
   return (
     <div className="figma-core-screen figma-profile-sheet figma-desktop-profile-section">
       <section className="figma-profile-identity">
-        <div className="figma-profile-avatar">{(form.nickname || user?.email || '安').slice(0, 1)}</div>
+        <div className="figma-profile-avatar">{form.avatar_key ? <img src={`/api/media/avatars/${form.avatar_key}`} alt="我的头像" /> : (form.nickname || user?.email || '安').slice(0, 1)}</div>
         <div><span className={profileTrustState.className}>{profileTrustState.label}</span><h2>{form.nickname || '平安'}{form.city ? ` · ${form.city}` : ''}</h2><p>{form.intro || '愿意认真认识一段以婚姻为方向的关系。'}</p></div>
       </section>
       {busy.initial && <div className="card" style={{fontSize:14,color:'var(--muted)',marginBottom:16}}>正在加载你的资料…</div>}
@@ -152,6 +175,7 @@ export default function Profile() {
 
       <form className="card" onSubmit={saveProfile}>
         <h3 style={{fontSize:15,marginBottom:16}}>个人资料</h3>
+        <div className="field"><label>头像</label><input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy.avatar} onChange={e => uploadAvatar(e.target.files?.[0])} />{form.avatar_key && <button type="button" className="btn btn-outline" onClick={removeAvatar} disabled={busy.avatar}>移除头像</button>}</div>
         <div className="grid-2">
           <div className="field"><label>昵称</label><input value={form.nickname||''} onChange={set('nickname')} /></div>
           <div className="field"><label>所在城市</label><input value={form.city||''} onChange={set('city')} /></div>
@@ -171,6 +195,7 @@ export default function Profile() {
         <div className="field"><label>自我介绍</label>
           <textarea rows={4} value={form.intro||''} onChange={set('intro')} placeholder="介绍一下你自己" />
         </div>
+        <div className="field"><label>个人签名</label><input maxLength={80} value={form.signature||''} onChange={set('signature')} placeholder="一句简短的自我介绍" /><small>{(form.signature || '').length}/80</small></div>
         <label className="check-row">
           <input type="checkbox" checked={!!form.privacy_ok} onChange={e => setForm(p => ({...p, privacy_ok: e.target.checked}))} />
           <span>我同意将资料用于平台内的匿名匹配，敏感信息仅顾问与匹配对象可见</span>

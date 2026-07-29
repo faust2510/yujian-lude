@@ -126,17 +126,24 @@ test('requires an integer percentage pass threshold from one to one hundred', ()
   }
 });
 
-test('course authoring rules keep drafts editable and published courses reviewable only by admins', () => {
+test('course authoring rules allow a different pastor to review a submitted course', () => {
   assert.equal(canEditCourse({ id: 'pastor-1', role: 'pastor' }, { author_id: 'pastor-1', publication_state: 'draft' }), true);
   assert.equal(canEditCourse({ role: 'pastor' }, { author_id: 'other', publication_state: 'draft' }), false);
   assert.equal(canEditCourse({ id: 'pastor-1', role: 'pastor' }, { author_id: 'pastor-1', publication_state: 'pending_review' }), false);
   assert.equal(canEditCourse({ role: 'admin' }, { author_id: 'other', publication_state: 'published' }), true);
-  assert.equal(canReviewCourse({ role: 'admin' }, { publication_state: 'pending_review' }), true);
-  assert.equal(canReviewCourse({ role: 'pastor' }, { publication_state: 'pending_review' }), false);
+  assert.equal(canReviewCourse({ role: 'admin' }, { publication_state: 'pending_review', author_id: 'pastor-1' }), true);
+  assert.equal(canReviewCourse({ id: 'pastor-2', role: 'pastor' }, { publication_state: 'pending_review', author_id: 'pastor-1' }), true);
+  assert.equal(canReviewCourse({ id: 'pastor-1', role: 'pastor' }, { publication_state: 'pending_review', author_id: 'pastor-1' }), false);
   assert.equal(nextPublicationState('draft', 'submit'), 'pending_review');
   assert.equal(nextPublicationState('pending_review', 'approve'), 'published');
   assert.equal(nextPublicationState('pending_review', 'request_changes'), 'changes_requested');
   assert.equal(nextPublicationState('changes_requested', 'save'), 'changes_requested');
+});
+
+test('normalizes the three supported teaching templates and rejects unknown templates', () => {
+  assert.equal(normalizeCourseDraft({ template_type: 'reading_guide' }).template_type, 'reading_guide');
+  assert.equal(normalizeCourseDraft({ template_type: 'short_lesson' }).template_type, 'short_lesson');
+  assert.equal(normalizeCourseDraft({ template_type: 'not-a-template' }).template_type, 'system_course');
 });
 
 test('0032 removes the retired dating basics course and disables the obsolete light-course gate', () => {

@@ -191,6 +191,12 @@ export default function AppLayout() {
           ))}
         </nav>
 
+        <Link className="figma-ai-shortcut" to="/ai" aria-label="打开路得 AI 教导助手">
+          <span className="figma-ai-shortcut-icon"><FigmaIcon name="spark" size={19} /></span>
+          <span><strong>路得 AI</strong><small>按已审核教材辅助分辨</small></span>
+          <FigmaIcon name="chevronRight" size={16} />
+        </Link>
+
         <div className="figma-nav-label">更多功能</div>
         <nav className="figma-secondary-nav" aria-label="功能导航">
           {secondaryItems.map((item) => (
@@ -199,10 +205,11 @@ export default function AppLayout() {
         </nav>
 
         <div className="figma-account">
-          <div className="figma-avatar" aria-hidden="true">{user?.email?.slice(0, 1)?.toUpperCase() || '安'}</div>
-          <div className="figma-account-copy">
-            <strong>{profileSummary.nickname || user?.email?.split('@')[0] || '平安'}</strong>
-            <Link className="figma-profile-completion" to="/profile">
+          <Link className="figma-account-profile" to="/profile" aria-label="编辑个人资料">
+            <div className="figma-avatar" aria-hidden="true">{user?.email?.slice(0, 1)?.toUpperCase() || '安'}</div>
+            <div className="figma-account-copy">
+              <strong>{profileSummary.nickname || user?.email?.split('@')[0] || '平安'}</strong>
+              <span className="figma-profile-completion">
               {profileSummary.loading
                 ? '资料完整度读取中…'
                 : profileSummary.error
@@ -210,8 +217,9 @@ export default function AppLayout() {
                   : profileSummary.completion === null
                     ? '资料完整度待计算'
                     : `资料完整度 ${profileSummary.completion}%`}
-            </Link>
-          </div>
+              </span>
+            </div>
+          </Link>
           <button type="button" className="figma-icon-button" onClick={handleLogout} aria-label="退出登录" title="退出登录">
             <FigmaIcon name="logout" size={18} />
           </button>
