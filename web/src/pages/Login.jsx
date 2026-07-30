@@ -56,7 +56,7 @@ export default function Login() {
         </div>
         <div className="auth-card auth-card-elevated">
         <div className="auth-brand-row" aria-label="遇见路得">
-          <span className="auth-brand-mark" aria-hidden="true">路</span>
+          <img className="auth-brand-mark" src="/meet-ruth-butterfly-mark.png" alt="" width="42" height="42" />
           <span><strong>遇见路得</strong><small>在真实中相遇</small></span>
         </div>
         <h1>欢迎回来</h1>

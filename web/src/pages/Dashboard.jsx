@@ -140,168 +140,75 @@ export default function Dashboard() {
 
   return (
     <div className="figma-core-screen figma-home-feed figma-desktop-home-section">
-      <div className="figma-screen-tabs" aria-label="首页内容"><span className="is-active">为你</span><span>正在关注</span></div>
-      <section className="figma-relationship-compass">
-        <div className="figma-compass-score"><strong>{qualificationLoading ? '…' : `${gatePct}%`}</strong><span>关系罗盘</span></div>
-        <div><span className="figma-section-label">今天最重要的一步</span><h2>你正在练习：真实而有边界地靠近</h2><p>{primaryNext?.desc || '完成当前预备任务，再认真认识一位候选。'}</p></div>
-        {primaryNext ? <Link className="btn btn-primary" to={primaryNext.to}>{primaryNext.action}</Link> : <Link className="btn btn-primary" to="/match">查看今日精选</Link>}
+      <section className="figma-dashboard-focus" style={{ '--progress': `${gatePct}%` }}>
+        <div className="figma-dashboard-focus-copy">
+          <span>今天最重要的一步</span>
+          <h2>{primaryNext ? primaryNext.label : '把今天留给一段更真实的靠近'}</h2>
+          <p>{primaryNext?.desc || '你已完成入池预备。现在可以看看今天值得认真认识的人。'}</p>
+          {primaryNext
+            ? <Link className="btn btn-primary" to={primaryNext.to}>{primaryNext.action}</Link>
+            : <Link className="btn btn-primary" to="/match">查看今日精选</Link>}
+        </div>
+        <div className="figma-dashboard-readiness">
+          <div className="figma-dashboard-readiness-ring">
+            <strong>{qualificationLoading ? '...' : `${gatePct}%`}</strong>
+            <span>关系预备</span>
+          </div>
+          <p>{qualificationLoading ? '正在读取你的预备状态' : qualification?.inPool ? '已满足匿名匹配资格' : `还差 ${Math.max(0, GATE_STEPS.length - gateDone)} 个步骤`}</p>
+        </div>
       </section>
 
-      <article className="figma-feed-post">
-        <div className="figma-feed-author"><span>路</span><div><strong>平台导读</strong><small>关系练习 · 今日</small></div></div>
-        <p>我们在本周共读中谈到：成熟的关系，不是更快抵达答案，而是更诚实地面对彼此的有限。</p>
-        <div className="figma-feed-actions"><Link to="/community">进入社区讨论</Link></div>
-      </article>
-
-      <article className="figma-feed-post figma-feed-post-secondary">
-        <div className="figma-feed-author"><span>书</span><div><strong>平台导读</strong><small>成长摘记 · 今日</small></div></div>
-        <p>今天的讨论没有标准答案。有人选择等待，有人选择坦诚提问。愿我们不把效率放在真实之前。</p>
-        <div className="figma-feed-actions"><Link to="/courses">继续成长课程</Link></div>
-      </article>
-
-      <details className="figma-home-utilities">
-        <summary>查看任务与积分</summary>
-
-      <div className="grid-2" style={{marginBottom:24}}>
-        <div className="card">
-          <div style={{fontSize:12,color:'var(--muted)',marginBottom:4}}>累积积分</div>
-          <div style={{fontSize:32,fontFamily:'var(--font-serif)',color:'var(--brand)'}}>
-            {pointsLoading ? '…' : (pts?.earned ?? '—')}
+      <section className="figma-dashboard-tasks" aria-labelledby="dashboard-tasks-title">
+        <header>
+          <div>
+            <h2 id="dashboard-tasks-title">预备路径</h2>
+            <p>{qualificationLoading ? '正在同步你的进度' : qualification?.inPool ? '你已完成进入匹配池的预备。' : '按自己的节奏完成，系统会在每一步后更新状态。'}</p>
           </div>
-          <div style={{fontSize:12,color:'var(--muted)',marginTop:4}}>100 分 = 1 天 VIP 体验</div>
-          {pointsError && (
-            <div className="error-msg">
-              {pointsError}
-              <button className="btn btn-outline" style={{marginLeft:10,padding:'4px 10px',fontSize:12}} onClick={loadDashboard}>
-                重试
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="card">
-          <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>每日签到</div>
-          <p style={{fontSize:13,marginBottom:12,color:'var(--muted)'}}>每天签到 +10 分，坚持打卡！</p>
-          <div style={{fontSize:13,color:'var(--fg)',marginBottom:12}}>
-            今日积分：<strong style={{color:'var(--brand)'}}>{pointsLoading ? '…' : (pts?.daily ?? 0)}</strong>
+          <span>{qualification?.inPool ? '已入池' : `${gateDone}/${GATE_STEPS.length}`}</span>
+        </header>
+
+        {qualificationError && (
+          <div className="figma-dashboard-error">
+            <p>{qualificationError}</p>
+            <button className="btn btn-outline" onClick={loadDashboard}>重试</button>
           </div>
-          <button className="btn btn-primary" onClick={doCheckin} disabled={checkedIn || checkinBusy}>
-            {checkinBusy ? '签到中…' : checkedIn ? '✓ 已签到' : '签到 +10'}
-          </button>
-          {msg && <div className={msgType === 'error' ? 'error-msg' : 'success-msg'}>{msg}</div>}
-        </div>
-      </div>
+        )}
 
-      {qualificationLoading && (
-        <div className="card" style={{marginBottom:24,color:'var(--muted)',fontSize:14}}>
-          正在加载入池状态…
-        </div>
-      )}
-
-      {!qualificationLoading && qualificationError && (
-        <div className="card" style={{marginBottom:24}}>
-          <h2 style={{fontFamily:'var(--font-serif)',fontSize:18,marginBottom:8}}>入池状态加载失败</h2>
-          <p style={{fontSize:14,color:'#B42318',marginBottom:14}}>{qualificationError}</p>
-          <button className="btn btn-outline" onClick={loadDashboard}>重试</button>
-        </div>
-      )}
-
-      {!qualificationLoading && qualification && (
-        <div className="card" style={{marginBottom:24}}>
-          <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start',marginBottom:14}}>
-            <div>
-              <h2 style={{fontFamily:'var(--font-serif)',fontSize:18,marginBottom:6}}>入池任务中心</h2>
-              <p style={{fontSize:13,color:'var(--muted)',margin:0}}>
-                {qualification.inPool ? '你已满足匹配池资格，可以开始匿名匹配。' : '按顺序完成这些任务，系统会自动更新入池状态。'}
-              </p>
-            </div>
-            <span className={`badge ${qualification.inPool ? 'badge-green' : 'badge-yellow'}`}>
-              {qualification.inPool ? '已入池' : `${gateDone}/${GATE_STEPS.length} 已完成`}
-            </span>
-          </div>
-
-          <div style={{background:'var(--border)',borderRadius:999,height:8,overflow:'hidden',marginBottom:14}}>
-            <div style={{width:`${gatePct}%`,height:'100%',background:'var(--brand)',borderRadius:999,transition:'width 0.2s'}} />
-          </div>
-
-          {primaryNext && (
-            <div style={{border:'1px solid var(--border)',borderRadius:8,padding:14,marginBottom:14,background:'var(--bg)'}}>
-              <div style={{fontSize:12,color:'var(--muted)',marginBottom:4}}>下一步</div>
-              <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-                <div>
-                  <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{primaryNext.label}</div>
-                  <div style={{fontSize:13,color:'var(--muted)',lineHeight:1.6}}>{primaryNext.desc}</div>
-                </div>
-                <Link className="btn btn-primary" to={primaryNext.to} style={{textDecoration:'none',whiteSpace:'nowrap'}}>
-                  {primaryNext.action}
-                </Link>
-              </div>
-            </div>
-          )}
-
-          <div style={{display:'grid',gap:10}}>
+        {!qualificationError && (
+          <ol>
             {GATE_STEPS.map((step, index) => {
-              const done = !!qualification[step.key]
+              const done = !!qualification?.[step.key]
               return (
-                <Link key={step.key} to={step.to} style={{textDecoration:'none'}}>
-                  <div style={{
-                    display:'grid',
-                    gridTemplateColumns:'32px 1fr auto',
-                    gap:10,
-                    alignItems:'center',
-                    padding:'12px 0',
-                    borderTop:index === 0 ? 'none' : '1px solid var(--border)'
-                  }}>
-                    <div style={{
-                      width:26,height:26,borderRadius:'50%',
-                      display:'flex',alignItems:'center',justifyContent:'center',
-                      background:done ? '#F0FAF4' : 'var(--bg)',
-                      color:done ? '#1A7A3C' : 'var(--muted)',
-                      border:`1px solid ${done ? '#B8E0C8' : 'var(--border)'}`,
-                      fontSize:13,fontWeight:700
-                    }}>
-                      {done ? '✓' : index + 1}
-                    </div>
-                    <div>
-                      <div style={{fontSize:14,color:done ? 'var(--brand)' : 'var(--fg)',fontWeight:700}}>{step.label}</div>
-                      <div style={{fontSize:12,color:'var(--muted)',marginTop:2,lineHeight:1.5}}>{step.desc}</div>
-                    </div>
-                    <span className={`badge ${done ? 'badge-green' : 'badge-yellow'}`}>{done ? '已完成' : '待完成'}</span>
-                  </div>
-                </Link>
+                <li className={done ? 'is-complete' : ''} key={step.key}>
+                  <span className="figma-dashboard-task-marker">{done ? '✓' : index + 1}</span>
+                  <Link to={step.to}>
+                    <strong>{step.label}</strong>
+                    <small>{step.desc}</small>
+                  </Link>
+                  <span className="figma-dashboard-task-state">{done ? '已完成' : '待完成'}</span>
+                </li>
               )
             })}
-          </div>
-        </div>
-      )}
+          </ol>
+        )}
+      </section>
 
-      <h2 style={{fontFamily:'var(--font-serif)',fontSize:16,marginBottom:12}}>下一步做什么</h2>
-      <div className="grid-3">
-        {[
-          {to:'/profile', title:'完善资料', desc:'资料越完整，曝光越高', badge:'+50 分'},
-          {to:'/faith-test', title:'信仰基础测试', desc:'通过测试才能进入匹配池', badge:'必须'},
-          {to:'/courses', title:'婚姻装备课程', desc:'阅读、考试并获得课程完成奖励', badge:'+300 分'},
-        ].map(item => (
-          <Link key={item.to} to={item.to} style={{textDecoration:'none'}}>
-            <div className="card" style={{
-              cursor:'pointer', transition:'box-shadow 0.2s, transform 0.2s',
-              position: 'relative', overflow: 'hidden'
-            }}
-              onMouseEnter={e => {
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(201,123,107,0.12)'
-                e.currentTarget.style.transform = 'translateY(-2px)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.boxShadow = ''
-                e.currentTarget.style.transform = ''
-              }}>
-              <div style={{fontFamily:'var(--font-serif)',fontSize:15,marginBottom:6}}>{item.title}</div>
-              <div style={{fontSize:13,color:'var(--muted)',marginBottom:10}}>{item.desc}</div>
-              <span className="badge badge-rose">{item.badge}</span>
-            </div>
-          </Link>
-        ))}
-      </div>
-      </details>
+      <section className="figma-dashboard-utilities" aria-label="今日状态">
+        <div>
+          <span>累积积分</span>
+          <strong>{pointsLoading ? '...' : (pts?.earned ?? 0)}</strong>
+          <small>{pointsError ? pointsError : '100 分可兑换 1 天 VIP 体验'}</small>
+          {pointsError && <button className="figma-dashboard-text-button" onClick={loadDashboard}>重新读取</button>}
+        </div>
+        <div>
+          <span>今日签到</span>
+          <p>{checkedIn ? '今天已经为自己留下一次成长记录。' : '签到后获得 10 积分，继续保持自己的节奏。'}</p>
+          <button className="btn btn-primary" onClick={doCheckin} disabled={checkedIn || checkinBusy}>
+            {checkinBusy ? '签到中...' : checkedIn ? '今日已签到' : '签到 +10'}
+          </button>
+          {msg && <small className={msgType === 'error' ? 'is-error' : ''}>{msg}</small>}
+        </div>
+      </section>
     </div>
   )
 }

@@ -176,7 +176,7 @@ export default function AppLayout() {
     <div className="figma-app-shell">
       <aside className="figma-sidebar">
         <NavLink className="figma-brand" to="/" end>
-          <span className="figma-brand-mark">路</span>
+          <img className="figma-brand-mark" src="/meet-ruth-butterfly-mark.png" alt="" width="36" height="36" />
           <span className="figma-brand-name">遇见路得</span>
           <span className="figma-brand-tagline">在真实中相遇</span>
         </NavLink>

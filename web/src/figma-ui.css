@@ -252,14 +252,10 @@
 }
 .figma-app-shell .figma-brand { margin-bottom: 34px; }
 .figma-app-shell .figma-brand-mark {
+  display: block;
   width: 36px;
   height: 36px;
-  color: #f9edf0;
-  font-family: inherit;
-  line-height: 36px;
-  background: var(--figma-burgundy);
-  border-radius: 10px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
+  object-fit: contain;
 }
 .figma-app-shell .figma-brand-name,
 .figma-app-shell .figma-page-header h1,
@@ -270,9 +266,11 @@
   letter-spacing: -.025em;
 }
 .figma-app-shell .figma-primary-nav a,
-.figma-app-shell .figma-secondary-nav a { border-radius: 10px; transition: background-color .2s ease, color .2s ease, transform .16s ease; }
+.figma-app-shell .figma-secondary-nav a { border-radius: 10px; transition: background-color var(--motion-effect) var(--ease-standard), color var(--motion-effect) var(--ease-standard), box-shadow var(--motion-effect) var(--ease-standard), transform var(--motion-press) var(--ease-decelerate); }
 .figma-app-shell .figma-primary-nav a:hover,
-.figma-app-shell .figma-secondary-nav a:hover { color: var(--figma-burgundy); background: #eef1f3; transform: translateX(2px); }
+.figma-app-shell .figma-secondary-nav a:hover { color: var(--figma-burgundy); background: #eef1f3; transform: translateX(3px); }
+.figma-app-shell .figma-primary-nav a:active,
+.figma-app-shell .figma-secondary-nav a:active { transform: translateX(1px) scale(.985); }
 .figma-app-shell .figma-primary-nav a.active,
 .figma-app-shell .figma-secondary-nav a.active { box-shadow: inset 3px 0 0 var(--figma-burgundy); }
 
@@ -457,7 +455,9 @@
   align-items: center;
   min-height: 70px;
   border-top: 1px solid #e9edef;
+  transition: background-color var(--motion-effect) var(--ease-standard), padding-inline var(--motion-effect) var(--ease-standard);
 }
+.figma-app-shell .figma-dashboard-tasks li:hover { padding-inline: 8px; background: #fafbfc; }
 
 .figma-app-shell .figma-dashboard-task-marker {
   display: grid;
@@ -469,6 +469,7 @@
   font-weight: 700;
   border: 1px solid var(--figma-border);
   border-radius: 50%;
+  transition: color var(--motion-effect) var(--ease-standard), background-color var(--motion-effect) var(--ease-standard), border-color var(--motion-effect) var(--ease-standard), transform var(--motion-press) var(--ease-decelerate);
 }
 
 .figma-app-shell .figma-dashboard-tasks li.is-complete .figma-dashboard-task-marker {
@@ -476,6 +477,18 @@
   background: var(--figma-burgundy);
   border-color: var(--figma-burgundy);
 }
+
+.figma-app-shell .figma-dashboard-tasks li:hover .figma-dashboard-task-marker { transform: scale(1.08); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .figma-app-shell .figma-dashboard-tasks li { animation: task-row-enter 300ms var(--ease-decelerate) both; }
+  .figma-app-shell .figma-dashboard-tasks li:nth-child(2) { animation-delay: 40ms; }
+  .figma-app-shell .figma-dashboard-tasks li:nth-child(3) { animation-delay: 80ms; }
+  .figma-app-shell .figma-dashboard-tasks li:nth-child(4) { animation-delay: 120ms; }
+  .figma-app-shell .figma-dashboard-tasks li:nth-child(5) { animation-delay: 160ms; }
+}
+
+@keyframes task-row-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 .figma-app-shell .figma-dashboard-tasks li a {
   min-width: 0;
@@ -1953,4 +1966,94 @@
   .figma-app-shell .figma-candidate-card::before { background: linear-gradient(145deg, #24313b, #33232b 58%, #1d2933); }
   .figma-app-shell .figma-notice,
   .figma-app-shell .figma-inline-notice { color: var(--figma-text); background: #1d2933; border-color: var(--figma-border); }
+}
+
+/* Editorial product polish: a quiet workspace that shares the public brand's restraint. */
+.figma-app-shell {
+  --figma-burgundy: #963f58;
+  --figma-burgundy-dark: #712c40;
+  --figma-burgundy-pale: #f9eff2;
+  --figma-burgundy-soft: #f3e3e8;
+  --figma-gold: #b96c7a;
+  --figma-gold-text: #7a4050;
+  --figma-ivory: #f3f5f4;
+  --figma-paper: #f8f9f8;
+  --figma-white: #ffffff;
+  --figma-silver: #f1f3f3;
+  --figma-border: #dfe5e4;
+  --figma-ink: #182224;
+  --figma-text: #485457;
+  --figma-muted: #758083;
+  --figma-muted-text: #687477;
+}
+
+@media (min-width: 769px) {
+  .figma-app-shell { --figma-sidebar: 254px; background: var(--figma-paper); }
+  .figma-app-shell .figma-sidebar { padding: 34px 18px 22px; background: #f7f8f7; border-right-color: var(--figma-border); }
+  .figma-app-shell .figma-brand { margin: 0 10px 42px; }
+  .figma-app-shell .figma-brand-mark { width: 38px; height: 38px; color: #fff; background: var(--figma-burgundy); border: 0; border-radius: 0; box-shadow: none; }
+  .figma-app-shell .figma-brand-name,
+  .figma-app-shell .figma-page-header h1,
+  .figma-app-shell .figma-right-rail h2,
+  .figma-app-shell .figma-relationship-compass h2 { font-family: "Noto Serif SC", "Songti SC", serif; }
+  .figma-app-shell .figma-brand-tagline { margin-top: 3px; color: var(--figma-muted-text); letter-spacing: .08em; }
+  .figma-app-shell .figma-primary-nav { gap: 6px; }
+  .figma-app-shell .figma-primary-nav a { min-height: 48px; padding: 0 14px; color: #596568; border-radius: 8px; transition: color var(--motion-effect) var(--ease-standard), background-color var(--motion-effect) var(--ease-standard), transform var(--motion-press) var(--ease-decelerate); }
+  .figma-app-shell .figma-primary-nav a:hover { color: var(--figma-burgundy); background: var(--figma-burgundy-pale); transform: translateX(2px); }
+  .figma-app-shell .figma-primary-nav a.active { color: var(--figma-burgundy); background: var(--figma-burgundy-pale); box-shadow: inset 2px 0 0 var(--figma-burgundy); }
+  .figma-app-shell .figma-ai-shortcut { margin: 30px 8px 0; padding: 14px; color: #334043; background: #fff; border: 1px solid var(--figma-border); border-radius: 10px; box-shadow: none; }
+  .figma-app-shell .figma-ai-shortcut:hover { border-color: #c895a2; box-shadow: 0 12px 30px rgb(24 34 36 / 7%); }
+  .figma-app-shell .figma-ai-shortcut-icon { color: var(--figma-burgundy); background: var(--figma-burgundy-pale); border: 0; border-radius: 7px; }
+  .figma-app-shell .figma-account { margin: auto 8px 0; padding-top: 20px; border-top-color: var(--figma-border); }
+  .figma-app-shell .figma-avatar { color: var(--figma-burgundy); background: var(--figma-burgundy-pale); border-color: #d9b2bd; border-radius: 8px; }
+  .figma-app-shell .figma-main { background: var(--figma-paper); }
+  .figma-app-shell .figma-page-header { min-height: 112px; padding: 28px 42px 20px; background: rgb(248 249 248 / 94%); border-bottom-color: var(--figma-border); }
+  .figma-app-shell .figma-page-header h1 { margin-bottom: 5px; font-size: 30px; font-weight: 650; letter-spacing: -.055em; }
+  .figma-app-shell .figma-page-header p { color: var(--figma-muted-text); }
+  .figma-app-shell .figma-main-content { max-width: 1180px; padding: 34px 42px 62px; }
+  .figma-app-shell .figma-core-screen,
+  .figma-app-shell .figma-home-feed,
+  .figma-app-shell .figma-growth-feed { min-height: auto; padding: 0; background: transparent; }
+  .figma-app-shell .figma-core-screen > .card,
+  .figma-app-shell .figma-core-screen .com-post,
+  .figma-app-shell .figma-core-screen .com-composer,
+  .figma-app-shell .figma-core-screen .com-event-card,
+  .figma-app-shell .figma-feed-post,
+  .figma-app-shell .figma-relationship-compass { border-color: var(--figma-border); border-radius: 12px; box-shadow: 0 12px 30px rgb(24 34 36 / 4%); }
+  .figma-app-shell .figma-dashboard-focus { overflow: hidden; padding: 31px 34px; color: #f3f5f4; background: #192224; border: 0; border-radius: 14px; }
+  .figma-app-shell .figma-dashboard-focus h2,
+  .figma-app-shell .figma-dashboard-focus p { color: inherit; }
+  .figma-app-shell .figma-dashboard-focus p { color: #b7c0bf; }
+  .figma-app-shell .figma-dashboard-focus .btn-primary { color: #182224; background: #f0dde1; border-color: #f0dde1; box-shadow: none; }
+  .figma-app-shell .figma-dashboard-focus .btn-primary:hover { background: #fff; }
+  .figma-app-shell .figma-dashboard-readiness { color: #dfe5e4; background: rgb(255 255 255 / 7%); border-left-color: rgb(255 255 255 / 15%); }
+  .figma-app-shell .figma-dashboard-readiness p { color: #b7c0bf; }
+  .figma-app-shell .figma-dashboard-readiness-ring { background: radial-gradient(circle, #243033 59%, transparent 60%), conic-gradient(#efb5be var(--progress), #425052 0); }
+  .figma-app-shell .figma-dashboard-readiness-ring strong { color: #f1dce0; }
+  .figma-app-shell .figma-dashboard-tasks { padding: 6px 30px 16px; background: #fff; border: 1px solid var(--figma-border); border-radius: 12px; box-shadow: 0 12px 30px rgb(24 34 36 / 4%); }
+  .figma-app-shell .figma-dashboard-tasks header { padding: 24px 0 17px; }
+  .figma-app-shell .figma-dashboard-tasks li { padding-block: 15px; border-color: var(--figma-border); }
+  .figma-app-shell .figma-dashboard-tasks li:hover { padding-inline: 0; background: transparent; }
+  .figma-app-shell .figma-dashboard-task-marker { color: var(--figma-burgundy); background: var(--figma-burgundy-pale); border-color: #e7c8d0; border-radius: 7px; }
+  .figma-app-shell .figma-dashboard-tasks li.is-complete .figma-dashboard-task-marker { color: #376350; background: #e8f1eb; border-color: #b9d4c2; }
+  .figma-app-shell .figma-dashboard-utilities { background: #fff; border: 1px solid var(--figma-border); border-radius: 12px; box-shadow: 0 12px 30px rgb(24 34 36 / 4%); }
+  .figma-app-shell .figma-dashboard-utilities strong { color: var(--figma-burgundy); }
+}
+
+@media (prefers-reduced-motion: reduce) { .figma-app-shell .figma-primary-nav a { transform: none !important; } }
+
+/* The mark is an image asset, so it must not inherit the previous text-badge treatment. */
+.figma-app-shell img.figma-brand-mark {
+  display: block;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  color: initial;
+  font: initial;
+  line-height: normal;
+  text-align: initial;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
