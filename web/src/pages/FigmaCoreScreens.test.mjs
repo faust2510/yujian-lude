@@ -49,7 +49,6 @@ test('Figma core screens share mobile-safe content rules', () => {
   assert.match(css, /@media \(max-width:\s*767px\)[\s\S]*?\.figma-core-screen[^}]*overflow-x:\s*hidden/)
   assert.match(css, /\.figma-core-screen[^}]*padding:\s*28px 32px 48px/)
 })
-
 test('route headings use the accepted Figma product language', () => {
   for (const heading of ['此刻', '每日精选', '成长', '社区', '书信', '路得 AI', '会员与积分']) {
     assert.match(layout, new RegExp(`\\['${heading}',`))

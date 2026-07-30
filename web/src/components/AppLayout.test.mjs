@@ -26,7 +26,6 @@ test('application layout exposes the accepted Figma shell regions', () => {
   assert.match(layoutSource, /社区/)
   assert.match(layoutSource, /消息/)
 })
-
 test('Figma main column does not inherit the legacy main-content box model', () => {
   assert.doesNotMatch(layoutSource, /className="(?:[^"]*\s)?main-content(?:\s[^"]*)?"/)
   assert.match(layoutSource, /<main className="figma-main">/)

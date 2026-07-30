@@ -67,6 +67,10 @@
 .x-mobile-info-list p { margin: 8px 0; color: var(--x-muted); line-height: 1.5; }
 .x-mobile-ai-composer { position: fixed; right: 0; bottom: calc(var(--x-tabs-height) + env(safe-area-inset-bottom)); left: 0; z-index: 9; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 8px 12px; background: var(--x-bg); border-top: 1px solid var(--x-line); }
 .x-mobile-ai-composer textarea { resize: none; }
+.x-mobile-ai-chat { background: var(--x-bg); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.x-mobile-ai-chat-head { align-items: center; border-bottom: 1px solid var(--x-line); display: flex; justify-content: space-between; padding: 13px 16px; }.x-mobile-ai-chat-head span { align-items: center; color: var(--x-text); display: flex; font-weight: 700; gap: 8px; }.x-mobile-ai-chat-head small { color: var(--x-muted); font-size: 12px; }
+.x-mobile-ai-chat .x-mobile-ai-stream { padding: 20px 16px; }.x-mobile-ai-welcome { margin: 20px auto; max-width: 420px; text-align: center; }.x-mobile-ai-welcome > div { align-items: center; background: #6C302F; border-radius: 12px; color: #F8E7C6; display: inline-flex; font: 700 23px Georgia, serif; height: 48px; justify-content: center; width: 48px; }.x-mobile-ai-welcome h2 { font-size: 21px; margin: 16px 0 6px; }.x-mobile-ai-welcome p { color: var(--x-muted); line-height: 1.6; margin: 0 0 16px; }.x-mobile-ai-welcome button { align-items: center; background: #fff; border: 1px solid var(--x-line); border-radius: 8px; color: var(--x-text); display: flex; font: inherit; font-size: 13px; gap: 8px; justify-content: space-between; margin-top: 8px; padding: 11px; text-align: left; width: 100%; }
+.x-mobile-ai-message { align-items: flex-start; display: flex; gap: 10px; line-height: 1.68; margin: 12px 0; }.x-mobile-ai-message > div { flex: 1; min-width: 0; }.x-mobile-ai-message > div > small { color: var(--x-muted); font-size: 12px; font-weight: 650; }.x-mobile-ai-message p { margin: 5px 0 0; white-space: pre-wrap; }.x-mobile-ai-message.is-user { flex-direction: row-reverse; justify-content: flex-start; }.x-mobile-ai-message.is-user p { background: #EAF1F7; border-radius: 11px 3px 11px 11px; padding: 10px 12px; }.x-mobile-ai-message.is-user > strong { align-items: center; background: #EADBC8; border-radius: 8px; color: #75413B; display: inline-flex; font-size: 12px; height: 30px; justify-content: center; width: 30px; }.x-mobile-ai-ruth { align-items: center; background: #6C302F; border-radius: 8px; color: #F8E7C6; display: inline-flex; flex: 0 0 auto; font: 700 15px Georgia, serif; height: 30px; justify-content: center; width: 30px; }.x-mobile-ai-history,.x-mobile-ai-boundary { border-top: 1px solid var(--x-line); margin-top: 22px; padding-top: 14px; }.x-mobile-ai-history h2,.x-mobile-ai-boundary h2 { font-size: 15px; margin: 0 0 8px; }.x-mobile-ai-history button { align-items: center; background: transparent; border: 0; color: var(--x-text); display: flex; font: inherit; font-size: 13px; gap: 8px; padding: 10px 0; text-align: left; width: 100%; }.x-mobile-ai-boundary p { color: var(--x-muted); font-size: 13px; line-height: 1.6; margin: 7px 0; }
 .x-mobile-prompt-row { grid-column: 1 / -1; display: flex; gap: 6px; overflow-x: auto; }
 .x-mobile-prompt-row button { flex: 0 0 auto; min-height: 36px; padding: 0 12px; color: var(--x-blue); background: var(--x-bg); border: 1px solid #CFD9DE; border-radius: 999px; }
 .x-mobile-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
@@ -122,3 +126,88 @@
 .x-mobile-admin-input { width: 100%; margin-top: 8px; }
 .x-mobile-admin-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--x-line); }
 .x-mobile-admin-filters > :first-child,.x-mobile-admin-filters > button { grid-column: 1 / -1; }
+
+/* Brand-aligned mobile theme */
+@media (max-width: 767px) {
+  :root {
+    --x-bg: #fbfcfc;
+    --x-text: #18212b;
+    --x-muted: #66727e;
+    --x-line: #e2e7ea;
+    --x-blue: #9f3f58;
+  }
+  .x-mobile-shell { background: #f5f7f8; }
+  .x-mobile-topbar,
+  .x-mobile-bottom-nav {
+    background: rgb(251 252 252 / 94%);
+    border-color: rgb(217 224 228 / 86%);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+  }
+  .x-mobile-brand { font-size: 20px; letter-spacing: -.04em; }
+  .x-mobile-avatar,
+  .x-mobile-large-avatar { color: var(--x-blue); background: #f4e7eb; border-radius: 12px; }
+  .x-mobile-page-tabs button[aria-selected="true"]::after { right: 24%; left: 24%; height: 3px; }
+  .x-mobile-button-primary,
+  .x-mobile-submit-button,
+  .x-mobile-fab {
+    background: var(--x-blue);
+    border-color: var(--x-blue);
+    box-shadow: 0 10px 24px rgb(159 63 88 / 20%);
+  }
+  .x-mobile-button-primary,
+  .x-mobile-button-secondary,
+  .x-mobile-submit-button { border-radius: 10px; }
+  .x-mobile-form-row :is(input,textarea,select),
+  .x-mobile-composer-sheet :is(input,textarea),
+  .x-mobile-inline-form :is(input,textarea,select),
+  .x-mobile-filter-row select,
+  .x-mobile-admin-actions select,
+  .x-mobile-admin-input,
+  .x-mobile-admin-filters :is(input,select) {
+    background: #f7f9fa;
+    border-color: #d3dbe0;
+    border-radius: 10px;
+  }
+  .x-mobile-form-row :is(input,textarea,select):focus { box-shadow: 0 0 0 3px rgb(159 63 88 / 14%); }
+  .x-mobile-message > div { background: #e8edef; }
+  .x-mobile-message.is-mine > div { background: var(--x-blue); }
+  .x-mobile-message > div,
+  .x-mobile-message.is-mine > div { border-radius: 14px; }
+  .x-mobile-ai-welcome > div,
+  .x-mobile-ai-ruth { color: #f9edf0; background: #9f3f58; font-family: inherit; }
+  .x-mobile-ai-message.is-user p { background: #f1e5e9; }
+  .x-mobile-post-media { border-radius: 12px; }
+  .x-mobile-button-primary:active,
+  .x-mobile-button-secondary:active,
+  .x-mobile-submit-button:active,
+  .x-mobile-icon-button:active { transform: scale(.98); }
+  :where(.x-mobile-shell a,.x-mobile-shell button,.x-mobile-shell input,.x-mobile-shell select,.x-mobile-shell textarea):focus-visible {
+    outline: 3px solid rgb(159 63 88 / 24%);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-color-scheme: dark) and (max-width: 767px) {
+  :root {
+    --x-bg: #17212b;
+    --x-text: #eef2f4;
+    --x-muted: #a3afb8;
+    --x-line: #2d3a45;
+    --x-blue: #c36a82;
+  }
+  .x-mobile-shell { background: #111a22; }
+  .x-mobile-topbar,
+  .x-mobile-bottom-nav { background: rgb(23 33 43 / 94%); }
+  .x-mobile-avatar,
+  .x-mobile-large-avatar { background: #33232b; }
+  .x-mobile-form-row :is(input,textarea,select),
+  .x-mobile-composer-sheet :is(input,textarea),
+  .x-mobile-inline-form :is(input,textarea,select),
+  .x-mobile-filter-row select,
+  .x-mobile-admin-actions select,
+  .x-mobile-admin-input,
+  .x-mobile-admin-filters :is(input,select) { color: var(--x-text); background: #111a22; border-color: #3b4955; }
+  .x-mobile-message > div { background: #27343f; }
+  .x-mobile-ai-message.is-user p { background: #33232b; }
+}

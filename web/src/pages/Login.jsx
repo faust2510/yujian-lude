@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { auth } from '../api/client'
+import authHero from '../assets/brand/meet-ruth-auth.webp'
 
 export default function Login() {
   const { login } = useAuth()
@@ -44,48 +45,58 @@ export default function Login() {
 
   return (
     <div className="auth-page">
-      <div className="auth-card" style={{ position: 'relative', overflow: 'hidden' }}>
-        <div style={{
-          position: 'absolute', top: -60, right: -60, width: 160, height: 160,
-          borderRadius: '50%', background: 'radial-gradient(circle, rgba(201,123,107,0.08) 0%, transparent 70%)',
-          pointerEvents: 'none'
-        }} />
-        <h1 style={{ position: 'relative', zIndex: 1 }}>遇见路得</h1>
-        <p style={{ position: 'relative', zIndex: 1 }}>登录你的账号继续</p>
+      <section className="auth-shell" aria-label="登录遇见路得">
+        <div className="auth-visual">
+          <img src={authHero} alt="两位成年人傍晚在花园中认真交谈" width="1200" height="1600" />
+          <div className="auth-visual-copy">
+            <span>遇见路得</span>
+            <h2>先真实地成为自己，<br />再认真地遇见彼此。</h2>
+            <p>资料审核、匿名匹配、双方确认后开放书信。</p>
+          </div>
+        </div>
+        <div className="auth-card auth-card-elevated">
+        <div className="auth-brand-row" aria-label="遇见路得">
+          <span className="auth-brand-mark" aria-hidden="true">路</span>
+          <span><strong>遇见路得</strong><small>在真实中相遇</small></span>
+        </div>
+        <h1>欢迎回来</h1>
+        <p>登录后继续今天的关系预备。</p>
         <form onSubmit={submit}>
           <div className="field">
-            <label>邮箱</label>
-            <input type="email" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} required />
+            <label htmlFor="login-email">邮箱</label>
+            <input id="login-email" type="email" autoComplete="email" placeholder="name@example.com" value={form.email} onChange={e => setForm(p => ({...p, email: e.target.value}))} required />
           </div>
           <div className="field">
-            <label>密码</label>
-            <input type="password" value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} required />
+            <label htmlFor="login-password">密码</label>
+            <input id="login-password" type="password" autoComplete="current-password" placeholder="输入密码" value={form.password} onChange={e => setForm(p => ({...p, password: e.target.value}))} required />
           </div>
           {error && <div className="error-msg">{error}</div>}
-          <button className="btn btn-primary btn-block" style={{marginTop:20}} disabled={loading}>
+          <button className="btn btn-primary btn-block auth-submit" disabled={loading}>
             {loading ? '登录中…' : '登录'}
           </button>
         </form>
-        <p style={{textAlign:'center',marginTop:16,fontSize:13,color:'var(--muted)'}}>
-          还没有账号？<Link to="/register" style={{color:'var(--brand)'}}>立即注册</Link>
+        <p className="auth-register-link">
+          还没有账号？<Link to="/register">立即注册</Link>
         </p>
-        <p style={{textAlign:'center',marginTop:8,fontSize:13}}>
-          <button type="button" className="btn btn-outline" style={{fontSize:12,padding:'4px 12px'}} onClick={()=>setForgotOpen(v=>!v)}>
+        <p className="auth-forgot-link">
+          <button type="button" className="auth-text-button" onClick={()=>setForgotOpen(v=>!v)}>
             忘记密码
           </button>
         </p>
         {forgotOpen && (
-          <form onSubmit={forgot} style={{marginTop:14,borderTop:'1px solid var(--border)',paddingTop:14}}>
+          <form className="auth-reset-form" onSubmit={forgot}>
             <div className="field">
-              <label>注册邮箱</label>
-              <input type="email" value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)} required />
+              <label htmlFor="forgot-email">注册邮箱</label>
+              <input id="forgot-email" type="email" autoComplete="email" value={forgotEmail} onChange={e=>setForgotEmail(e.target.value)} required />
             </div>
             <button className="btn btn-outline btn-block" disabled={forgotLoading}>{forgotLoading ? '发送中…' : '发送重置链接'}</button>
             {forgotMsg && <div className={forgotMsg.includes('失败') ? 'error-msg' : 'success-msg'}>{forgotMsg}</div>}
             {resetLink && <div className="success-msg"><Link to={resetLink}>调试重置链接</Link></div>}
           </form>
         )}
-      </div>
+        <div className="auth-trust-note">敏感信息不会公开展示。匹配与沟通均遵循双方确认。</div>
+        </div>
+      </section>
     </div>
   )
 }

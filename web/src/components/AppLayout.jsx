@@ -33,7 +33,6 @@ const pageMeta = {
   '/course-authoring': ['课程工作台', '编写、审阅并发布成长课程。'],
   '/admin': ['管理台', '维护平台秩序与用户安全。'],
 }
-
 const desktopRailByRoute = {
   '/': {
     title: '今日值得认识',

@@ -46,7 +46,6 @@ afterEach(() => {
     logout: vi.fn(),
   }
 })
-
 describe('AppLayout interactions', () => {
   it('renders the server profile completion and route-aware desktop rail', async () => {
     profileApi.get.mockResolvedValue({ data: { profile: { nickname: '路得', completion: 72 } } })

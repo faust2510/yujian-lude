@@ -224,13 +224,398 @@
   }
 }
 
+/* Unified premium product surface */
+.figma-app-shell {
+  --figma-burgundy: #9f3f58;
+  --figma-burgundy-dark: #7f3046;
+  --figma-burgundy-pale: #f4e7eb;
+  --figma-burgundy-soft: #ead3da;
+  --figma-gold: #a6b0b8;
+  --figma-gold-text: #67737e;
+  --figma-ivory: #edf0f2;
+  --figma-paper: #f5f7f8;
+  --figma-white: #fbfcfc;
+  --figma-silver: #eef2f4;
+  --figma-border: #d9e0e4;
+  --figma-ink: #18212b;
+  --figma-text: #475460;
+  --figma-muted: #75818b;
+  --figma-muted-text: #66727e;
+  min-height: 100dvh;
+  background: var(--figma-paper);
+}
+
+.figma-app-shell .figma-sidebar {
+  background: rgb(245 247 248 / 96%);
+  box-shadow: 16px 0 50px rgb(24 33 43 / 3%);
+  backdrop-filter: blur(18px);
+}
+.figma-app-shell .figma-brand { margin-bottom: 34px; }
+.figma-app-shell .figma-brand-mark {
+  width: 36px;
+  height: 36px;
+  color: #f9edf0;
+  font-family: inherit;
+  line-height: 36px;
+  background: var(--figma-burgundy);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
+}
+.figma-app-shell .figma-brand-name,
+.figma-app-shell .figma-page-header h1,
+.figma-app-shell .figma-right-rail h2,
+.figma-app-shell .figma-relationship-compass h2 {
+  font-family: inherit;
+  font-weight: 720;
+  letter-spacing: -.025em;
+}
+.figma-app-shell .figma-primary-nav a,
+.figma-app-shell .figma-secondary-nav a { border-radius: 10px; transition: background-color .2s ease, color .2s ease, transform .16s ease; }
+.figma-app-shell .figma-primary-nav a:hover,
+.figma-app-shell .figma-secondary-nav a:hover { color: var(--figma-burgundy); background: #eef1f3; transform: translateX(2px); }
+.figma-app-shell .figma-primary-nav a.active,
+.figma-app-shell .figma-secondary-nav a.active { box-shadow: inset 3px 0 0 var(--figma-burgundy); }
+
+.figma-app-shell .figma-ai-shortcut {
+  background: linear-gradient(135deg, #f5e8ec, #eef2f4);
+  border-color: #e1cdd3;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 66%);
+}
+.figma-app-shell .figma-account-profile,
+.figma-app-shell .figma-icon-button,
+.figma-app-shell .btn { transition: background-color .2s ease, color .2s ease, transform .16s ease, box-shadow .2s ease; }
+.figma-app-shell .figma-icon-button:active,
+.figma-app-shell .btn:active { transform: translateY(1px) scale(.98); }
+
+.figma-app-shell .figma-page-header { background: rgb(251 252 252 / 92%); backdrop-filter: blur(18px); }
+.figma-app-shell .figma-main,
+.figma-app-shell .figma-main-content,
+.figma-app-shell .figma-core-screen { background: #fbfcfc; }
+.figma-app-shell .figma-core-screen { padding: 30px 34px 52px; }
+.figma-app-shell .figma-right-rail { background: #f2f5f6; }
+.figma-app-shell .figma-rail-card,
+.figma-app-shell .figma-card,
+.figma-app-shell .figma-core-screen > .card,
+.figma-app-shell .figma-core-screen .com-post,
+.figma-app-shell .figma-core-screen .com-composer,
+.figma-app-shell .figma-core-screen .com-event-card,
+.figma-app-shell .figma-feed-post,
+.figma-app-shell .figma-relationship-compass {
+  border-color: var(--figma-border);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(24 33 43 / 4%), 0 14px 34px rgb(24 33 43 / 5%);
+}
+
+/* Product home: one clear work area, not a feed of unrelated cards. */
+.figma-app-shell .figma-desktop-home-section {
+  display: grid;
+  max-width: 940px;
+  gap: 18px;
+  margin: 0 auto;
+}
+
+.figma-app-shell .figma-dashboard-focus {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(250px, .8fr);
+  min-height: 278px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--figma-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgb(24 33 43 / 5%);
+}
+
+.figma-app-shell .figma-dashboard-focus-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 42px 46px;
+}
+
+.figma-app-shell .figma-dashboard-focus-copy > span,
+.figma-app-shell .figma-dashboard-utilities span {
+  color: var(--figma-muted-text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.figma-app-shell .figma-dashboard-focus h2,
+.figma-app-shell .figma-dashboard-tasks h2 {
+  margin: 12px 0 11px;
+  color: var(--figma-ink);
+  font-size: 27px;
+  font-weight: 720;
+  letter-spacing: -.035em;
+  line-height: 1.3;
+}
+
+.figma-app-shell .figma-dashboard-focus p {
+  max-width: 29rem;
+  margin: 0 0 25px;
+  color: var(--figma-muted-text);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.figma-app-shell .figma-dashboard-focus .btn {
+  min-height: 42px;
+  padding-inline: 20px;
+  text-decoration: none;
+}
+
+.figma-app-shell .figma-dashboard-readiness {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 17px;
+  padding: 32px 36px;
+  background: #f7f9fa;
+  border-left: 1px solid var(--figma-border);
+}
+
+.figma-app-shell .figma-dashboard-readiness-ring {
+  display: grid;
+  width: 148px;
+  height: 148px;
+  place-content: center;
+  text-align: center;
+  background: radial-gradient(circle, #f7f9fa 59%, transparent 60%), conic-gradient(var(--figma-burgundy) var(--progress), #e2e7e9 0);
+  border-radius: 50%;
+}
+
+.figma-app-shell .figma-dashboard-readiness-ring strong {
+  color: var(--figma-ink);
+  font-size: 31px;
+  font-weight: 650;
+  letter-spacing: -.05em;
+  line-height: 1;
+}
+
+.figma-app-shell .figma-dashboard-readiness-ring span {
+  margin-top: 7px;
+  color: var(--figma-muted-text);
+  font-size: 12px;
+}
+
+.figma-app-shell .figma-dashboard-readiness p {
+  margin: 0;
+  color: var(--figma-muted-text);
+  font-size: 12px;
+  text-align: center;
+}
+
+.figma-app-shell .figma-dashboard-tasks {
+  padding: 28px 34px 10px;
+  background: #fff;
+  border: 1px solid var(--figma-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgb(24 33 43 / 4%);
+}
+
+.figma-app-shell .figma-dashboard-tasks header {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 15px;
+}
+
+.figma-app-shell .figma-dashboard-tasks header h2 {
+  margin: 0 0 5px;
+  font-size: 22px;
+}
+
+.figma-app-shell .figma-dashboard-tasks header p {
+  margin: 0;
+  color: var(--figma-muted-text);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.figma-app-shell .figma-dashboard-tasks header > span {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  color: var(--figma-burgundy);
+  font-size: 12px;
+  font-weight: 650;
+  background: var(--figma-burgundy-pale);
+  border-radius: 99px;
+}
+
+.figma-app-shell .figma-dashboard-tasks ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.figma-app-shell .figma-dashboard-tasks li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  min-height: 70px;
+  border-top: 1px solid #e9edef;
+}
+
+.figma-app-shell .figma-dashboard-task-marker {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  color: var(--figma-muted-text);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--figma-border);
+  border-radius: 50%;
+}
+
+.figma-app-shell .figma-dashboard-tasks li.is-complete .figma-dashboard-task-marker {
+  color: #fff;
+  background: var(--figma-burgundy);
+  border-color: var(--figma-burgundy);
+}
+
+.figma-app-shell .figma-dashboard-tasks li a {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.figma-app-shell .figma-dashboard-tasks li a:hover strong { color: var(--figma-burgundy); }
+.figma-app-shell .figma-dashboard-tasks li strong,
+.figma-app-shell .figma-dashboard-tasks li small { display: block; }
+.figma-app-shell .figma-dashboard-tasks li strong { font-size: 14px; }
+.figma-app-shell .figma-dashboard-tasks li small { margin-top: 3px; color: var(--figma-muted-text); font-size: 11px; line-height: 1.45; }
+.figma-app-shell .figma-dashboard-task-state { color: var(--figma-muted-text); font-size: 12px; }
+.figma-app-shell .figma-dashboard-tasks li.is-complete .figma-dashboard-task-state { color: var(--figma-burgundy); }
+
+.figma-app-shell .figma-dashboard-error {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px 0 8px;
+  color: #9a313d;
+  font-size: 13px;
+}
+.figma-app-shell .figma-dashboard-error p { margin: 0; }
+
+.figma-app-shell .figma-dashboard-utilities {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  background: #fff;
+  border: 1px solid var(--figma-border);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgb(24 33 43 / 3%);
+}
+
+.figma-app-shell .figma-dashboard-utilities > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 142px;
+  padding: 25px 34px;
+}
+.figma-app-shell .figma-dashboard-utilities > div + div { border-left: 1px solid var(--figma-border); }
+.figma-app-shell .figma-dashboard-utilities strong { margin: 6px 0 2px; color: var(--figma-burgundy); font-size: 30px; letter-spacing: -.05em; }
+.figma-app-shell .figma-dashboard-utilities p,
+.figma-app-shell .figma-dashboard-utilities small { margin: 7px 0 13px; color: var(--figma-muted-text); font-size: 12px; line-height: 1.6; }
+.figma-app-shell .figma-dashboard-utilities .btn { min-height: 35px; padding-inline: 14px; font-size: 12px; }
+.figma-app-shell .figma-dashboard-utilities small.is-error { color: #9a313d; }
+.figma-app-shell .figma-dashboard-text-button { padding: 0; color: var(--figma-burgundy); font: inherit; font-size: 12px; background: none; border: 0; cursor: pointer; }
+
+@media (max-width: 767px) {
+  .figma-app-shell .figma-desktop-home-section { display: none; }
+}
+
+@media (max-width: 920px) and (min-width: 769px) {
+  .figma-app-shell .figma-dashboard-focus { grid-template-columns: 1fr; }
+  .figma-app-shell .figma-dashboard-readiness { flex-direction: row; border-top: 1px solid var(--figma-border); border-left: 0; }
+  .figma-app-shell .figma-dashboard-readiness p { max-width: 14rem; text-align: left; }
+}
+.figma-app-shell .figma-relationship-compass {
+  background:
+    radial-gradient(circle at 0 0, rgb(159 63 88 / 10%), transparent 32%),
+    linear-gradient(112deg, #f3f6f7, #fbfcfc 62%);
+  border-left: 1px solid var(--figma-border);
+}
+.figma-app-shell .figma-compass-score {
+  background:
+    radial-gradient(circle at center, #f7f9fa 55%, transparent 56%),
+    conic-gradient(var(--figma-burgundy) 0 28%, #9aa6af 28% 78%, #dfe4e7 78% 100%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 72%);
+}
+.figma-app-shell .figma-home-feed,
+.figma-app-shell .figma-growth-feed { background: #fbfcfc; }
+.figma-app-shell .figma-feed-post:hover,
+.figma-app-shell .figma-candidate-card:hover { transform: translateY(-2px); box-shadow: 0 18px 44px rgb(24 33 43 / 9%); }
+.figma-app-shell .figma-feed-post,
+.figma-app-shell .figma-candidate-card { transition: transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s ease; }
+.figma-app-shell .figma-candidate-card::before {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 35px, rgb(159 63 88 / 26%) 36px 37px, transparent 38px),
+    linear-gradient(145deg, #e3e8eb, #f5e9ec 58%, #d8dfe4);
+}
+.figma-app-shell .figma-candidate-avatar { border-color: #b2bdc5; border-radius: 13px; }
+.figma-app-shell .figma-notice,
+.figma-app-shell .figma-inline-notice { color: #4f5c67; background: #eef2f4; border-color: #d8e0e4; }
+
+.figma-app-shell :where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid rgb(159 63 88 / 24%);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .figma-app-shell .figma-sidebar,
+  .figma-app-shell .figma-page-header { backdrop-filter: none; }
+}
+
+@media (prefers-color-scheme: dark) and (min-width: 769px) {
+  .figma-app-shell {
+    --figma-burgundy: #c36a82;
+    --figma-burgundy-dark: #d27c93;
+    --figma-burgundy-pale: #33232b;
+    --figma-burgundy-soft: #492b35;
+    --figma-gold: #71808c;
+    --figma-gold-text: #a8b4bd;
+    --figma-ivory: #141e27;
+    --figma-paper: #111a22;
+    --figma-white: #17212b;
+    --figma-silver: #1d2933;
+    --figma-border: #2d3a45;
+    --figma-ink: #eef2f4;
+    --figma-text: #c6cfd6;
+    --figma-muted: #9aa7b1;
+    --figma-muted-text: #a7b2ba;
+  }
+  .figma-app-shell .figma-sidebar,
+  .figma-app-shell .figma-page-header { background: rgb(17 26 34 / 94%); }
+  .figma-app-shell .figma-main,
+  .figma-app-shell .figma-main-content,
+  .figma-app-shell .figma-core-screen,
+  .figma-app-shell .figma-home-feed,
+  .figma-app-shell .figma-growth-feed { background: #17212b; }
+  .figma-app-shell .figma-right-rail { background: #111a22; }
+  .figma-app-shell .figma-primary-nav a:hover,
+  .figma-app-shell .figma-secondary-nav a:hover { background: #1d2933; }
+  .figma-app-shell .figma-ai-shortcut { background: linear-gradient(135deg, #33232b, #1d2933); }
+  .figma-app-shell .figma-relationship-compass { background: linear-gradient(112deg, #1d2933, #17212b 62%); }
+  .figma-app-shell .figma-compass-score { background: radial-gradient(circle at center, #17212b 55%, transparent 56%), conic-gradient(var(--figma-burgundy) 0 28%, #71808c 28% 78%, #34424d 78% 100%); }
+  .figma-app-shell .figma-dashboard-focus,
+  .figma-app-shell .figma-dashboard-tasks,
+  .figma-app-shell .figma-dashboard-utilities { background: #17212b; }
+  .figma-app-shell .figma-dashboard-readiness { background: #1d2933; }
+  .figma-app-shell .figma-dashboard-readiness-ring { background: radial-gradient(circle, #1d2933 59%, transparent 60%), conic-gradient(var(--figma-burgundy) var(--progress), #34424d 0); }
+  .figma-app-shell .figma-dashboard-tasks li { border-color: #2d3a45; }
+}
+
 @media (min-width: 1440px) {
   .figma-app-shell {
-    grid-template-columns: var(--figma-sidebar) minmax(0, var(--figma-main)) var(--figma-rail);
-  }
-
-  .figma-app-shell .figma-right-rail {
-    display: block;
+    grid-template-columns: var(--figma-sidebar) minmax(0, 1fr);
   }
 }
 
@@ -1149,6 +1534,10 @@
   background: var(--figma-ivory);
 }
 
+.figma-app-shell .figma-main-content.is-ai-chat {
+  padding: 0;
+}
+
 .figma-app-shell .figma-ai-workbench .ai-header-row {
   color: var(--figma-white);
   background: linear-gradient(135deg, var(--figma-burgundy-dark), var(--figma-burgundy));
@@ -1489,4 +1878,79 @@
   .figma-app-shell .figma-community-feed.com-layout {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Final cascade placement for the unified product surface. */
+.figma-app-shell .figma-sidebar {
+  background: rgb(245 247 248 / 96%);
+  box-shadow: 16px 0 50px rgb(24 33 43 / 3%);
+  backdrop-filter: blur(18px);
+}
+.figma-app-shell .figma-brand { margin-bottom: 34px; }
+.figma-app-shell .figma-brand-mark {
+  width: 36px;
+  height: 36px;
+  color: #f9edf0;
+  font-family: inherit;
+  line-height: 36px;
+  background: var(--figma-burgundy);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 24%);
+}
+.figma-app-shell .figma-brand-name,
+.figma-app-shell .figma-page-header h1,
+.figma-app-shell .figma-right-rail h2,
+.figma-app-shell .figma-relationship-compass h2 {
+  font-family: inherit;
+  font-weight: 720;
+  letter-spacing: -.025em;
+}
+.figma-app-shell .figma-primary-nav a:hover,
+.figma-app-shell .figma-secondary-nav a:hover {
+  color: var(--figma-burgundy);
+  background: #eef1f3;
+  transform: translateX(2px);
+}
+.figma-app-shell .figma-primary-nav a.active,
+.figma-app-shell .figma-secondary-nav a.active { box-shadow: inset 3px 0 0 var(--figma-burgundy); }
+.figma-app-shell .figma-page-header { background: rgb(251 252 252 / 92%); backdrop-filter: blur(18px); }
+.figma-app-shell .figma-main,
+.figma-app-shell .figma-main-content,
+.figma-app-shell .figma-core-screen,
+.figma-app-shell .figma-home-feed,
+.figma-app-shell .figma-growth-feed { background: var(--figma-white); }
+.figma-app-shell .figma-right-rail { background: #f2f5f6; }
+.figma-app-shell .figma-rail-card,
+.figma-app-shell .figma-card,
+.figma-app-shell .figma-core-screen > .card,
+.figma-app-shell .figma-core-screen .com-post,
+.figma-app-shell .figma-core-screen .com-composer,
+.figma-app-shell .figma-core-screen .com-event-card,
+.figma-app-shell .figma-feed-post,
+.figma-app-shell .figma-relationship-compass {
+  border-color: var(--figma-border);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgb(24 33 43 / 4%), 0 14px 34px rgb(24 33 43 / 5%);
+}
+.figma-app-shell .figma-relationship-compass {
+  background: radial-gradient(circle at 0 0, rgb(159 63 88 / 10%), transparent 32%), linear-gradient(112deg, #f3f6f7, var(--figma-white) 62%);
+  border-left: 1px solid var(--figma-border);
+}
+.figma-app-shell .figma-candidate-card::before {
+  background: radial-gradient(circle at 50% 50%, transparent 0 35px, rgb(159 63 88 / 26%) 36px 37px, transparent 38px), linear-gradient(145deg, #e3e8eb, #f5e9ec 58%, #d8dfe4);
+}
+.figma-app-shell .figma-candidate-avatar { border-color: #b2bdc5; border-radius: 13px; }
+.figma-app-shell .figma-notice,
+.figma-app-shell .figma-inline-notice { color: #4f5c67; background: #eef2f4; border-color: #d8e0e4; }
+
+@media (prefers-color-scheme: dark) and (min-width: 769px) {
+  .figma-app-shell .figma-sidebar,
+  .figma-app-shell .figma-page-header { background: rgb(17 26 34 / 94%); }
+  .figma-app-shell .figma-right-rail { background: #111a22; }
+  .figma-app-shell .figma-primary-nav a:hover,
+  .figma-app-shell .figma-secondary-nav a:hover { background: #1d2933; }
+  .figma-app-shell .figma-relationship-compass { background: linear-gradient(112deg, #1d2933, #17212b 62%); }
+  .figma-app-shell .figma-candidate-card::before { background: linear-gradient(145deg, #24313b, #33232b 58%, #1d2933); }
+  .figma-app-shell .figma-notice,
+  .figma-app-shell .figma-inline-notice { color: var(--figma-text); background: #1d2933; border-color: var(--figma-border); }
 }
